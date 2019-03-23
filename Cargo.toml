@@ -1,0 +1,12 @@
+[package]
+name = "bfcompile"
+version = "0.1.0"
+authors = ["Mason Clayton <masongclayton@gmail.com>"]
+
+[dependencies]
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "llvm3-7" }
+llvm-sys = "70"
+
+[[bin]]
+name = "bfcompile"
+path = "main.rs"
