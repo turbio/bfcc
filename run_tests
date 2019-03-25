@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+tests=$(find ./tests -printf '%P\n')
+
+for c_file in ${tests}; do
+  if [[ $c_file != *.c ]]; then
+    continue
+  fi
+
+  name=$(echo -n $c_file | sed -s 's/.*\/\(.*\).c/\1/' | sed -s 's/_/ /g')
+
+  echo -n "...     $name"
+
+  bc_file="$(basename "$c_file" .c).bc"
+
+  clang -emit-llvm -c "./tests/$c_file" -o "./tests/$bc_file"
+  if [[ $? != 0 ]]; then
+    echo -e "\n========== \"$name\" clang compile failed =========="
+    exit 1;
+  fi
+
+  cargo run "./tests/$bc_file"
+  if [[ $? != 0 ]]; then
+    echo -e "\n========== \"$name\" bf compile failed =========="
+    exit 1;
+  fi
+
+  echo -ne '\r'
+  echo -e "      \e[32m✓\e[0m $name"
+done
+
