@@ -2,6 +2,7 @@
 
 // TEST:{ "func": "main", "output": "a" }
 int main() {
-  int a = 97;
-  putc(a + 32);
+  int a = 33;
+  a += 32;
+  putc(a);
 };

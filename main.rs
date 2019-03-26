@@ -1,22 +1,33 @@
-use std::path::Path;
 use std::env;
-use std::process::Command;
+use std::path::Path;
 
 extern crate inkwell;
 
+use inkwell::basic_block::BasicBlock;
 use inkwell::module::Module;
-use inkwell::values::{BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
-                      BasicValue};
+use inkwell::values::{
+    BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
+};
 
 #[derive(Debug)]
 enum Op {
-    Store(u8, usize), // b = a
+    Store(u8, usize),          // b = a
     Copy(usize, usize, usize), // a -> b, c
-    Move(usize, usize), // a -> b
-    Add(usize, usize), // b += a
-    Sub(usize, usize), // b -= a
-    Ret(usize), // FAKE
+    Move(usize, usize),        // a -> b
+    Add(usize, usize),         // b += a
+    Sub(usize, usize),         // b -= a
+    AddImm(u8, usize),         // b += a
+    SubImm(u8, usize),         // b += a
+
+    Ret(usize),  // FAKE :/
     Putc(usize), // TODO just for testing
+
+    Block(usize, Vec<Op>), // execute b if a is truthy
+}
+
+enum RValue {
+    Addr(Cell),
+    Imm(u8),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -42,8 +53,11 @@ fn pretty_print_op(op: &Op) -> String {
             Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
             Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
             Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
+            Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
+            Op::SubImm(src, dest) => format!("sub {} from %{}", src, dest),
             Op::Ret(addr) => format!("return %{} TODO", addr),
             Op::Putc(addr) => format!("putc %{}", addr),
+            Op::Block(addr, _) => format!("block if %{}", addr),
         }
     )
 }
@@ -90,7 +104,8 @@ impl BuildFunc {
     }
 
     fn discard_cell(&mut self, e: Cell) {
-        let index = self.local_memmap
+        let index = self
+            .local_memmap
             .iter()
             .position(|ee| ee.address == e.address)
             .unwrap();
@@ -99,11 +114,10 @@ impl BuildFunc {
     }
 
     fn ent_from_inst(&self, inst: InstructionValue) -> Option<&Cell> {
-        self.local_memmap.iter().filter(|e| e.from.is_some()).find(
-            |e| {
-                e.from.unwrap() == inst
-            },
-        )
+        self.local_memmap
+            .iter()
+            .filter(|e| e.from.is_some())
+            .find(|e| e.from.unwrap() == inst)
     }
 
     fn gen_inst_alloca(&mut self, inst: InstructionValue) {
@@ -137,9 +151,7 @@ impl BuildFunc {
             _ => unimplemented!("oh no"),
         };
 
-        let dest = {
-            self.ent_from_inst(dest).unwrap().address
-        };
+        let dest = { self.ent_from_inst(dest).unwrap().address };
 
         match inst.get_operand(0).unwrap().left().unwrap() {
             BasicValueEnum::IntValue(v) => {
@@ -172,13 +184,9 @@ impl BuildFunc {
     fn gen_inst_load(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 1);
 
-        let dest = {
-            self.new_cell(inst)
-        };
+        let dest = { self.new_cell(inst) };
 
-        let tmp_dest2 = {
-            self.new_cell(inst)
-        };
+        let tmp_dest2 = { self.new_cell(inst) };
 
         let (opc, opm) = {
             let src = inst.get_operand(0).unwrap().left().unwrap();
@@ -199,81 +207,104 @@ impl BuildFunc {
     fn gen_inst_add(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 2);
 
-        let (meml, memr) = {
-            let opl = inst.get_operand(0)
-                .unwrap()
-                .left()
-                .unwrap()
-                .as_instruction_value()
-                .unwrap();
-            let opl = self.ent_from_inst(opl).unwrap();
+        let (rv1, rv2) = {
+            let op1 = inst.get_operand(0).unwrap().left().unwrap();
+            let op1 = self.rvalue_from_bval(op1);
 
-            let opr = inst.get_operand(1)
-                .unwrap()
-                .left()
-                .unwrap()
-                .as_instruction_value()
-                .unwrap();
-            let opr = self.ent_from_inst(opr).unwrap();
+            let op2 = inst.get_operand(1).unwrap().left().unwrap();
+            let op2 = self.rvalue_from_bval(op2);
 
-            (opl.address, opr.address)
+            (op1, op2)
         };
 
         let dest = self.new_cell(inst);
 
-        let tmpr = self.new_tmp_cell();
+        match rv1 {
+            RValue::Imm(v) => {
+                self.ops.push(Op::Store(v, dest.address));
+            }
+            RValue::Addr(a) => {
+                let tmp_cop = self.new_tmp_cell();
+                self.ops
+                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.ops.push(Op::Move(tmp_cop.address, a.address));
+                self.discard_cell(tmp_cop);
+            }
+        }
 
-        let tmpc = self.new_tmp_cell();
+        match rv2 {
+            RValue::Imm(v) => {
+                self.ops.push(Op::AddImm(v, dest.address));
+            }
+            RValue::Addr(a) => {
+                let tmp_cop = self.new_tmp_cell();
+                self.ops
+                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.ops.push(Op::Move(tmp_cop.address, a.address));
+                self.ops.push(Op::Add(tmp_cop.address, dest.address));
+                self.discard_cell(tmp_cop);
+            }
+        }
+    }
 
-        self.ops.push(Op::Copy(meml, dest.address, tmpc.address));
-        self.ops.push(Op::Move(tmpc.address, meml));
-        self.ops.push(Op::Copy(memr, tmpr.address, tmpc.address));
-        self.ops.push(Op::Move(tmpc.address, memr));
-        self.ops.push(Op::Add(tmpr.address, dest.address));
-
-        self.discard_cell(tmpr);
-        self.discard_cell(tmpc);
+    fn rvalue_from_bval(&self, b: BasicValueEnum) -> RValue {
+        if b.as_instruction_value().is_some() {
+            RValue::Addr(
+                *self
+                    .ent_from_inst(b.as_instruction_value().unwrap())
+                    .unwrap(),
+            )
+        } else {
+            match b {
+                BasicValueEnum::IntValue(v) => {
+                    RValue::Imm(v.get_zero_extended_constant().unwrap() as u8)
+                }
+                _ => unimplemented!("only ints right now"),
+            }
+        }
     }
 
     fn gen_inst_sub(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 2);
 
-        let (meml, memr) = {
-            let opl = inst.get_operand(0)
-                .unwrap()
-                .left()
-                .unwrap()
-                .as_instruction_value()
-                .unwrap();
-            let opl = self.ent_from_inst(opl).unwrap();
+        let (rv1, rv2) = {
+            let op1 = inst.get_operand(0).unwrap().left().unwrap();
+            let op1 = self.rvalue_from_bval(op1);
 
-            println!("{:#?}", inst.get_operand(1).unwrap().left().unwrap());
+            let op2 = inst.get_operand(1).unwrap().left().unwrap();
+            let op2 = self.rvalue_from_bval(op2);
 
-            let opr = inst.get_operand(1)
-                .unwrap()
-                .left()
-                .unwrap()
-                .as_instruction_value()
-                .unwrap();
-            let opr = self.ent_from_inst(opr).unwrap();
-
-            (opl.address, opr.address)
+            (op1, op2)
         };
 
         let dest = self.new_cell(inst);
 
-        let tmpr = self.new_tmp_cell();
+        match rv1 {
+            RValue::Imm(v) => {
+                self.ops.push(Op::Store(v, dest.address));
+            }
+            RValue::Addr(a) => {
+                let tmp_cop = self.new_tmp_cell();
+                self.ops
+                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.ops.push(Op::Move(tmp_cop.address, a.address));
+                self.discard_cell(tmp_cop);
+            }
+        }
 
-        let tmpc = self.new_tmp_cell();
-
-        self.ops.push(Op::Copy(meml, dest.address, tmpc.address));
-        self.ops.push(Op::Move(tmpc.address, meml));
-        self.ops.push(Op::Copy(memr, tmpr.address, tmpc.address));
-        self.ops.push(Op::Move(tmpc.address, memr));
-        self.ops.push(Op::Sub(tmpr.address, dest.address));
-
-        self.discard_cell(tmpr);
-        self.discard_cell(tmpc);
+        match rv2 {
+            RValue::Imm(v) => {
+                self.ops.push(Op::SubImm(v, dest.address));
+            }
+            RValue::Addr(a) => {
+                let tmp_cop = self.new_tmp_cell();
+                self.ops
+                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.ops.push(Op::Move(tmp_cop.address, a.address));
+                self.ops.push(Op::Sub(tmp_cop.address, dest.address));
+                self.discard_cell(tmp_cop);
+            }
+        }
     }
 
     fn gen_inst_ret(&mut self, inst: InstructionValue) {
@@ -295,10 +326,7 @@ impl BuildFunc {
                     self.discard_cell(tmp);
                 } else {
                     let i = v.as_instruction_value().unwrap();
-                    let i = {
-                        self.ent_from_inst(i).unwrap().address
-                    };
-
+                    let i = { self.ent_from_inst(i).unwrap().address };
 
                     self.ops.push(Op::Ret(i));
                 }
@@ -353,6 +381,10 @@ impl BuildFunc {
             self.discard_cell(ptr);
         }
     }
+
+    fn gen_inst_mul(&mut self, inst: InstructionValue) {
+        unimplemented!("we can't multiply yet :(");
+    }
 }
 
 fn print_tape_move(from: usize, to: usize) -> String {
@@ -365,121 +397,87 @@ fn print_tape_move(from: usize, to: usize) -> String {
 
 fn print_op(op: &Op) -> String {
     match op {
-        Op::Store(v, dest) => {
-            let mut s = String::new();
+        Op::Store(v, dest) => format!(
+            "{}[-]{}{}",
+            print_tape_move(0, *dest),
+            "+".repeat(*v as usize),
+            print_tape_move(*dest, 0),
+        ),
 
-            s.push_str(&print_tape_move(0, *dest));
-            s.push_str("[-]");
-            s.push_str(&"+".repeat(*v as usize));
-            s.push_str(&print_tape_move(*dest, 0));
+        Op::Copy(src, dest1, dest2) => format!(
+            "{}[-]{}[-]{}[-{}+{}+{}]{}",
+            print_tape_move(0, *dest1),
+            print_tape_move(*dest1, *dest2),
+            print_tape_move(*dest2, *src),
+            print_tape_move(*src, *dest1),
+            print_tape_move(*dest1, *dest2),
+            print_tape_move(*dest2, *src),
+            print_tape_move(*src, 0),
+        ),
 
-            s
-        }
+        Op::Move(src, dest) => format!(
+            "{}[-]{}[-{}+{}]{}",
+            print_tape_move(0, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, 0)
+        ),
 
-        Op::Copy(src, dest1, dest2) => {
-            let mut s = String::new();
+        Op::Add(src, dest) => format!(
+            "{}[-{}+{}]{}",
+            print_tape_move(0, *src),
+            print_tape_move(*src, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, 0)
+        ),
 
-            s.push_str(&print_tape_move(0, *dest1));
-            s.push_str("[-]");
-            s.push_str(&print_tape_move(*dest1, *dest2));
-            s.push_str("[-]");
+        Op::Sub(src, dest) => format!(
+            "{}[-{}-{}]{}",
+            print_tape_move(0, *src),
+            print_tape_move(*src, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, 0)
+        ),
 
-            s.push_str(&print_tape_move(*dest2, *src));
-            s.push_str("[");
-            s.push_str("-");
-            s.push_str(&print_tape_move(*src, *dest1));
-            s.push_str("+");
-            s.push_str(&print_tape_move(*dest1, *dest2));
-            s.push_str("+");
-            s.push_str(&print_tape_move(*dest2, *src));
-            s.push_str("]");
-            s.push_str(&print_tape_move(*src, 0));
+        Op::AddImm(v, dest) => format!(
+            "{}{}{}",
+            print_tape_move(0, *dest),
+            "+".repeat(*v as usize),
+            print_tape_move(*dest, 0),
+        ),
 
-            s
-        }
+        Op::SubImm(v, dest) => format!(
+            "{}{}{}",
+            print_tape_move(0, *dest),
+            "-".repeat(*v as usize),
+            print_tape_move(*dest, 0)
+        ),
 
-        Op::Move(src, dest) => {
-            let mut s = String::new();
+        Op::Ret(addr) => format!(
+            "{}TODO RETURN{}",
+            print_tape_move(0, *addr),
+            print_tape_move(*addr, 0)
+        ),
 
-            s.push_str(&print_tape_move(0, *dest));
-            s.push_str("[-]");
+        Op::Putc(addr) => format!(
+            "{}.{}",
+            print_tape_move(0, *addr),
+            print_tape_move(*addr, 0)
+        ),
 
-            s.push_str(&print_tape_move(*dest, *src));
-            s.push_str("[");
-            s.push_str("-");
-            s.push_str(&print_tape_move(*src, *dest));
-            s.push_str("+");
-            s.push_str(&print_tape_move(*dest, *src));
-            s.push_str("]");
-            s.push_str(&print_tape_move(*src, 0));
-
-            s
-        }
-
-        Op::Add(src, dest) => {
-            let mut s = String::new();
-
-            s.push_str(&print_tape_move(0, *src));
-            s.push_str("[");
-            s.push_str("-");
-            s.push_str(&print_tape_move(*src, *dest));
-            s.push_str("+");
-            s.push_str(&print_tape_move(*dest, *src));
-            s.push_str("]");
-            s.push_str(&print_tape_move(*src, 0));
-
-            s
-        }
-
-        Op::Sub(src, dest) => {
-            let mut s = String::new();
-
-            s.push_str(&print_tape_move(0, *src));
-            s.push_str("[");
-            s.push_str("-");
-            s.push_str(&print_tape_move(*src, *dest));
-            s.push_str("-");
-            s.push_str(&print_tape_move(*dest, *src));
-            s.push_str("]");
-            s.push_str(&print_tape_move(*src, 0));
-
-            s
-        }
-
-        Op::Ret(addr) => {
-            let mut s = String::new();
-
-            s.push_str(&print_tape_move(0, *addr));
-            s.push_str("TODO RETURN");
-            s.push_str(&print_tape_move(*addr, 0));
-
-            s
-        }
-
-        Op::Putc(addr) => {
-            let mut s = String::new();
-
-            s.push_str(&print_tape_move(0, *addr));
-            s.push_str(".");
-            s.push_str(&print_tape_move(*addr, 0));
-
-            s
-        }
+        Op::Block(_, _) => format!("BLOCKS NOT IMPLEMENTED"),
     }
 }
 
-fn gen_func(func: FunctionValue) -> String {
+fn gen_bblock(block: BasicBlock) -> String {
     let mut out = String::new();
-
-    assert_eq!(func.get_basic_blocks().len(), 1);
 
     let mut bfunc = BuildFunc {
         address: 0,
         local_memmap: vec![],
         ops: vec![],
     };
-
-    let block = func.get_first_basic_block().unwrap();
 
     out.push_str(&format!("=== block ====================\n"));
 
@@ -501,6 +499,7 @@ fn gen_func(func: FunctionValue) -> String {
             InstructionOpcode::Sub => bfunc.gen_inst_sub(inst),
             InstructionOpcode::Return => bfunc.gen_inst_ret(inst),
             InstructionOpcode::Call => bfunc.gen_inst_call(inst),
+            InstructionOpcode::Mul => bfunc.gen_inst_mul(inst),
             _ => {
                 unimplemented!("instruction {:#?}", inst.get_opcode());
             }
@@ -521,6 +520,20 @@ fn gen_func(func: FunctionValue) -> String {
     out
 }
 
+fn gen_func(func: FunctionValue) -> String {
+    let mut out = String::new();
+
+    let mut maybe_block = func.get_first_basic_block();
+    while maybe_block.is_some() {
+        let block = maybe_block.unwrap();
+        maybe_block = block.get_next_basic_block();
+
+        println!("hmm {}", gen_bblock(block));
+    }
+
+    out
+}
+
 fn compile(path: &Path, print_llvm: bool) -> String {
     let mut out = String::new();
 
@@ -533,23 +546,23 @@ fn compile(path: &Path, print_llvm: bool) -> String {
         let func = maybe_func.unwrap();
         maybe_func = func.get_next_function();
 
-        out.push_str(&format!(
+        println!(
             "=== func {} ====================\n",
             func.get_name().to_str().unwrap()
-        ));
+        );
 
         if print_llvm {
-            out.push_str(&format!("{}\n", func.print_to_string().to_string()));
+            println!("{}\n", func.print_to_string().to_string());
         }
 
         if func.get_basic_blocks().len() != 0 {
             out.push_str(&gen_func(func));
         }
 
-        out.push_str(&format!(
+        println!(
             "=== func {} ====================\n",
             func.get_name().to_str().unwrap()
-        ));
+        );
     }
 
     out
@@ -629,37 +642,4 @@ fn exec(code: &str, input: &str) -> String {
     }
 
     out
-}
-
-fn compile_llvm(path: &str) {
-    let clang = Command::new("clang")
-        .arg("-emit-llvm")
-        .arg("-c")
-        .arg(format!("./tests/{}.c", path))
-        .arg("-o")
-        .arg(format!("./tests/{}.bc", path))
-        .status()
-        .unwrap();
-    assert!(clang.success());
-}
-
-#[test]
-fn add_some_numbers() {
-    compile_llvm("add_and_print");
-    let out = compile(Path::new("./tests/add_and_print.bc"), false);
-    println!("{}", out);
-    let output = exec(&out, "");
-
-    assert_eq!(output, "a");
-}
-
-#[test]
-fn print_hello_world() {
-    compile_llvm("hello_world");
-
-    let out = compile(Path::new("./tests/hello_world.bc"), false);
-    println!("{}", out);
-    let output = exec(&out, "");
-
-    assert_eq!(output, "hello world");
 }

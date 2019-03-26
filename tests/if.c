@@ -2,6 +2,8 @@
 
 // TEST:{ "func": "main", "output": "a" }
 int main() {
-  int a = 97;
-  putc(a + 32);
+  int a = 15;
+  if (a) {
+    putc(a);
+  }
 };
