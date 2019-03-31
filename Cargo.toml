@@ -7,6 +7,9 @@ authors = ["Mason Clayton <masongclayton@gmail.com>"]
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "llvm3-7" }
 llvm-sys = "70"
 
+[patch."https://github.com/TheDan64/inkwell"]
+inkwell = { path = "./vendor/inkwell" }
+
 [[bin]]
 name = "fuq"
 path = "main.rs"
