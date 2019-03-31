@@ -8,6 +8,7 @@ use inkwell::module::Module;
 use inkwell::values::{
     BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
 };
+use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
@@ -18,10 +19,13 @@ enum Op {
     Sub(usize, usize),         // b -= a
     AddImm(u8, usize),         // b += a
     SubImm(u8, usize),         // b += a
+    Not(usize, usize),         // b = !a
+    BitCast(usize, usize),     // b = !!a
 
-    Ret(usize),  // FAKE :/
+    Ret(usize),  // FAKE NEWS :/
     Putc(usize), // TODO just for testing
 
+    Branch(usize),         // hmmm
     Block(usize, Vec<Op>), // execute b if a is truthy
 }
 
@@ -55,9 +59,12 @@ fn pretty_print_op(op: &Op) -> String {
             Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
             Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
             Op::SubImm(src, dest) => format!("sub {} from %{}", src, dest),
+            Op::Not(src, dest) => format!("not %{} to %{}", src, dest),
+            Op::BitCast(src, dest) => format!("bitcast %{} to %{}", src, dest),
             Op::Ret(addr) => format!("return %{} TODO", addr),
             Op::Putc(addr) => format!("putc %{}", addr),
             Op::Block(addr, _) => format!("block if %{}", addr),
+            Op::Branch(addr) => format!("branch %{}", addr),
         }
     )
 }
@@ -308,7 +315,7 @@ impl BuildFunc {
     }
 
     fn gen_inst_ret(&mut self, inst: InstructionValue) {
-        // FAKE
+        // FAKE NEWS
 
         assert_eq!(inst.get_num_operands(), 1);
 
@@ -337,6 +344,8 @@ impl BuildFunc {
 
     // TODO: this is just for validating execution right now
     fn gen_inst_call(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_num_operands(), 2);
+
         let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap() {
             BasicValueEnum::IntValue(v) => {
                 if v.is_const() {
@@ -384,6 +393,94 @@ impl BuildFunc {
 
     fn gen_inst_mul(&mut self, inst: InstructionValue) {
         unimplemented!("we can't multiply yet :(");
+    }
+
+    fn gen_inst_icmp(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_num_operands(), 2);
+
+        let pred = inst.get_icmp_predicate().unwrap();
+
+        let rv1 = inst.get_operand(0).unwrap().left().unwrap();
+        let rv1 = self.rvalue_from_bval(rv1);
+
+        let rv2 = inst.get_operand(1).unwrap().left().unwrap();
+        let rv2 = self.rvalue_from_bval(rv2);
+
+        let dest = self.new_cell(inst);
+
+        match pred {
+            IntPredicate::EQ => {
+                let tmp_sub = self.new_tmp_cell();
+
+                match rv1 {
+                    RValue::Imm(v) => self.ops.push(Op::Store(v, tmp_sub.address)),
+                    RValue::Addr(from) => {
+                        let tmp_cop = self.new_tmp_cell();
+                        self.ops
+                            .push(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
+                        self.ops.push(Op::Move(tmp_cop.address, from.address));
+                        self.discard_cell(tmp_cop);
+                    }
+                };
+                match rv2 {
+                    RValue::Imm(v) => self.ops.push(Op::SubImm(v, tmp_sub.address)),
+                    RValue::Addr(from) => {
+                        let tmp_cop1 = self.new_tmp_cell();
+                        let tmp_cop2 = self.new_tmp_cell();
+
+                        self.ops
+                            .push(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.ops.push(Op::Move(tmp_cop2.address, from.address));
+                        self.ops.push(Op::Sub(tmp_cop1.address, tmp_sub.address));
+
+                        self.discard_cell(tmp_cop1);
+                        self.discard_cell(tmp_cop2);
+                    }
+                };
+
+                self.ops.push(Op::Not(tmp_sub.address, dest.address));
+
+                self.discard_cell(tmp_sub);
+            }
+            IntPredicate::NE => {
+                let tmp_sub = self.new_tmp_cell();
+
+                match rv1 {
+                    RValue::Imm(v) => self.ops.push(Op::Store(v, tmp_sub.address)),
+                    RValue::Addr(from) => {
+                        let tmp_cop = self.new_tmp_cell();
+                        self.ops
+                            .push(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
+                        self.ops.push(Op::Move(tmp_cop.address, from.address));
+                        self.discard_cell(tmp_cop);
+                    }
+                };
+                match rv2 {
+                    RValue::Imm(v) => self.ops.push(Op::SubImm(v, tmp_sub.address)),
+                    RValue::Addr(from) => {
+                        let tmp_cop1 = self.new_tmp_cell();
+                        let tmp_cop2 = self.new_tmp_cell();
+
+                        self.ops
+                            .push(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.ops.push(Op::Move(tmp_cop2.address, from.address));
+                        self.ops.push(Op::Sub(tmp_cop1.address, tmp_sub.address));
+
+                        self.discard_cell(tmp_cop1);
+                        self.discard_cell(tmp_cop2);
+                    }
+                };
+
+                self.ops.push(Op::BitCast(tmp_sub.address, dest.address));
+
+                self.discard_cell(tmp_sub);
+            }
+            _ => unimplemented!("can't handle icmp type {:#?}", pred),
+        }
+    }
+
+    fn gen_inst_br(&mut self, inst: InstructionValue) {
+        self.ops.push(Op::Branch(5));
     }
 }
 
@@ -454,6 +551,30 @@ fn print_op(op: &Op) -> String {
             print_tape_move(*dest, 0)
         ),
 
+        Op::Not(src, dest) => format!(
+            "{}+{}[{}-{}[-]]{}",
+            print_tape_move(0, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, 0),
+        ),
+
+        Op::BitCast(src, dest) => format!(
+            "{}[-]{}[{}+{}[-]]{}",
+            print_tape_move(0, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, *dest),
+            print_tape_move(*dest, *src),
+            print_tape_move(*src, 0),
+        ),
+
+        Op::Branch(addr) => format!(
+            "{}BRANCH{}",
+            print_tape_move(0, *addr),
+            print_tape_move(*addr, 0),
+        ),
+
         Op::Ret(addr) => format!(
             "{}TODO RETURN{}",
             print_tape_move(0, *addr),
@@ -470,26 +591,15 @@ fn print_op(op: &Op) -> String {
     }
 }
 
-fn gen_bblock(block: BasicBlock) -> String {
-    let mut out = String::new();
-
-    let mut bfunc = BuildFunc {
-        address: 0,
-        local_memmap: vec![],
-        ops: vec![],
-    };
-
-    out.push_str(&format!("=== block ====================\n"));
+fn gen_bblock(bfunc: &mut BuildFunc, block: BasicBlock) {
+    println!("=== begin block ==============");
 
     let mut maybe_inst = block.get_first_instruction();
     while maybe_inst.is_some() {
         let inst = maybe_inst.unwrap();
         maybe_inst = inst.get_next_instruction();
 
-        out.push_str(&format!(
-            "=== {:#?} ===================\n",
-            inst.get_opcode()
-        ));
+        println!("=== {:#?} ===================", inst.get_opcode());
 
         match inst.get_opcode() {
             InstructionOpcode::Alloca => bfunc.gen_inst_alloca(inst),
@@ -500,6 +610,8 @@ fn gen_bblock(block: BasicBlock) -> String {
             InstructionOpcode::Return => bfunc.gen_inst_ret(inst),
             InstructionOpcode::Call => bfunc.gen_inst_call(inst),
             InstructionOpcode::Mul => bfunc.gen_inst_mul(inst),
+            InstructionOpcode::ICmp => bfunc.gen_inst_icmp(inst),
+            InstructionOpcode::Br => bfunc.gen_inst_br(inst),
             _ => {
                 unimplemented!("instruction {:#?}", inst.get_opcode());
             }
@@ -509,34 +621,38 @@ fn gen_bblock(block: BasicBlock) -> String {
         for m in bfunc.local_memmap.iter() {
             assert!(m.from.is_some());
         }
+
+        for op in bfunc.ops.iter() {
+            println!("{}:\t{}", pretty_print_op(op), print_op(op))
+        }
+
+        bfunc.ops.clear();
     }
 
     for op in bfunc.ops.iter() {
-        out.push_str(&format!("{}:\t{}\n", pretty_print_op(op), print_op(op)))
+        println!("{}:\t{}", pretty_print_op(op), print_op(op))
     }
 
-    out.push_str(&format!("=== block ====================\n"));
-
-    out
+    println!("=== end block ================\n\n");
 }
 
-fn gen_func(func: FunctionValue) -> String {
-    let mut out = String::new();
+fn gen_func(func: FunctionValue) {
+    let mut bfunc = BuildFunc {
+        address: 0,
+        local_memmap: vec![],
+        ops: vec![],
+    };
 
     let mut maybe_block = func.get_first_basic_block();
     while maybe_block.is_some() {
         let block = maybe_block.unwrap();
         maybe_block = block.get_next_basic_block();
 
-        println!("hmm {}", gen_bblock(block));
+        gen_bblock(&mut bfunc, block);
     }
-
-    out
 }
 
-fn compile(path: &Path, print_llvm: bool) -> String {
-    let mut out = String::new();
-
+fn compile(path: &Path, print_llvm: bool) {
     let path = path.canonicalize().unwrap();
     let module = Module::parse_bitcode_from_path(path).unwrap();
 
@@ -556,7 +672,7 @@ fn compile(path: &Path, print_llvm: bool) -> String {
         }
 
         if func.get_basic_blocks().len() != 0 {
-            out.push_str(&gen_func(func));
+            gen_func(func);
         }
 
         println!(
@@ -564,8 +680,6 @@ fn compile(path: &Path, print_llvm: bool) -> String {
             func.get_name().to_str().unwrap()
         );
     }
-
-    out
 }
 
 fn main() {
@@ -590,8 +704,7 @@ fn main() {
 
     let bcfile = Path::new(&pathstr);
 
-    let out = compile(&bcfile, print_llvm);
-    println!("{}", out);
+    compile(&bcfile, print_llvm);
 }
 
 fn exec(code: &str, input: &str) -> String {
