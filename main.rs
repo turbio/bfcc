@@ -305,6 +305,7 @@ struct BuildFunc {
     mmap: Mmap,
     blocks: Vec<Block>,
     cblock: usize,
+    prelude: Vec<Op>,
 }
 
 impl BuildFunc {
@@ -717,7 +718,7 @@ impl BuildFunc {
 
         println!("{}", self.getblock().pretty_print_end());
 
-        println!("=== end block {}% ===========\n\n", self.getblock().address);
+        println!("=== end block {}% ===========\n", self.getblock().address);
     }
 }
 
@@ -727,6 +728,7 @@ fn gen_func(func: FunctionValue) {
         mmap: Mmap(vec![]),
         blocks: vec![],
         cblock: 0,
+        prelude: vec![],
     };
 
     let mut maybe_block = func.get_first_basic_block();
@@ -741,6 +743,16 @@ fn gen_func(func: FunctionValue) {
             bblock: block,
             ops: vec![],
         });
+    }
+
+    println!("=== func prelude ============");
+    for i in 0..bfunc.blocks.len() {
+        let v = if i == 0 { 1 } else { 0 };
+
+        bfunc.setblock(i);
+        let addr = { bfunc.getblock().address };
+
+        bfunc.pushop(Op::Store(v, addr));
     }
 
     for i in 0..bfunc.blocks.len() {
