@@ -25,7 +25,8 @@ enum Op {
     Ret(usize),  // FAKE NEWS :/
     Putc(usize), // TODO just for testing
 
-    Branch(usize), // hmmm
+    Branch(usize),             // unconditional branch to a
+    Cond(usize, usize, usize), // if a branch to b else branch to c
 }
 
 impl Op {
@@ -44,7 +45,10 @@ impl Op {
                 Op::BitCast(src, dest) => format!("bitcast %{} to %{}", src, dest),
                 Op::Ret(addr) => format!("return %{} TODO", addr),
                 Op::Putc(addr) => format!("putc %{}", addr),
-                Op::Branch(addr) => format!("branch %{}", addr),
+                Op::Branch(addr) => format!("branch to %{}", addr),
+                Op::Cond(src, dest1, dest2) => {
+                    format!("if %{} then %{} else %{}", src, dest1, dest2)
+                }
             },
             self.print(),
         )
@@ -127,11 +131,17 @@ impl Op {
                 print_tape_move(*src, 0),
             ),
 
-            Op::Branch(addr) => format!(
-                "{}BRANCH{}",
-                print_tape_move(0, *addr),
-                print_tape_move(*addr, 0),
-            ),
+            Op::Branch(addr) => Op::Store(1, *addr).print(),
+
+            Op::Cond(src, dest1, dest2) => vec![
+                Op::Copy(*src, *dest1, *dest2),
+                Op::Move(*dest2, *src),
+                Op::Not(*src, *dest2),
+            ]
+            .iter()
+            .map(|o| o.print())
+            .collect::<Vec<String>>()
+            .join(""),
 
             Op::Ret(addr) => format!(
                 "{}TODO RETURN{}",
@@ -166,7 +176,7 @@ struct Block {
 impl Block {
     fn print_begin(&self) -> String {
         format!(
-            "{}[{}",
+            "{}[[-]{}",
             print_tape_move(0, self.address),
             print_tape_move(self.address, 0),
         )
@@ -183,7 +193,7 @@ impl Block {
     fn pretty_print_begin(&self) -> String {
         format!(
             "{:20}{}",
-            format!("check %{}", self.address),
+            format!("check unset %{}", self.address),
             self.print_begin()
         )
     }
@@ -197,6 +207,7 @@ impl Block {
     }
 }
 
+#[derive(Debug)]
 enum RValue {
     Addr(Cell),
     Imm(u8),
@@ -672,8 +683,18 @@ impl BuildFunc {
         }
     }
 
-    fn gen_inst_br(&mut self, _inst: InstructionValue) {
-        self.pushop(Op::Branch(5)); // lol, fake news
+    fn gen_inst_br(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_num_operands(), 3);
+
+        let op1 = inst.get_operand(0).unwrap().left().unwrap();
+        let op1 = self.rvalue_from_bval(op1);
+        println!("{:#?}", op1);
+
+        println!("{:#?}", inst.get_operand(1).unwrap().right().unwrap());
+
+        assert!(false);
+
+        // self.pushop(Op::Branch(5)); // lol, fake news
     }
 
     fn gen_bblock(&mut self) {
@@ -716,9 +737,9 @@ impl BuildFunc {
         //     .collect::<Vec<String>>()
         //     .join("\n"),
 
+        println!("=== end block {}% ===========", self.getblock().address);
         println!("{}", self.getblock().pretty_print_end());
-
-        println!("=== end block {}% ===========\n", self.getblock().address);
+        println!("");
     }
 }
 
