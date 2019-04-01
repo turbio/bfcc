@@ -25,8 +25,176 @@ enum Op {
     Ret(usize),  // FAKE NEWS :/
     Putc(usize), // TODO just for testing
 
-    Branch(usize),         // hmmm
-    Block(usize, Vec<Op>), // execute b if a is truthy
+    Branch(usize), // hmmm
+}
+
+impl Op {
+    fn pretty_print(&self) -> String {
+        format!(
+            "{:20}{}",
+            match self {
+                Op::Store(val, dest) => format!("store {} at %{}", val, dest),
+                Op::Copy(src, dest1, dest2) => format!("copy %{} to %{} %{}", src, dest1, dest2),
+                Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
+                Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
+                Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
+                Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
+                Op::SubImm(src, dest) => format!("sub {} from %{}", src, dest),
+                Op::Not(src, dest) => format!("not %{} to %{}", src, dest),
+                Op::BitCast(src, dest) => format!("bitcast %{} to %{}", src, dest),
+                Op::Ret(addr) => format!("return %{} TODO", addr),
+                Op::Putc(addr) => format!("putc %{}", addr),
+                Op::Branch(addr) => format!("branch %{}", addr),
+            },
+            self.print(),
+        )
+    }
+
+    fn print(&self) -> String {
+        match self {
+            Op::Store(v, dest) => format!(
+                "{}[-]{}{}",
+                print_tape_move(0, *dest),
+                "+".repeat(*v as usize),
+                print_tape_move(*dest, 0),
+            ),
+
+            Op::Copy(src, dest1, dest2) => format!(
+                "{}[-]{}[-]{}[-{}+{}+{}]{}",
+                print_tape_move(0, *dest1),
+                print_tape_move(*dest1, *dest2),
+                print_tape_move(*dest2, *src),
+                print_tape_move(*src, *dest1),
+                print_tape_move(*dest1, *dest2),
+                print_tape_move(*dest2, *src),
+                print_tape_move(*src, 0),
+            ),
+
+            Op::Move(src, dest) => format!(
+                "{}[-]{}[-{}+{}]{}",
+                print_tape_move(0, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, 0)
+            ),
+
+            Op::Add(src, dest) => format!(
+                "{}[-{}+{}]{}",
+                print_tape_move(0, *src),
+                print_tape_move(*src, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, 0)
+            ),
+
+            Op::Sub(src, dest) => format!(
+                "{}[-{}-{}]{}",
+                print_tape_move(0, *src),
+                print_tape_move(*src, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, 0)
+            ),
+
+            Op::AddImm(v, dest) => format!(
+                "{}{}{}",
+                print_tape_move(0, *dest),
+                "+".repeat(*v as usize),
+                print_tape_move(*dest, 0),
+            ),
+
+            Op::SubImm(v, dest) => format!(
+                "{}{}{}",
+                print_tape_move(0, *dest),
+                "-".repeat(*v as usize),
+                print_tape_move(*dest, 0)
+            ),
+
+            Op::Not(src, dest) => format!(
+                "{}+{}[{}-{}[-]]{}",
+                print_tape_move(0, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, 0),
+            ),
+
+            Op::BitCast(src, dest) => format!(
+                "{}[-]{}[{}+{}[-]]{}",
+                print_tape_move(0, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, *dest),
+                print_tape_move(*dest, *src),
+                print_tape_move(*src, 0),
+            ),
+
+            Op::Branch(addr) => format!(
+                "{}BRANCH{}",
+                print_tape_move(0, *addr),
+                print_tape_move(*addr, 0),
+            ),
+
+            Op::Ret(addr) => format!(
+                "{}TODO RETURN{}",
+                print_tape_move(0, *addr),
+                print_tape_move(*addr, 0)
+            ),
+
+            Op::Putc(addr) => format!(
+                "{}.{}",
+                print_tape_move(0, *addr),
+                print_tape_move(*addr, 0)
+            ),
+        }
+    }
+}
+
+fn print_tape_move(from: usize, to: usize) -> String {
+    if from > to {
+        "<".repeat(from - to)
+    } else {
+        ">".repeat(to - from)
+    }
+}
+
+#[derive(Debug)]
+struct Block {
+    address: usize, // execute b if a is truthy
+    ops: Vec<Op>,
+    bblock: BasicBlock,
+}
+
+impl Block {
+    fn print_begin(&self) -> String {
+        format!(
+            "{}[{}",
+            print_tape_move(0, self.address),
+            print_tape_move(self.address, 0),
+        )
+    }
+
+    fn print_end(&self) -> String {
+        format!(
+            "{}]{}",
+            print_tape_move(0, self.address),
+            print_tape_move(self.address, 0),
+        )
+    }
+
+    fn pretty_print_begin(&self) -> String {
+        format!(
+            "{:20}{}",
+            format!("check %{}", self.address),
+            self.print_begin()
+        )
+    }
+
+    fn pretty_print_end(&self) -> String {
+        format!(
+            "{:20}{}",
+            format!("check %{}", self.address),
+            self.print_end()
+        )
+    }
 }
 
 enum RValue {
@@ -35,66 +203,66 @@ enum RValue {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum CellFrom {
+    Inst(InstructionValue),
+    Block,
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Cell {
     address: usize,
-
-    from: Option<InstructionValue>,
+    from: Option<CellFrom>,
 }
 
 #[derive(Debug)]
-struct BuildFunc {
-    address: isize,
-    local_memmap: Vec<Cell>,
-    ops: Vec<Op>,
-}
+struct Mmap(Vec<Cell>);
 
-fn pretty_print_op(op: &Op) -> String {
-    format!(
-        "{:20}",
-        match op {
-            Op::Store(val, dest) => format!("store {} at %{}", val, dest),
-            Op::Copy(src, dest1, dest2) => format!("copy %{} to %{} %{}", src, dest1, dest2),
-            Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
-            Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
-            Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
-            Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
-            Op::SubImm(src, dest) => format!("sub {} from %{}", src, dest),
-            Op::Not(src, dest) => format!("not %{} to %{}", src, dest),
-            Op::BitCast(src, dest) => format!("bitcast %{} to %{}", src, dest),
-            Op::Ret(addr) => format!("return %{} TODO", addr),
-            Op::Putc(addr) => format!("putc %{}", addr),
-            Op::Block(addr, _) => format!("block if %{}", addr),
-            Op::Branch(addr) => format!("branch %{}", addr),
-        }
-    )
-}
-
-impl BuildFunc {
-    fn new_cell(&mut self, from: InstructionValue) -> Cell {
-        let mut next_addr = 0;
-
-        {
-            let last = self.local_memmap.last();
+impl Mmap {
+    fn for_inst(&mut self, from: InstructionValue) -> Cell {
+        let next_addr = {
+            let last = self.0.last();
             if last.is_some() {
-                next_addr = last.unwrap().address + 1;
+                last.unwrap().address + 1
+            } else {
+                0
             }
-        }
+        };
 
         let ent = Cell {
             address: next_addr,
-            from: Some(from),
+            from: Some(CellFrom::Inst(from)),
         };
 
-        self.local_memmap.push(ent);
+        self.0.push(ent);
 
         ent
     }
 
-    fn new_tmp_cell(&mut self) -> Cell {
+    fn for_block(&mut self) -> Cell {
+        let next_addr = {
+            let last = self.0.last();
+            if last.is_some() {
+                last.unwrap().address + 1
+            } else {
+                0
+            }
+        };
+
+        let ent = Cell {
+            address: next_addr,
+            from: Some(CellFrom::Block),
+        };
+
+        self.0.push(ent);
+
+        ent
+    }
+
+    fn new_tmp(&mut self) -> Cell {
         let mut next_addr = 0;
 
         {
-            let last = self.local_memmap.last();
+            let last = self.0.last();
             if last.is_some() {
                 next_addr = last.unwrap().address + 1;
             }
@@ -105,26 +273,57 @@ impl BuildFunc {
             from: None,
         };
 
-        self.local_memmap.push(ent);
+        self.0.push(ent);
 
         ent
     }
 
-    fn discard_cell(&mut self, e: Cell) {
+    fn discard(&mut self, e: Cell) {
         let index = self
-            .local_memmap
+            .0
             .iter()
             .position(|ee| ee.address == e.address)
             .unwrap();
 
-        self.local_memmap.remove(index);
+        self.0.remove(index);
     }
 
-    fn ent_from_inst(&self, inst: InstructionValue) -> Option<&Cell> {
-        self.local_memmap
+    fn from_inst(&self, inst: InstructionValue) -> Option<&Cell> {
+        self.0
             .iter()
             .filter(|e| e.from.is_some())
-            .find(|e| e.from.unwrap() == inst)
+            .find(|e| match e.from.unwrap() {
+                CellFrom::Inst(i) => i == inst,
+                _ => false,
+            })
+    }
+}
+
+#[derive(Debug)]
+struct BuildFunc {
+    address: isize,
+    mmap: Mmap,
+    blocks: Vec<Block>,
+    cblock: usize,
+}
+
+impl BuildFunc {
+    fn pushop(&mut self, op: Op) {
+        println!("{}", op.pretty_print());
+
+        let curblock = self.blocks.get_mut(self.cblock).unwrap();
+        curblock.ops.push(op);
+    }
+
+    fn setblock(&mut self, i: usize) {
+        if self.blocks.get(i).is_none() {
+            panic!("tried to set current block to invalid");
+        }
+        self.cblock = i;
+    }
+
+    fn getblock(&self) -> &Block {
+        self.blocks.get(self.cblock).unwrap()
     }
 
     fn gen_inst_alloca(&mut self, inst: InstructionValue) {
@@ -141,7 +340,7 @@ impl BuildFunc {
                 // println!("{}", ">".repeat(cells));
 
                 // for now we'll just assume all allocas are one byte :/
-                self.new_cell(inst);
+                self.mmap.for_inst(inst);
             }
             _ => panic!("unsupported operand to alloca"),
         };
@@ -158,7 +357,7 @@ impl BuildFunc {
             _ => unimplemented!("oh no"),
         };
 
-        let dest = { self.ent_from_inst(dest).unwrap().address };
+        let dest = { self.mmap.from_inst(dest).unwrap().address };
 
         match inst.get_operand(0).unwrap().left().unwrap() {
             BasicValueEnum::IntValue(v) => {
@@ -172,16 +371,16 @@ impl BuildFunc {
                         Op::Store(immv as u8, dest)
                     };
 
-                    self.ops.push(newop);
+                    self.pushop(newop);
                 } else {
                     let src = {
                         let src = v.as_instruction().unwrap();
-                        self.ent_from_inst(src).unwrap().address
+                        self.mmap.from_inst(src).unwrap().address
                     };
-                    let tmp = self.new_tmp_cell();
-                    self.ops.push(Op::Copy(src, dest, tmp.address));
-                    self.ops.push(Op::Move(tmp.address, src));
-                    self.discard_cell(tmp);
+                    let tmp = self.mmap.new_tmp();
+                    self.pushop(Op::Copy(src, dest, tmp.address));
+                    self.pushop(Op::Move(tmp.address, src));
+                    self.mmap.discard(tmp);
                 }
             }
             _ => unimplemented!("only int stores are handled"),
@@ -191,24 +390,24 @@ impl BuildFunc {
     fn gen_inst_load(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 1);
 
-        let dest = { self.new_cell(inst) };
+        let dest = { self.mmap.for_inst(inst) };
 
-        let tmp_dest2 = { self.new_cell(inst) };
+        let tmp_dest2 = { self.mmap.for_inst(inst) };
 
         let (opc, opm) = {
             let src = inst.get_operand(0).unwrap().left().unwrap();
             let src = src.as_instruction_value().unwrap();
-            let src = self.ent_from_inst(src).unwrap();
+            let src = self.mmap.from_inst(src).unwrap();
 
             let opc = Op::Copy(src.address, dest.address, tmp_dest2.address);
             let opm = Op::Move(tmp_dest2.address, src.address);
             (opc, opm)
         };
 
-        self.ops.push(opc);
-        self.ops.push(opm);
+        self.pushop(opc);
+        self.pushop(opm);
 
-        self.discard_cell(tmp_dest2);
+        self.mmap.discard(tmp_dest2);
     }
 
     fn gen_inst_add(&mut self, inst: InstructionValue) {
@@ -224,32 +423,30 @@ impl BuildFunc {
             (op1, op2)
         };
 
-        let dest = self.new_cell(inst);
+        let dest = self.mmap.for_inst(inst);
 
         match rv1 {
             RValue::Imm(v) => {
-                self.ops.push(Op::Store(v, dest.address));
+                self.pushop(Op::Store(v, dest.address));
             }
             RValue::Addr(a) => {
-                let tmp_cop = self.new_tmp_cell();
-                self.ops
-                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.ops.push(Op::Move(tmp_cop.address, a.address));
-                self.discard_cell(tmp_cop);
+                let tmp_cop = self.mmap.new_tmp();
+                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move(tmp_cop.address, a.address));
+                self.mmap.discard(tmp_cop);
             }
         }
 
         match rv2 {
             RValue::Imm(v) => {
-                self.ops.push(Op::AddImm(v, dest.address));
+                self.pushop(Op::AddImm(v, dest.address));
             }
             RValue::Addr(a) => {
-                let tmp_cop = self.new_tmp_cell();
-                self.ops
-                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.ops.push(Op::Move(tmp_cop.address, a.address));
-                self.ops.push(Op::Add(tmp_cop.address, dest.address));
-                self.discard_cell(tmp_cop);
+                let tmp_cop = self.mmap.new_tmp();
+                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move(tmp_cop.address, a.address));
+                self.pushop(Op::Add(tmp_cop.address, dest.address));
+                self.mmap.discard(tmp_cop);
             }
         }
     }
@@ -258,7 +455,8 @@ impl BuildFunc {
         if b.as_instruction_value().is_some() {
             RValue::Addr(
                 *self
-                    .ent_from_inst(b.as_instruction_value().unwrap())
+                    .mmap
+                    .from_inst(b.as_instruction_value().unwrap())
                     .unwrap(),
             )
         } else {
@@ -284,32 +482,30 @@ impl BuildFunc {
             (op1, op2)
         };
 
-        let dest = self.new_cell(inst);
+        let dest = self.mmap.for_inst(inst);
 
         match rv1 {
             RValue::Imm(v) => {
-                self.ops.push(Op::Store(v, dest.address));
+                self.pushop(Op::Store(v, dest.address));
             }
             RValue::Addr(a) => {
-                let tmp_cop = self.new_tmp_cell();
-                self.ops
-                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.ops.push(Op::Move(tmp_cop.address, a.address));
-                self.discard_cell(tmp_cop);
+                let tmp_cop = self.mmap.new_tmp();
+                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move(tmp_cop.address, a.address));
+                self.mmap.discard(tmp_cop);
             }
         }
 
         match rv2 {
             RValue::Imm(v) => {
-                self.ops.push(Op::SubImm(v, dest.address));
+                self.pushop(Op::SubImm(v, dest.address));
             }
             RValue::Addr(a) => {
-                let tmp_cop = self.new_tmp_cell();
-                self.ops
-                    .push(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.ops.push(Op::Move(tmp_cop.address, a.address));
-                self.ops.push(Op::Sub(tmp_cop.address, dest.address));
-                self.discard_cell(tmp_cop);
+                let tmp_cop = self.mmap.new_tmp();
+                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move(tmp_cop.address, a.address));
+                self.pushop(Op::Sub(tmp_cop.address, dest.address));
+                self.mmap.discard(tmp_cop);
             }
         }
     }
@@ -326,16 +522,16 @@ impl BuildFunc {
                 if v.is_const() {
                     let i = v.get_zero_extended_constant().unwrap();
 
-                    let tmp = self.new_tmp_cell();
-                    self.ops.push(Op::Store(i as u8, tmp.address));
-                    self.ops.push(Op::Ret(tmp.address));
+                    let tmp = self.mmap.new_tmp();
+                    self.pushop(Op::Store(i as u8, tmp.address));
+                    self.pushop(Op::Ret(tmp.address));
 
-                    self.discard_cell(tmp);
+                    self.mmap.discard(tmp);
                 } else {
                     let i = v.as_instruction_value().unwrap();
-                    let i = { self.ent_from_inst(i).unwrap().address };
+                    let i = { self.mmap.from_inst(i).unwrap().address };
 
-                    self.ops.push(Op::Ret(i));
+                    self.pushop(Op::Ret(i));
                 }
             }
             _ => panic!("oh no, we don't handle that"),
@@ -349,7 +545,7 @@ impl BuildFunc {
         let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap() {
             BasicValueEnum::IntValue(v) => {
                 if v.is_const() {
-                    let ptr = self.new_tmp_cell();
+                    let ptr = self.mmap.new_tmp();
 
                     let immv = v.get_zero_extended_constant().unwrap();
 
@@ -360,13 +556,13 @@ impl BuildFunc {
                         Op::Store(immv as u8, ptr.address)
                     };
 
-                    self.ops.push(newop);
+                    self.pushop(newop);
 
                     (ptr, true)
                 } else {
                     let ptr = {
                         let src = v.as_instruction().unwrap();
-                        *self.ent_from_inst(src).unwrap()
+                        *self.mmap.from_inst(src).unwrap()
                     };
 
                     (ptr, false)
@@ -381,17 +577,17 @@ impl BuildFunc {
         };
 
         if func.get_name().to_str().unwrap() == "putc" {
-            self.ops.push(Op::Putc(ptr.address));
+            self.pushop(Op::Putc(ptr.address));
         } else {
             panic!("we only know how to handle the putc builtin")
         }
 
         if tmp {
-            self.discard_cell(ptr);
+            self.mmap.discard(ptr);
         }
     }
 
-    fn gen_inst_mul(&mut self, inst: InstructionValue) {
+    fn gen_inst_mul(&mut self, _inst: InstructionValue) {
         unimplemented!("we can't multiply yet :(");
     }
 
@@ -406,241 +602,131 @@ impl BuildFunc {
         let rv2 = inst.get_operand(1).unwrap().left().unwrap();
         let rv2 = self.rvalue_from_bval(rv2);
 
-        let dest = self.new_cell(inst);
+        let dest = self.mmap.for_inst(inst);
 
         match pred {
             IntPredicate::EQ => {
-                let tmp_sub = self.new_tmp_cell();
+                let tmp_sub = self.mmap.new_tmp();
 
                 match rv1 {
-                    RValue::Imm(v) => self.ops.push(Op::Store(v, tmp_sub.address)),
+                    RValue::Imm(v) => self.pushop(Op::Store(v, tmp_sub.address)),
                     RValue::Addr(from) => {
-                        let tmp_cop = self.new_tmp_cell();
-                        self.ops
-                            .push(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
-                        self.ops.push(Op::Move(tmp_cop.address, from.address));
-                        self.discard_cell(tmp_cop);
+                        let tmp_cop = self.mmap.new_tmp();
+                        self.pushop(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
+                        self.pushop(Op::Move(tmp_cop.address, from.address));
+                        self.mmap.discard(tmp_cop);
                     }
                 };
                 match rv2 {
-                    RValue::Imm(v) => self.ops.push(Op::SubImm(v, tmp_sub.address)),
+                    RValue::Imm(v) => self.pushop(Op::SubImm(v, tmp_sub.address)),
                     RValue::Addr(from) => {
-                        let tmp_cop1 = self.new_tmp_cell();
-                        let tmp_cop2 = self.new_tmp_cell();
+                        let tmp_cop1 = self.mmap.new_tmp();
+                        let tmp_cop2 = self.mmap.new_tmp();
 
-                        self.ops
-                            .push(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
-                        self.ops.push(Op::Move(tmp_cop2.address, from.address));
-                        self.ops.push(Op::Sub(tmp_cop1.address, tmp_sub.address));
+                        self.pushop(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.pushop(Op::Move(tmp_cop2.address, from.address));
+                        self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
-                        self.discard_cell(tmp_cop1);
-                        self.discard_cell(tmp_cop2);
+                        self.mmap.discard(tmp_cop1);
+                        self.mmap.discard(tmp_cop2);
                     }
                 };
 
-                self.ops.push(Op::Not(tmp_sub.address, dest.address));
+                self.pushop(Op::Not(tmp_sub.address, dest.address));
 
-                self.discard_cell(tmp_sub);
+                self.mmap.discard(tmp_sub);
             }
             IntPredicate::NE => {
-                let tmp_sub = self.new_tmp_cell();
+                let tmp_sub = self.mmap.new_tmp();
 
                 match rv1 {
-                    RValue::Imm(v) => self.ops.push(Op::Store(v, tmp_sub.address)),
+                    RValue::Imm(v) => self.pushop(Op::Store(v, tmp_sub.address)),
                     RValue::Addr(from) => {
-                        let tmp_cop = self.new_tmp_cell();
-                        self.ops
-                            .push(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
-                        self.ops.push(Op::Move(tmp_cop.address, from.address));
-                        self.discard_cell(tmp_cop);
+                        let tmp_cop = self.mmap.new_tmp();
+                        self.pushop(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
+                        self.pushop(Op::Move(tmp_cop.address, from.address));
+                        self.mmap.discard(tmp_cop);
                     }
                 };
                 match rv2 {
-                    RValue::Imm(v) => self.ops.push(Op::SubImm(v, tmp_sub.address)),
+                    RValue::Imm(v) => self.pushop(Op::SubImm(v, tmp_sub.address)),
                     RValue::Addr(from) => {
-                        let tmp_cop1 = self.new_tmp_cell();
-                        let tmp_cop2 = self.new_tmp_cell();
+                        let tmp_cop1 = self.mmap.new_tmp();
+                        let tmp_cop2 = self.mmap.new_tmp();
 
-                        self.ops
-                            .push(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
-                        self.ops.push(Op::Move(tmp_cop2.address, from.address));
-                        self.ops.push(Op::Sub(tmp_cop1.address, tmp_sub.address));
+                        self.pushop(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.pushop(Op::Move(tmp_cop2.address, from.address));
+                        self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
-                        self.discard_cell(tmp_cop1);
-                        self.discard_cell(tmp_cop2);
+                        self.mmap.discard(tmp_cop1);
+                        self.mmap.discard(tmp_cop2);
                     }
                 };
 
-                self.ops.push(Op::BitCast(tmp_sub.address, dest.address));
+                self.pushop(Op::BitCast(tmp_sub.address, dest.address));
 
-                self.discard_cell(tmp_sub);
+                self.mmap.discard(tmp_sub);
             }
             _ => unimplemented!("can't handle icmp type {:#?}", pred),
         }
     }
 
-    fn gen_inst_br(&mut self, inst: InstructionValue) {
-        self.ops.push(Op::Branch(5));
+    fn gen_inst_br(&mut self, _inst: InstructionValue) {
+        self.pushop(Op::Branch(5)); // lol, fake news
     }
-}
 
-fn print_tape_move(from: usize, to: usize) -> String {
-    if from > to {
-        "<".repeat(from - to)
-    } else {
-        ">".repeat(to - from)
-    }
-}
+    fn gen_bblock(&mut self) {
+        println!("=== begin block {}% =========", self.getblock().address);
 
-fn print_op(op: &Op) -> String {
-    match op {
-        Op::Store(v, dest) => format!(
-            "{}[-]{}{}",
-            print_tape_move(0, *dest),
-            "+".repeat(*v as usize),
-            print_tape_move(*dest, 0),
-        ),
+        println!("{}", self.getblock().pretty_print_begin());
 
-        Op::Copy(src, dest1, dest2) => format!(
-            "{}[-]{}[-]{}[-{}+{}+{}]{}",
-            print_tape_move(0, *dest1),
-            print_tape_move(*dest1, *dest2),
-            print_tape_move(*dest2, *src),
-            print_tape_move(*src, *dest1),
-            print_tape_move(*dest1, *dest2),
-            print_tape_move(*dest2, *src),
-            print_tape_move(*src, 0),
-        ),
+        let mut maybe_inst = self.getblock().bblock.get_first_instruction();
+        while maybe_inst.is_some() {
+            let inst = maybe_inst.unwrap();
+            maybe_inst = inst.get_next_instruction();
 
-        Op::Move(src, dest) => format!(
-            "{}[-]{}[-{}+{}]{}",
-            print_tape_move(0, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, 0)
-        ),
+            println!("=== {:#?} ===================", inst.get_opcode());
 
-        Op::Add(src, dest) => format!(
-            "{}[-{}+{}]{}",
-            print_tape_move(0, *src),
-            print_tape_move(*src, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, 0)
-        ),
+            match inst.get_opcode() {
+                InstructionOpcode::Alloca => self.gen_inst_alloca(inst),
+                InstructionOpcode::Store => self.gen_inst_store(inst),
+                InstructionOpcode::Load => self.gen_inst_load(inst),
+                InstructionOpcode::Add => self.gen_inst_add(inst),
+                InstructionOpcode::Sub => self.gen_inst_sub(inst),
+                InstructionOpcode::Return => self.gen_inst_ret(inst),
+                InstructionOpcode::Call => self.gen_inst_call(inst),
+                InstructionOpcode::Mul => self.gen_inst_mul(inst),
+                InstructionOpcode::ICmp => self.gen_inst_icmp(inst),
+                InstructionOpcode::Br => self.gen_inst_br(inst),
+                _ => {
+                    unimplemented!("instruction {:#?}", inst.get_opcode());
+                }
+            }
 
-        Op::Sub(src, dest) => format!(
-            "{}[-{}-{}]{}",
-            print_tape_move(0, *src),
-            print_tape_move(*src, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, 0)
-        ),
-
-        Op::AddImm(v, dest) => format!(
-            "{}{}{}",
-            print_tape_move(0, *dest),
-            "+".repeat(*v as usize),
-            print_tape_move(*dest, 0),
-        ),
-
-        Op::SubImm(v, dest) => format!(
-            "{}{}{}",
-            print_tape_move(0, *dest),
-            "-".repeat(*v as usize),
-            print_tape_move(*dest, 0)
-        ),
-
-        Op::Not(src, dest) => format!(
-            "{}+{}[{}-{}[-]]{}",
-            print_tape_move(0, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, 0),
-        ),
-
-        Op::BitCast(src, dest) => format!(
-            "{}[-]{}[{}+{}[-]]{}",
-            print_tape_move(0, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, *dest),
-            print_tape_move(*dest, *src),
-            print_tape_move(*src, 0),
-        ),
-
-        Op::Branch(addr) => format!(
-            "{}BRANCH{}",
-            print_tape_move(0, *addr),
-            print_tape_move(*addr, 0),
-        ),
-
-        Op::Ret(addr) => format!(
-            "{}TODO RETURN{}",
-            print_tape_move(0, *addr),
-            print_tape_move(*addr, 0)
-        ),
-
-        Op::Putc(addr) => format!(
-            "{}.{}",
-            print_tape_move(0, *addr),
-            print_tape_move(*addr, 0)
-        ),
-
-        Op::Block(_, _) => format!("BLOCKS NOT IMPLEMENTED"),
-    }
-}
-
-fn gen_bblock(bfunc: &mut BuildFunc, block: BasicBlock) {
-    println!("=== begin block ==============");
-
-    let mut maybe_inst = block.get_first_instruction();
-    while maybe_inst.is_some() {
-        let inst = maybe_inst.unwrap();
-        maybe_inst = inst.get_next_instruction();
-
-        println!("=== {:#?} ===================", inst.get_opcode());
-
-        match inst.get_opcode() {
-            InstructionOpcode::Alloca => bfunc.gen_inst_alloca(inst),
-            InstructionOpcode::Store => bfunc.gen_inst_store(inst),
-            InstructionOpcode::Load => bfunc.gen_inst_load(inst),
-            InstructionOpcode::Add => bfunc.gen_inst_add(inst),
-            InstructionOpcode::Sub => bfunc.gen_inst_sub(inst),
-            InstructionOpcode::Return => bfunc.gen_inst_ret(inst),
-            InstructionOpcode::Call => bfunc.gen_inst_call(inst),
-            InstructionOpcode::Mul => bfunc.gen_inst_mul(inst),
-            InstructionOpcode::ICmp => bfunc.gen_inst_icmp(inst),
-            InstructionOpcode::Br => bfunc.gen_inst_br(inst),
-            _ => {
-                unimplemented!("instruction {:#?}", inst.get_opcode());
+            // no tmps are left over
+            for m in self.mmap.0.iter() {
+                assert!(m.from.is_some());
             }
         }
 
-        // no tmps are left over
-        for m in bfunc.local_memmap.iter() {
-            assert!(m.from.is_some());
-        }
+        // self.ops
+        //     .iter()
+        //     .map(|op| format!("\t{}", op.pretty_print()))
+        //     .collect::<Vec<String>>()
+        //     .join("\n"),
 
-        for op in bfunc.ops.iter() {
-            println!("{}:\t{}", pretty_print_op(op), print_op(op))
-        }
+        println!("{}", self.getblock().pretty_print_end());
 
-        bfunc.ops.clear();
+        println!("=== end block {}% ===========\n\n", self.getblock().address);
     }
-
-    for op in bfunc.ops.iter() {
-        println!("{}:\t{}", pretty_print_op(op), print_op(op))
-    }
-
-    println!("=== end block ================\n\n");
 }
 
 fn gen_func(func: FunctionValue) {
     let mut bfunc = BuildFunc {
         address: 0,
-        local_memmap: vec![],
-        ops: vec![],
+        mmap: Mmap(vec![]),
+        blocks: vec![],
+        cblock: 0,
     };
 
     let mut maybe_block = func.get_first_basic_block();
@@ -648,7 +734,18 @@ fn gen_func(func: FunctionValue) {
         let block = maybe_block.unwrap();
         maybe_block = block.get_next_basic_block();
 
-        gen_bblock(&mut bfunc, block);
+        let blockcell = bfunc.mmap.for_block();
+
+        bfunc.blocks.push(Block {
+            address: blockcell.address,
+            bblock: block,
+            ops: vec![],
+        });
+    }
+
+    for i in 0..bfunc.blocks.len() {
+        bfunc.setblock(i);
+        bfunc.gen_bblock();
     }
 }
 
@@ -663,7 +760,7 @@ fn compile(path: &Path, print_llvm: bool) {
         maybe_func = func.get_next_function();
 
         println!(
-            "=== func {} ====================\n",
+            "=== begin func {} ==============\n",
             func.get_name().to_str().unwrap()
         );
 
@@ -676,7 +773,7 @@ fn compile(path: &Path, print_llvm: bool) {
         }
 
         println!(
-            "=== func {} ====================\n",
+            "=== end func {} ================\n",
             func.get_name().to_str().unwrap()
         );
     }
