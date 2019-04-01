@@ -46,9 +46,7 @@ impl Op {
                 Op::Ret(addr) => format!("return %{} TODO", addr),
                 Op::Putc(addr) => format!("putc %{}", addr),
                 Op::Branch(addr) => format!("branch to %{}", addr),
-                Op::Cond(src, dest1, dest2) => {
-                    format!("if %{} then %{} else %{}", src, dest1, dest2)
-                }
+                Op::Cond(src, tru, fals) => format!("if %{} th %{} el %{}", src, tru, fals),
             },
             self.print(),
         )
@@ -133,10 +131,10 @@ impl Op {
 
             Op::Branch(addr) => Op::Store(1, *addr).print(),
 
-            Op::Cond(src, dest1, dest2) => vec![
-                Op::Copy(*src, *dest1, *dest2),
-                Op::Move(*dest2, *src),
-                Op::Not(*src, *dest2),
+            Op::Cond(src, tru, fals) => vec![
+                Op::Copy(*src, *tru, *fals),
+                Op::Move(*fals, *src),
+                Op::Not(*src, *fals),
             ]
             .iter()
             .map(|o| o.print())
@@ -144,7 +142,7 @@ impl Op {
             .join(""),
 
             Op::Ret(addr) => format!(
-                "{}TODO RETURN{}",
+                "{}TODO RETURN{}-",
                 print_tape_move(0, *addr),
                 print_tape_move(*addr, 0)
             ),
@@ -320,11 +318,21 @@ struct BuildFunc {
 }
 
 impl BuildFunc {
+    fn block_from_bblock(&self, b: BasicBlock) -> Option<&Block> {
+        self.blocks.iter().find(|e| e.bblock == b)
+    }
+
     fn pushop(&mut self, op: Op) {
         println!("{}", op.pretty_print());
 
         let curblock = self.blocks.get_mut(self.cblock).unwrap();
         curblock.ops.push(op);
+    }
+
+    fn pushprelude(&mut self, op: Op) {
+        println!("{}", op.pretty_print());
+
+        self.prelude.push(op);
     }
 
     fn setblock(&mut self, i: usize) {
@@ -684,17 +692,33 @@ impl BuildFunc {
     }
 
     fn gen_inst_br(&mut self, inst: InstructionValue) {
-        assert_eq!(inst.get_num_operands(), 3);
+        assert!(inst.get_num_operands() == 3 || inst.get_num_operands() == 1);
 
-        let op1 = inst.get_operand(0).unwrap().left().unwrap();
-        let op1 = self.rvalue_from_bval(op1);
-        println!("{:#?}", op1);
+        if inst.get_num_operands() == 3 {
+            let op1 = inst.get_operand(0).unwrap().left().unwrap();
+            let op1 = self.rvalue_from_bval(op1);
 
-        println!("{:#?}", inst.get_operand(1).unwrap().right().unwrap());
+            // hmmm, shold double check this
+            // llvm's interface has the true operand as the second
 
-        assert!(false);
+            let tblock = inst.get_operand(2).unwrap().right().unwrap();
+            let tblock = { self.block_from_bblock(tblock).unwrap().address };
 
-        // self.pushop(Op::Branch(5)); // lol, fake news
+            let fblock = inst.get_operand(1).unwrap().right().unwrap();
+            let fblock = { self.block_from_bblock(fblock).unwrap().address };
+
+            match op1 {
+                RValue::Addr(cell) => self.pushop(Op::Cond(cell.address, tblock, fblock)),
+                _ => unimplemented!("unhandled operand to br"),
+            };
+        } else if inst.get_num_operands() == 1 {
+            let block = inst.get_operand(0).unwrap().right().unwrap();
+            let block = { self.block_from_bblock(block).unwrap().address };
+
+            self.pushop(Op::Branch(block));
+        } else {
+            panic!("unexpected number of operands");
+        }
     }
 
     fn gen_bblock(&mut self) {
@@ -752,6 +776,8 @@ fn gen_func(func: FunctionValue) {
         prelude: vec![],
     };
 
+    let funcl = bfunc.mmap.for_block();
+
     let mut maybe_block = func.get_first_basic_block();
     while maybe_block.is_some() {
         let block = maybe_block.unwrap();
@@ -766,6 +792,8 @@ fn gen_func(func: FunctionValue) {
         });
     }
 
+    bfunc.pushprelude(Op::Store(1, funcl.address));
+
     println!("=== func prelude ============");
     for i in 0..bfunc.blocks.len() {
         let v = if i == 0 { 1 } else { 0 };
@@ -773,13 +801,19 @@ fn gen_func(func: FunctionValue) {
         bfunc.setblock(i);
         let addr = { bfunc.getblock().address };
 
-        bfunc.pushop(Op::Store(v, addr));
+        bfunc.pushprelude(Op::Store(v, addr));
     }
+
+    println!("[");
+
+    println!("");
 
     for i in 0..bfunc.blocks.len() {
         bfunc.setblock(i);
         bfunc.gen_bblock();
     }
+
+    println!("]")
 }
 
 fn compile(path: &Path, print_llvm: bool) {
@@ -793,7 +827,7 @@ fn compile(path: &Path, print_llvm: bool) {
         maybe_func = func.get_next_function();
 
         println!(
-            "=== begin func {} ==============\n",
+            "=== begin func {} ==============",
             func.get_name().to_str().unwrap()
         );
 
