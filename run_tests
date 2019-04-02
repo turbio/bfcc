@@ -36,8 +36,13 @@ for c_file in ${tests}; do
     exit 1;
   fi
 
-  expect_out=$(grep "TEST:" "./tests/$c_file" | sed -s 's/.*TEST:\(.*\)/\1/' | jq -r '.output')
-  exec_out="$("${execbin}" "./tests/$bf_file")"
+
+  conf=$(grep "TEST:" "./tests/$c_file" | sed -s 's/.*TEST:\(.*\)/\1/')
+
+  input=$(echo "$conf" | jq -r '.input')
+
+  expect_out=$(echo "$conf" | jq -r '.output')
+  exec_out="$(echo -n $input | "${execbin}" "./tests/$bf_file")"
 
   if [[ "$expect_out" != "$exec_out" ]]; then
     echo -e "\n========== \"$name\" output mismatch =========="

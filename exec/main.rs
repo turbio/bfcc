@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::io;
+use std::io::Read;
 use std::io::Write;
 
 fn main() {
@@ -20,7 +21,7 @@ fn main() {
 
     let code = fs::read_to_string(pathstr).unwrap();
 
-    let out = exec(&code, "");
+    let out = exec(&code);
 
     let stdout = io::stdout();
     let mut out_handle = stdout.lock();
@@ -28,8 +29,7 @@ fn main() {
     out_handle.flush().unwrap();
 }
 
-fn exec(code: &str, input: &str) -> Vec<u8> {
-    let mut input = input.to_owned();
+fn exec(code: &str) -> Vec<u8> {
     let code: Vec<char> = code.chars().collect();
     let mut mem: [u8; 1000] = [0; 1000];
     let mut pc = 0;
@@ -42,7 +42,16 @@ fn exec(code: &str, input: &str) -> Vec<u8> {
             '-' => mem[mp] -= 1,
             '>' => mp += 1,
             '<' => mp -= 1,
-            ',' => mem[mp] = input.remove(0) as u8,
+            ',' => {
+                mem[mp] = {
+                    let mut input: [u8; 1] = [0; 1];
+                    if io::stdin().read_exact(&mut input).is_ok() {
+                        input[0]
+                    } else {
+                        0
+                    }
+                }
+            }
             '.' => out.push(mem[mp]),
             '[' => {
                 if mem[mp] == 0 {

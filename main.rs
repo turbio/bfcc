@@ -22,8 +22,10 @@ enum Op {
     Not(usize, usize),         // b = !a
     BitCast(usize, usize),     // b = !!a
 
-    Ret(usize),  // FAKE NEWS :/
+    Ret(usize), // FAKE NEWS :/
+
     Putc(usize), // TODO just for testing
+    Getc(usize), // TODO just for testing
 
     Branch(usize),             // unconditional branch to a
     Cond(usize, usize, usize), // if a branch to b else branch to c
@@ -45,6 +47,7 @@ impl Op {
                 Op::BitCast(src, dest) => format!("bitcast %{} to %{}", src, dest),
                 Op::Ret(addr) => format!("return %{} TODO", addr),
                 Op::Putc(addr) => format!("putc %{}", addr),
+                Op::Getc(addr) => format!("getc %{}", addr),
                 Op::Branch(addr) => format!("branch to %{}", addr),
                 Op::Cond(src, tru, fals) => format!("if %{} th %{} el %{}", src, tru, fals),
             },
@@ -149,6 +152,12 @@ impl Op {
 
             Op::Putc(addr) => format!(
                 "{}.{}",
+                print_tape_move(0, *addr),
+                print_tape_move(*addr, 0)
+            ),
+
+            Op::Getc(addr) => format!(
+                "{},{}",
                 print_tape_move(0, *addr),
                 print_tape_move(*addr, 0)
             ),
@@ -568,50 +577,65 @@ impl BuildFunc {
 
     // TODO: this is just for validating execution right now
     fn gen_inst_call(&mut self, inst: InstructionValue) {
-        assert_eq!(inst.get_num_operands(), 2);
+        if inst.get_num_operands() == 2 {
+            let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap() {
+                BasicValueEnum::IntValue(v) => {
+                    if v.is_const() {
+                        let ptr = self.mmap.new_tmp();
 
-        let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap() {
-            BasicValueEnum::IntValue(v) => {
-                if v.is_const() {
-                    let ptr = self.mmap.new_tmp();
+                        let immv = v.get_zero_extended_constant().unwrap();
 
-                    let immv = v.get_zero_extended_constant().unwrap();
+                        let newop = {
+                            if immv > 255 {
+                                panic!("unsupported value")
+                            }
+                            Op::Store(immv as u8, ptr.address)
+                        };
 
-                    let newop = {
-                        if immv > 255 {
-                            panic!("unsupported value")
-                        }
-                        Op::Store(immv as u8, ptr.address)
-                    };
+                        self.pushop(newop);
 
-                    self.pushop(newop);
+                        (ptr, true)
+                    } else {
+                        let ptr = {
+                            let src = v.as_instruction().unwrap();
+                            *self.mmap.from_inst(src).unwrap()
+                        };
 
-                    (ptr, true)
-                } else {
-                    let ptr = {
-                        let src = v.as_instruction().unwrap();
-                        *self.mmap.from_inst(src).unwrap()
-                    };
-
-                    (ptr, false)
+                        (ptr, false)
+                    }
                 }
+                _ => panic!("we only deal in ints!"),
+            };
+
+            let func = match inst.get_operand(1).unwrap().left().unwrap() {
+                BasicValueEnum::PointerValue(v) => v,
+                _ => panic!("unable to call"),
+            };
+
+            if func.get_name().to_str().unwrap() == "putc" {
+                self.pushop(Op::Putc(ptr.address));
+            } else {
+                panic!("we only know how to handle the putc builtin")
             }
-            _ => panic!("we only deal in ints!"),
-        };
 
-        let func = match inst.get_operand(1).unwrap().left().unwrap() {
-            BasicValueEnum::PointerValue(v) => v,
-            _ => panic!("unable to call"),
-        };
+            if tmp {
+                self.mmap.discard(ptr);
+            }
+        } else if inst.get_num_operands() == 1 {
+            let func = match inst.get_operand(0).unwrap().left().unwrap() {
+                BasicValueEnum::PointerValue(v) => v,
+                _ => panic!("unable to call"),
+            };
 
-        if func.get_name().to_str().unwrap() == "putc" {
-            self.pushop(Op::Putc(ptr.address));
+            let dest = self.mmap.for_inst(inst);
+
+            if func.get_name().to_str().unwrap() == "getc" {
+                self.pushop(Op::Getc(dest.address));
+            } else {
+                panic!("we only know how to handle the putc builtin")
+            }
         } else {
-            panic!("we only know how to handle the putc builtin")
-        }
-
-        if tmp {
-            self.mmap.discard(ptr);
+            unimplemented!("yeah, it's all fake :/")
         }
     }
 
