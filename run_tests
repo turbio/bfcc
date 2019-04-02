@@ -2,6 +2,8 @@
 
 tests=$(find ./tests -printf '%P\n')
 
+bin="./target/debug/fuq"
+
 for c_file in ${tests}; do
   if [[ $c_file != *.c ]]; then
     continue
@@ -19,7 +21,9 @@ for c_file in ${tests}; do
     exit 1;
   fi
 
-  cargo run "./tests/$bc_file"
+  bf_file="$(basename "$c_file" .c).bf"
+
+  ${bin} "./tests/$bc_file" > "./tests/$bf_file"
   if [[ $? != 0 ]]; then
     echo -e "\n========== \"$name\" bf compile failed =========="
     exit 1;
