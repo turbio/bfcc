@@ -2,7 +2,7 @@
 
 // TEST:{ "func": "main", "output": "b" }
 int main() {
-  int a = 0x62;
+  int a = 'b';
   if (a) {
     putc(a);
   } else {

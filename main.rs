@@ -449,10 +449,10 @@ impl BuildFunc {
             RValue::Imm(v) => {
                 self.pushop(Op::Store(v, dest.address));
             }
-            RValue::Addr(a) => {
+            RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.pushop(Op::Move(tmp_cop.address, a.address));
+                self.pushop(Op::Copy(src.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move(tmp_cop.address, src.address));
                 self.mmap.discard(tmp_cop);
             }
         }
@@ -461,12 +461,16 @@ impl BuildFunc {
             RValue::Imm(v) => {
                 self.pushop(Op::AddImm(v, dest.address));
             }
-            RValue::Addr(a) => {
-                let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.pushop(Op::Move(tmp_cop.address, a.address));
-                self.pushop(Op::Add(tmp_cop.address, dest.address));
-                self.mmap.discard(tmp_cop);
+            RValue::Addr(src) => {
+                let tmp_cop1 = self.mmap.new_tmp();
+                let tmp_cop2 = self.mmap.new_tmp();
+
+                self.pushop(Op::Copy(src.address, tmp_cop1.address, tmp_cop2.address));
+                self.pushop(Op::Move(tmp_cop2.address, src.address));
+                self.pushop(Op::Add(tmp_cop1.address, dest.address));
+
+                self.mmap.discard(tmp_cop1);
+                self.mmap.discard(tmp_cop2);
             }
         }
     }
@@ -508,10 +512,10 @@ impl BuildFunc {
             RValue::Imm(v) => {
                 self.pushop(Op::Store(v, dest.address));
             }
-            RValue::Addr(a) => {
+            RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.pushop(Op::Move(tmp_cop.address, a.address));
+                self.pushop(Op::Copy(src.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move(tmp_cop.address, src.address));
                 self.mmap.discard(tmp_cop);
             }
         }
@@ -520,12 +524,16 @@ impl BuildFunc {
             RValue::Imm(v) => {
                 self.pushop(Op::SubImm(v, dest.address));
             }
-            RValue::Addr(a) => {
-                let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Copy(a.address, dest.address, tmp_cop.address));
-                self.pushop(Op::Move(tmp_cop.address, a.address));
-                self.pushop(Op::Sub(tmp_cop.address, dest.address));
-                self.mmap.discard(tmp_cop);
+            RValue::Addr(src) => {
+                let tmp_cop1 = self.mmap.new_tmp();
+                let tmp_cop2 = self.mmap.new_tmp();
+
+                self.pushop(Op::Copy(src.address, tmp_cop1.address, tmp_cop2.address));
+                self.pushop(Op::Move(tmp_cop2.address, src.address));
+                self.pushop(Op::Sub(tmp_cop1.address, dest.address));
+
+                self.mmap.discard(tmp_cop1);
+                self.mmap.discard(tmp_cop2);
             }
         }
     }

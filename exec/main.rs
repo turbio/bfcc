@@ -47,26 +47,32 @@ fn exec(code: &str, input: &str) -> Vec<u8> {
             '[' => {
                 if mem[mp] == 0 {
                     let mut depth = 0;
+                    pc += 1;
+
                     while depth > 0 || *code.get(pc).unwrap() != ']' {
-                        pc += 1;
                         if *code.get(pc).unwrap() == '[' {
                             depth += 1;
                         } else if *code.get(pc).unwrap() == ']' {
                             depth -= 1;
                         }
+
+                        pc += 1;
                     }
                 }
             }
             ']' => {
                 if mem[mp] != 0 {
                     let mut depth = 0;
+                    pc -= 1;
+
                     while depth > 0 || *code.get(pc).unwrap() != '[' {
-                        pc -= 1;
                         if *code.get(pc).unwrap() == ']' {
                             depth += 1;
                         } else if *code.get(pc).unwrap() == '[' {
                             depth -= 1;
                         }
+
+                        pc -= 1;
                     }
                 }
             }

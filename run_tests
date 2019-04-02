@@ -51,7 +51,7 @@ for c_file in ${tests}; do
     echo -n "$exec_out" | xxd
 
 
-    echo "bf code:"
+    echo "compiler output:"
     "${bin}" "./tests/$bc_file" -llvm
     exit 1;
   fi

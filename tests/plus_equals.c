@@ -1,8 +1,8 @@
 #include "stdfuck.h"
 
-// TEST:{ "func": "main", "output": "a" }
+// TEST:{ "func": "main", "output": "q" }
 int main() {
-  int a = 33;
-  a += 32;
+  int a = 0x51;
+  a += 0x20;
   putc(a);
 };
