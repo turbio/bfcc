@@ -13,3 +13,7 @@ inkwell = { path = "./vendor/inkwell" }
 [[bin]]
 name = "fuq"
 path = "main.rs"
+
+[[bin]]
+name = "bfexec"
+path = "exec/main.rs"

@@ -1,7 +1,7 @@
 #include "stdfuck.h"
 
-// TEST:{ "func": "main", "output": "a" }
+// TEST:{ "func": "main", "output": "A" }
 int main() {
-  int a = 97;
-  putc(a - 32);
+  int a = 0x61;
+  putc(a - 0x20);
 };

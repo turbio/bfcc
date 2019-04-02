@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 
-tests=$(find ./tests -printf '%P\n')
+if [[ -z $1 ]]; then
+  tests=$(find ./tests -printf '%P\n' | sort)
+else
+  tests=$1
+fi
 
 bin="./target/debug/fuq"
+execbin="./target/debug/bfexec"
+
+cargo build
 
 for c_file in ${tests}; do
   if [[ $c_file != *.c ]]; then
     continue
   fi
 
-  name=$(echo -n $c_file | sed -s 's/.*\/\(.*\).c/\1/' | sed -s 's/_/ /g')
+  name=$(echo -n $c_file | sed -s 's/\(.*\).c/\1/' | sed -s 's/_/ /g')
 
   echo -n "...     $name"
 
@@ -23,9 +30,29 @@ for c_file in ${tests}; do
 
   bf_file="$(basename "$c_file" .c).bf"
 
-  ${bin} "./tests/$bc_file" > "./tests/$bf_file"
+  "${bin}" "./tests/$bc_file" > "./tests/$bf_file"
   if [[ $? != 0 ]]; then
     echo -e "\n========== \"$name\" bf compile failed =========="
+    exit 1;
+  fi
+
+  expect_out=$(grep "TEST:" "./tests/$c_file" | sed -s 's/.*TEST:\(.*\)/\1/' | jq -r '.output')
+  exec_out="$("${execbin}" "./tests/$bf_file")"
+
+  if [[ "$expect_out" != "$exec_out" ]]; then
+    echo -e "\n========== \"$name\" output mismatch =========="
+
+    echo "expected: \"$expect_out\""
+    echo -n "$expect_out" | xxd
+
+    echo '------'
+
+    echo "  actual: \"$exec_out\""
+    echo -n "$exec_out" | xxd
+
+
+    echo "bf code:"
+    "${bin}" "./tests/$bc_file" -llvm
     exit 1;
   fi
 
