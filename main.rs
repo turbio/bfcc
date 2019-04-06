@@ -5,14 +5,16 @@ extern crate inkwell;
 
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::Module;
+use inkwell::types::AnyTypeEnum;
 use inkwell::values::{
     BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
 };
+use inkwell::AddressSpace;
 use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
-    Store(u8, usize),          // b = a
+    StoreImm(u8, usize),       // b = a
     Copy(usize, usize, usize), // a -> b, c
     Move(usize, usize),        // a -> b
     Add(usize, usize),         // b += a
@@ -36,7 +38,7 @@ impl Op {
         format!(
             "{:20}{}",
             match self {
-                Op::Store(val, dest) => format!("store {} at %{}", val, dest),
+                Op::StoreImm(val, dest) => format!("store {} at %{}", val, dest),
                 Op::Copy(src, dest1, dest2) => format!("copy %{} to %{} %{}", src, dest1, dest2),
                 Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
                 Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
@@ -48,7 +50,7 @@ impl Op {
                 Op::Ret(addr) => format!("return %{} TODO", addr),
                 Op::Putc(addr) => format!("putc %{}", addr),
                 Op::Getc(addr) => format!("getc %{}", addr),
-                Op::Branch(addr) => format!("branch to %{}", addr),
+                Op::Branch(addr) => format!("do block %{}", addr),
                 Op::Cond(src, tru, fals) => format!("if %{} th %{} el %{}", src, tru, fals),
             },
             self.print(),
@@ -57,7 +59,7 @@ impl Op {
 
     fn print(&self) -> String {
         match self {
-            Op::Store(v, dest) => format!(
+            Op::StoreImm(v, dest) => format!(
                 "{}[-]{}{}",
                 print_tape_move(0, *dest),
                 "+".repeat(*v as usize),
@@ -132,7 +134,7 @@ impl Op {
                 print_tape_move(*src, 0),
             ),
 
-            Op::Branch(addr) => Op::Store(1, *addr).print(),
+            Op::Branch(addr) => Op::StoreImm(1, *addr).print(),
 
             Op::Cond(src, tru, fals) => vec![
                 Op::Copy(*src, *tru, *fals),
@@ -145,7 +147,7 @@ impl Op {
             .join(""),
 
             Op::Ret(addr) => format!(
-                "{}TODO RETURN{}-",
+                "{}-{}",
                 print_tape_move(0, *addr),
                 print_tape_move(*addr, 0)
             ),
@@ -199,7 +201,7 @@ impl Block {
 
     fn pretty_print_begin(&self) -> String {
         format!(
-            "{:20}{}",
+            "{:15}{}",
             format!("check unset %{}", self.address),
             self.print_begin()
         )
@@ -207,7 +209,7 @@ impl Block {
 
     fn pretty_print_end(&self) -> String {
         format!(
-            "{:20}{}",
+            "{:15}{}",
             format!("check %{}", self.address),
             self.print_end()
         )
@@ -399,7 +401,7 @@ impl BuildFunc {
                         if immv > 255 {
                             unimplemented!("unsupported value")
                         }
-                        Op::Store(immv as u8, dest)
+                        Op::StoreImm(immv as u8, dest)
                     };
 
                     self.pushop(newop);
@@ -423,7 +425,7 @@ impl BuildFunc {
                     unimplemented!("address out of range, char addresses");
                 }
 
-                self.pushop(Op::Store(cellsrc as u8, dest));
+                self.pushop(Op::StoreImm(cellsrc as u8, dest));
             }
 
             _ => unimplemented!("unsupported store source {:#?}", src),
@@ -437,20 +439,33 @@ impl BuildFunc {
 
         let tmp_dest2 = { self.mmap.for_inst(inst) };
 
-        let (opc, opm) = {
-            let src = inst.get_operand(0).unwrap().left().unwrap();
-            let src = src.as_instruction_value().unwrap();
-            let src = self.mmap.from_inst(src).unwrap();
+        let src = inst.get_operand(0).unwrap().left().unwrap();
 
-            let opc = Op::Copy(src.address, dest.address, tmp_dest2.address);
-            let opm = Op::Move(tmp_dest2.address, src.address);
-            (opc, opm)
-        };
+        match src {
+            BasicValueEnum::PointerValue(v) => {
+                let src = src.as_instruction_value().unwrap();
+                let src = { self.mmap.from_inst(src).unwrap().address };
 
-        self.pushop(opc);
-        self.pushop(opm);
+                let eltype = v.get_type().get_element_type();
+                match eltype {
+                    AnyTypeEnum::PointerType(p) => {
+                        println!("h {:#?}", p);
+                        panic!("ooof?");
+                    }
+                    AnyTypeEnum::IntType(_) => {
+                        let opc = Op::Copy(src, dest.address, tmp_dest2.address);
+                        let opm = Op::Move(tmp_dest2.address, src);
 
-        self.mmap.discard(tmp_dest2);
+                        self.pushop(opc);
+                        self.pushop(opm);
+
+                        self.mmap.discard(tmp_dest2);
+                    }
+                    _ => unimplemented!("load type {:#?}", eltype),
+                }
+            }
+            _ => unimplemented!("load {:#?}", src),
+        }
     }
 
     fn gen_inst_add(&mut self, inst: InstructionValue) {
@@ -470,7 +485,7 @@ impl BuildFunc {
 
         match rv1 {
             RValue::Imm(v) => {
-                self.pushop(Op::Store(v, dest.address));
+                self.pushop(Op::StoreImm(v, dest.address));
             }
             RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
@@ -533,7 +548,7 @@ impl BuildFunc {
 
         match rv1 {
             RValue::Imm(v) => {
-                self.pushop(Op::Store(v, dest.address));
+                self.pushop(Op::StoreImm(v, dest.address));
             }
             RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
@@ -564,7 +579,8 @@ impl BuildFunc {
     fn gen_inst_ret(&mut self, inst: InstructionValue) {
         // FAKE NEWS
 
-        assert_eq!(inst.get_num_operands(), 1);
+        self.pushop(Op::Ret(0));
+        return assert_eq!(inst.get_num_operands(), 1);
 
         let operand = inst.get_operand(0).unwrap().left().unwrap();
 
@@ -574,7 +590,7 @@ impl BuildFunc {
                     let i = v.get_zero_extended_constant().unwrap();
 
                     let tmp = self.mmap.new_tmp();
-                    self.pushop(Op::Store(i as u8, tmp.address));
+                    self.pushop(Op::StoreImm(i as u8, tmp.address));
                     self.pushop(Op::Ret(tmp.address));
 
                     self.mmap.discard(tmp);
@@ -603,7 +619,7 @@ impl BuildFunc {
                             if immv > 255 {
                                 panic!("unsupported value")
                             }
-                            Op::Store(immv as u8, ptr.address)
+                            Op::StoreImm(immv as u8, ptr.address)
                         };
 
                         self.pushop(newop);
@@ -675,7 +691,7 @@ impl BuildFunc {
                 let tmp_sub = self.mmap.new_tmp();
 
                 match rv1 {
-                    RValue::Imm(v) => self.pushop(Op::Store(v, tmp_sub.address)),
+                    RValue::Imm(v) => self.pushop(Op::StoreImm(v, tmp_sub.address)),
                     RValue::Addr(from) => {
                         let tmp_cop = self.mmap.new_tmp();
                         self.pushop(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
@@ -706,7 +722,7 @@ impl BuildFunc {
                 let tmp_sub = self.mmap.new_tmp();
 
                 match rv1 {
-                    RValue::Imm(v) => self.pushop(Op::Store(v, tmp_sub.address)),
+                    RValue::Imm(v) => self.pushop(Op::StoreImm(v, tmp_sub.address)),
                     RValue::Addr(from) => {
                         let tmp_cop = self.mmap.new_tmp();
                         self.pushop(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
@@ -838,19 +854,25 @@ fn gen_func(func: FunctionValue) {
         });
     }
 
-    bfunc.pushprelude(Op::Store(1, funcl.address));
-
     println!("=== func prelude ============");
+    println!("do func");
+    bfunc.pushprelude(Op::StoreImm(1, funcl.address));
     for i in 0..bfunc.blocks.len() {
-        let v = if i == 0 { 1 } else { 0 };
+        let v = if i == 0 {
+            println!("do block 0");
+            1
+        } else {
+            println!("skip block 0");
+            0
+        };
 
         bfunc.setblock(i);
         let addr = { bfunc.getblock().address };
 
-        bfunc.pushprelude(Op::Store(v, addr));
+        bfunc.pushprelude(Op::StoreImm(v, addr));
     }
 
-    println!("[");
+    println!("[ ; begin func block");
 
     println!("");
 
@@ -859,7 +881,7 @@ fn gen_func(func: FunctionValue) {
         bfunc.gen_bblock();
     }
 
-    println!("]")
+    println!("] ; end func block")
 }
 
 fn compile(path: &Path, print_llvm: bool) {
@@ -893,7 +915,7 @@ fn compile(path: &Path, print_llvm: bool) {
 }
 
 fn main() {
-    let mut print_llvm = false;
+    let mut print_llvm = true;
     let mut pathstr = String::new();
 
     for arg in env::args().skip(1).by_ref() {

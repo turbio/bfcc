@@ -2,6 +2,11 @@
 
 // TEST:{ "func": "main", "output": "p" }
 int main() {
-  int a = 'o';
-  int *p = &a;
+  int a = 12;
+  int *b = &a;
+  putc(*b);
+  /*int **c = &b;*/
+  /*int ***d = &c;*/
+  /*int ****e = &d;*/
+  /*putc(****e);*/
 };
