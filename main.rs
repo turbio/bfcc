@@ -915,7 +915,7 @@ fn compile(path: &Path, print_llvm: bool) {
 }
 
 fn main() {
-    let mut print_llvm = true;
+    let mut print_llvm = false;
     let mut pathstr = String::new();
 
     for arg in env::args().skip(1).by_ref() {
