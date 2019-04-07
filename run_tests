@@ -6,7 +6,7 @@ else
   tests=$1
 fi
 
-bin="./target/debug/fuq"
+bin="./target/debug/bfcc"
 execbin="./target/debug/bfexec"
 
 cargo build

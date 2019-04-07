@@ -1,5 +1,5 @@
 [package]
-name = "brainfuq"
+name = "bfcc"
 version = "0.1.0"
 authors = ["Mason Clayton <masongclayton@gmail.com>"]
 
@@ -11,7 +11,7 @@ llvm-sys = "70"
 inkwell = { path = "./vendor/inkwell" }
 
 [[bin]]
-name = "fuq"
+name = "bfcc"
 path = "main.rs"
 
 [[bin]]
