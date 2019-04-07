@@ -383,12 +383,14 @@ impl BuildFunc {
         let dest = inst.get_operand(1).unwrap().left().unwrap();
         let dest = match dest {
             BasicValueEnum::PointerValue(v) => v.as_instruction().unwrap(),
-            _ => unimplemented!("oh no"),
+            _ => unimplemented!("espected store destination to be a pointer"),
         };
 
         let dest = { self.mmap.from_inst(dest).unwrap().address };
 
-        match inst.get_operand(0).unwrap().left().unwrap() {
+        let src = inst.get_operand(0).unwrap().left().unwrap();
+
+        match src {
             BasicValueEnum::IntValue(v) => {
                 if v.is_const() {
                     let immv = v.get_zero_extended_constant().unwrap();
@@ -412,7 +414,19 @@ impl BuildFunc {
                     self.mmap.discard(tmp);
                 }
             }
-            _ => unimplemented!("only int stores are handled"),
+
+            BasicValueEnum::PointerValue(p) => {
+                let instsrc = p.as_instruction().unwrap();
+                let cellsrc = { self.mmap.from_inst(instsrc).unwrap().address };
+
+                if cellsrc > 0xff {
+                    unimplemented!("address out of range, char addresses");
+                }
+
+                self.pushop(Op::Store(cellsrc as u8, dest));
+            }
+
+            _ => unimplemented!("unsupported store source {:#?}", src),
         };
     }
 
@@ -880,7 +894,7 @@ fn compile(path: &Path, print_llvm: bool) {
 
 fn main() {
     let mut print_llvm = false;
-    let mut pathstr = "".to_owned();
+    let mut pathstr = String::new();
 
     for arg in env::args().skip(1).by_ref() {
         if arg == "-llvm" {
