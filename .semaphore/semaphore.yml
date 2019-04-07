@@ -1,0 +1,18 @@
+version: v1.0
+name: brainfuq
+agent:
+  machine:
+    type: e1-standard-8
+    os_image: ubuntu1804
+
+blocks:
+  - name: test
+    task:
+      jobs:
+        - name: run tests
+          commands:
+            - checkout
+            - change-gcc-version 8
+            - install-package llvm-7-dev clang
+            - cargo build
+            - ./run_tests
