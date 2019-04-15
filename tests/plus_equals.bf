@@ -1,11 +1,13 @@
 === begin func main ==============
-store 1 at %0       [-]+
 === func prelude ============
+do func
+store 1 at %0       [-]+
+do block 0
 store 1 at %1       >[-]+<
-[
+[ ; begin func block
 
 === begin block 1% =========
-check unset %1      >[[-]<
+check unset %1 >[[-]<
 === Alloca ===================
 === Store ===================
 store 81 at %2      >>[-]+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++<<
@@ -25,12 +27,11 @@ move %6 to %2       >>[-]>>>>[-<<<<+>>>>]<<<<<<
 === Call ===================
 putc %5             >>>>>.<<<<<
 === Return ===================
-store 0 at %6       >>>>>>[-]<<<<<<
-return %6 TODO      >>>>>>TODO RETURN<<<<<<-
+return %0 TODO      -
 === end block 1% ===========
-check %1            >]<
+check %1       >]<
 
-]
+] ; end func block
 === end func main ================
 
 === begin func putc ==============

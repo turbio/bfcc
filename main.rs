@@ -9,20 +9,19 @@ use inkwell::types::AnyTypeEnum;
 use inkwell::values::{
     BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
 };
-use inkwell::AddressSpace;
 use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
-    StoreImm(u8, usize),       // b = a
-    Copy(usize, usize, usize), // a -> b, c
-    Move(usize, usize),        // a -> b
-    Add(usize, usize),         // b += a
-    Sub(usize, usize),         // b -= a
-    AddImm(u8, usize),         // b += a
-    SubImm(u8, usize),         // b += a
-    Not(usize, usize),         // b = !a
-    BitCast(usize, usize),     // b = !!a
+    StoreImm(u8, usize),        // a -> b
+    Move(usize, usize),         // a -> b
+    Move2(usize, usize, usize), // a -> b, c
+    Add(usize, usize),          // a + b -> b
+    Sub(usize, usize),          // b - a -> b
+    AddImm(u8, usize),          // a + b -> b
+    SubImm(u8, usize),          // b - a -> b
+    Not(usize, usize),          // !a -> b
+    BitCast(usize, usize),      // !!a -> b
 
     Ret(usize), // FAKE NEWS :/
 
@@ -39,8 +38,8 @@ impl Op {
             "{:20}{}",
             match self {
                 Op::StoreImm(val, dest) => format!("store {} at %{}", val, dest),
-                Op::Copy(src, dest1, dest2) => format!("copy %{} to %{} %{}", src, dest1, dest2),
                 Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
+                Op::Move2(src, dest1, dest2) => format!("move %{} to %{} %{}", src, dest1, dest2),
                 Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
                 Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
                 Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
@@ -66,7 +65,7 @@ impl Op {
                 print_tape_move(*dest, 0),
             ),
 
-            Op::Copy(src, dest1, dest2) => format!(
+            Op::Move2(src, dest1, dest2) => format!(
                 "{}[-]{}[-]{}[-{}+{}+{}]{}",
                 print_tape_move(0, *dest1),
                 print_tape_move(*dest1, *dest2),
@@ -137,7 +136,7 @@ impl Op {
             Op::Branch(addr) => Op::StoreImm(1, *addr).print(),
 
             Op::Cond(src, tru, fals) => vec![
-                Op::Copy(*src, *tru, *fals),
+                Op::Move2(*src, *tru, *fals),
                 Op::Move(*fals, *src),
                 Op::Not(*src, *fals),
             ]
@@ -411,7 +410,7 @@ impl BuildFunc {
                         self.mmap.from_inst(src).unwrap().address
                     };
                     let tmp = self.mmap.new_tmp();
-                    self.pushop(Op::Copy(src, dest, tmp.address));
+                    self.pushop(Op::Move2(src, dest, tmp.address));
                     self.pushop(Op::Move(tmp.address, src));
                     self.mmap.discard(tmp);
                 }
@@ -437,8 +436,6 @@ impl BuildFunc {
 
         let dest = { self.mmap.for_inst(inst) };
 
-        let tmp_dest2 = { self.mmap.for_inst(inst) };
-
         let src = inst.get_operand(0).unwrap().left().unwrap();
 
         match src {
@@ -448,18 +445,14 @@ impl BuildFunc {
 
                 let eltype = v.get_type().get_element_type();
                 match eltype {
-                    AnyTypeEnum::PointerType(p) => {
-                        println!("h {:#?}", p);
-                        panic!("ooof?");
-                    }
+                    AnyTypeEnum::PointerType(_) => panic!("what we gonna do?"),
                     AnyTypeEnum::IntType(_) => {
-                        let opc = Op::Copy(src, dest.address, tmp_dest2.address);
-                        let opm = Op::Move(tmp_dest2.address, src);
+                        let tmp = { self.mmap.new_tmp() };
 
-                        self.pushop(opc);
-                        self.pushop(opm);
+                        self.pushop(Op::Move2(src, dest.address, tmp.address));
+                        self.pushop(Op::Move(tmp.address, src));
 
-                        self.mmap.discard(tmp_dest2);
+                        self.mmap.discard(tmp);
                     }
                     _ => unimplemented!("load type {:#?}", eltype),
                 }
@@ -489,7 +482,7 @@ impl BuildFunc {
             }
             RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Copy(src.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move2(src.address, dest.address, tmp_cop.address));
                 self.pushop(Op::Move(tmp_cop.address, src.address));
                 self.mmap.discard(tmp_cop);
             }
@@ -503,7 +496,7 @@ impl BuildFunc {
                 let tmp_cop1 = self.mmap.new_tmp();
                 let tmp_cop2 = self.mmap.new_tmp();
 
-                self.pushop(Op::Copy(src.address, tmp_cop1.address, tmp_cop2.address));
+                self.pushop(Op::Move2(src.address, tmp_cop1.address, tmp_cop2.address));
                 self.pushop(Op::Move(tmp_cop2.address, src.address));
                 self.pushop(Op::Add(tmp_cop1.address, dest.address));
 
@@ -552,7 +545,7 @@ impl BuildFunc {
             }
             RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Copy(src.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move2(src.address, dest.address, tmp_cop.address));
                 self.pushop(Op::Move(tmp_cop.address, src.address));
                 self.mmap.discard(tmp_cop);
             }
@@ -566,7 +559,7 @@ impl BuildFunc {
                 let tmp_cop1 = self.mmap.new_tmp();
                 let tmp_cop2 = self.mmap.new_tmp();
 
-                self.pushop(Op::Copy(src.address, tmp_cop1.address, tmp_cop2.address));
+                self.pushop(Op::Move2(src.address, tmp_cop1.address, tmp_cop2.address));
                 self.pushop(Op::Move(tmp_cop2.address, src.address));
                 self.pushop(Op::Sub(tmp_cop1.address, dest.address));
 
@@ -694,7 +687,7 @@ impl BuildFunc {
                     RValue::Imm(v) => self.pushop(Op::StoreImm(v, tmp_sub.address)),
                     RValue::Addr(from) => {
                         let tmp_cop = self.mmap.new_tmp();
-                        self.pushop(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
+                        self.pushop(Op::Move2(from.address, tmp_sub.address, tmp_cop.address));
                         self.pushop(Op::Move(tmp_cop.address, from.address));
                         self.mmap.discard(tmp_cop);
                     }
@@ -705,7 +698,7 @@ impl BuildFunc {
                         let tmp_cop1 = self.mmap.new_tmp();
                         let tmp_cop2 = self.mmap.new_tmp();
 
-                        self.pushop(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.pushop(Op::Move2(from.address, tmp_cop1.address, tmp_cop2.address));
                         self.pushop(Op::Move(tmp_cop2.address, from.address));
                         self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
@@ -725,7 +718,7 @@ impl BuildFunc {
                     RValue::Imm(v) => self.pushop(Op::StoreImm(v, tmp_sub.address)),
                     RValue::Addr(from) => {
                         let tmp_cop = self.mmap.new_tmp();
-                        self.pushop(Op::Copy(from.address, tmp_sub.address, tmp_cop.address));
+                        self.pushop(Op::Move2(from.address, tmp_sub.address, tmp_cop.address));
                         self.pushop(Op::Move(tmp_cop.address, from.address));
                         self.mmap.discard(tmp_cop);
                     }
@@ -736,7 +729,7 @@ impl BuildFunc {
                         let tmp_cop1 = self.mmap.new_tmp();
                         let tmp_cop2 = self.mmap.new_tmp();
 
-                        self.pushop(Op::Copy(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.pushop(Op::Move2(from.address, tmp_cop1.address, tmp_cop2.address));
                         self.pushop(Op::Move(tmp_cop2.address, from.address));
                         self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
@@ -915,7 +908,7 @@ fn compile(path: &Path, print_llvm: bool) {
 }
 
 fn main() {
-    let mut print_llvm = false;
+    let mut print_llvm = true;
     let mut pathstr = String::new();
 
     for arg in env::args().skip(1).by_ref() {

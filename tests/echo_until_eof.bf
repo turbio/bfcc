@@ -1,25 +1,30 @@
 === begin func main ==============
-store 1 at %0       [-]+
 === func prelude ============
+do func
+store 1 at %0       [-]+
+do block 0
 store 1 at %1       >[-]+<
+skip block 0
 store 0 at %2       >>[-]<<
+skip block 0
 store 0 at %3       >>>[-]<<<
+skip block 0
 store 0 at %4       >>>>[-]<<<<
-[
+[ ; begin func block
 
 === begin block 1% =========
-check unset %1      >[[-]<
+check unset %1 >[[-]<
 === Alloca ===================
 === Alloca ===================
 === Store ===================
 store 0 at %5       >>>>>[-]<<<<<
 === Br ===================
-branch to %2        >>[-]+<<
+do block %2         >>[-]+<<
 === end block 1% ===========
-check %1            >]<
+check %1       >]<
 
 === begin block 2% =========
-check unset %2      >>[[-]<<
+check unset %2 >>[[-]<<
 === Call ===================
 getc %7             >>>>>>>,<<<<<<<
 === Store ===================
@@ -33,31 +38,31 @@ bitcast %9 to %8    >>>>>>>>[-]>[<+>[-]]<<<<<<<<<
 === Br ===================
 if %8 th %3 el %4   >>>[-]>[-]>>>>[-<<<<<+>+>>>>]<<<<<<<<>>>>>>>>[-]<<<<[->>>>+<<<<]<<<<>>>>+>>>>[<<<<->>>>[-]]<<<<<<<<
 === end block 2% ===========
-check %2            >>]<<
+check %2       >>]<<
 
 === begin block 3% =========
-check unset %3      >>>[[-]<<<
+check unset %3 >>>[[-]<<<
 === Load ===================
 copy %6 to %9 %10   >>>>>>>>>[-]>[-]<<<<[->>>+>+<<<<]<<<<<<
 move %10 to %6      >>>>>>[-]>>>>[-<<<<+>>>>]<<<<<<<<<<
 === Call ===================
 putc %9             >>>>>>>>>.<<<<<<<<<
 === Br ===================
-branch to %2        >>[-]+<<
+do block %2         >>[-]+<<
 === end block 3% ===========
-check %3            >>>]<<<
+check %3       >>>]<<<
 
 === begin block 4% =========
-check unset %4      >>>>[[-]<<<<
+check unset %4 >>>>[[-]<<<<
 === Load ===================
 copy %5 to %10 %11  >>>>>>>>>>[-]>[-]<<<<<<[->>>>>+>+<<<<<<]<<<<<
 move %11 to %5      >>>>>[-]>>>>>>[-<<<<<<+>>>>>>]<<<<<<<<<<<
 === Return ===================
-return %10 TODO     >>>>>>>>>>TODO RETURN<<<<<<<<<<-
+return %0 TODO      -
 === end block 4% ===========
-check %4            >>>>]<<<<
+check %4       >>>>]<<<<
 
-]
+] ; end func block
 === end func main ================
 
 === begin func getc ==============
