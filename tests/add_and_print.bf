@@ -1,14 +1,14 @@
 === begin func main ==============
-pointer train yard
-store 1 at %0       [-]+
-store 1 at %1       >[-]+<
-store 1 at %2       >>[-]+<<
+pointer train station
+store 0 at %0       [-]
+store 0 at %1       >[-]<
+store 0 at %2       >>[-]<<
 === func prelude ============
 do func
 store 1 at %3       >>>[-]+<<<
 do block
 store 1 at %4       >>>>[-]+<<<<
-[ ; begin func block
+>>>[<<< ; begin func block
 
 === begin block 4% =========
 check unset %4 >>>>[[-]<<<<
@@ -33,11 +33,11 @@ add %10 to %9       >>>>>>>>>>[-<+>]<<<<<<<<<<
 === Call ===================
 putc %9             >>>>>>>>>.<<<<<<<<<
 === Return ===================
-return %0 TODO      -
+return %3 TODO      >>>-<<<
 === end block 4% ===========
 check %4       >>>>]<<<<
 
-] ; end func block
+>>>]<<< ; end func block
 === end func main ================
 
 === begin func putc ==============
