@@ -13,12 +13,6 @@ use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
-    // raw bf ops
-    Inc(usize),
-    Dec(usize),
-    Movr(usize),
-    Movl(usize),
-
     StoreImm(u8, usize),        // a -> b
     Move(usize, usize),         // a -> b
     Move2(usize, usize, usize), // a -> b, c
@@ -44,11 +38,6 @@ impl Op {
         format!(
             "{:20}{}",
             match self {
-                Op::Inc(v) => format!("inc {}", v),
-                Op::Dec(v) => format!("dec {}", v),
-                Op::Movr(v) => format!("movr {}", v),
-                Op::Movl(v) => format!("movl {}", v),
-
                 Op::StoreImm(val, dest) => format!("store {} at %{}", val, dest),
                 Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
                 Op::Move2(src, dest1, dest2) => format!("move %{} to %{} %{}", src, dest1, dest2),
@@ -78,11 +67,6 @@ impl Op {
 
     fn print(&self) -> String {
         match self {
-            Op::Inc(v) => format!("{}", "+".repeat(*v)),
-            Op::Dec(v) => format!("{}", "-".repeat(*v)),
-            Op::Movr(v) => format!("{}", ">".repeat(*v)),
-            Op::Movl(v) => format!("{}", "<".repeat(*v)),
-
             Op::StoreImm(v, dest) => format!(
                 "{}[-]{}{}",
                 print_tape_move(0, *dest),
