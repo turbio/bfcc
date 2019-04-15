@@ -7,7 +7,8 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::module::Module;
 use inkwell::types::AnyTypeEnum;
 use inkwell::values::{
-    BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode, InstructionValue,
+    BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode,
+    InstructionValue,
 };
 use inkwell::IntPredicate;
 
@@ -38,20 +39,28 @@ impl Op {
         format!(
             "{:20}{}",
             match self {
-                Op::StoreImm(val, dest) => format!("store {} at %{}", val, dest),
+                Op::StoreImm(val, dest) => {
+                    format!("store {} at %{}", val, dest)
+                }
                 Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
-                Op::Move2(src, dest1, dest2) => format!("move %{} to %{} %{}", src, dest1, dest2),
+                Op::Move2(src, dest1, dest2) => {
+                    format!("move %{} to %{} %{}", src, dest1, dest2)
+                }
                 Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
                 Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
                 Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
                 Op::SubImm(src, dest) => format!("sub {} from %{}", src, dest),
                 Op::Not(src, dest) => format!("not %{} to %{}", src, dest),
-                Op::BitCast(src, dest) => format!("bitcast %{} to %{}", src, dest),
+                Op::BitCast(src, dest) => {
+                    format!("bitcast %{} to %{}", src, dest)
+                }
                 Op::Ret(addr) => format!("return %{} TODO", addr),
                 Op::Putc(addr) => format!("putc %{}", addr),
                 Op::Getc(addr) => format!("getc %{}", addr),
                 Op::Branch(addr) => format!("do block %{}", addr),
-                Op::Cond(src, tru, fals) => format!("if %{} th %{} el %{}", src, tru, fals),
+                Op::Cond(src, tru, fals) => {
+                    format!("if %{} th %{} el %{}", src, tru, fals)
+                }
                 Op::Loop(src, ops) => format!(
                     "while %{} do\n{}",
                     src,
@@ -319,13 +328,12 @@ impl Mmap {
     }
 
     fn from_inst(&self, inst: InstructionValue) -> Option<&Cell> {
-        self.0
-            .iter()
-            .filter(|e| e.from.is_some())
-            .find(|e| match e.from.unwrap() {
+        self.0.iter().filter(|e| e.from.is_some()).find(|e| {
+            match e.from.unwrap() {
                 CellFrom::Inst(i) => i == inst,
                 _ => false,
-            })
+            }
+        })
     }
 }
 
@@ -510,7 +518,10 @@ impl BuildFunc {
                         self.pushop(Op::Move2(src, 0, 1));
                         self.pushop(Op::Move(1, src));
 
-                        self.pushop(Op::Loop(0, vec![Op::Move(3, 2), Op::Move(3, 2)]));
+                        self.pushop(Op::Loop(
+                            0,
+                            vec![Op::Move(3, 2), Op::Move(3, 2)],
+                        ));
 
                         self.pushop(Op::Move(tmp0.address, 0));
                         self.pushop(Op::Move(tmp1.address, 1));
@@ -556,7 +567,11 @@ impl BuildFunc {
             }
             RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Move2(src.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move2(
+                    src.address,
+                    dest.address,
+                    tmp_cop.address,
+                ));
                 self.pushop(Op::Move(tmp_cop.address, src.address));
                 self.mmap.discard(tmp_cop);
             }
@@ -570,7 +585,11 @@ impl BuildFunc {
                 let tmp_cop1 = self.mmap.new_tmp();
                 let tmp_cop2 = self.mmap.new_tmp();
 
-                self.pushop(Op::Move2(src.address, tmp_cop1.address, tmp_cop2.address));
+                self.pushop(Op::Move2(
+                    src.address,
+                    tmp_cop1.address,
+                    tmp_cop2.address,
+                ));
                 self.pushop(Op::Move(tmp_cop2.address, src.address));
                 self.pushop(Op::Add(tmp_cop1.address, dest.address));
 
@@ -619,7 +638,11 @@ impl BuildFunc {
             }
             RValue::Addr(src) => {
                 let tmp_cop = self.mmap.new_tmp();
-                self.pushop(Op::Move2(src.address, dest.address, tmp_cop.address));
+                self.pushop(Op::Move2(
+                    src.address,
+                    dest.address,
+                    tmp_cop.address,
+                ));
                 self.pushop(Op::Move(tmp_cop.address, src.address));
                 self.mmap.discard(tmp_cop);
             }
@@ -633,7 +656,11 @@ impl BuildFunc {
                 let tmp_cop1 = self.mmap.new_tmp();
                 let tmp_cop2 = self.mmap.new_tmp();
 
-                self.pushop(Op::Move2(src.address, tmp_cop1.address, tmp_cop2.address));
+                self.pushop(Op::Move2(
+                    src.address,
+                    tmp_cop1.address,
+                    tmp_cop2.address,
+                ));
                 self.pushop(Op::Move(tmp_cop2.address, src.address));
                 self.pushop(Op::Sub(tmp_cop1.address, dest.address));
 
@@ -675,7 +702,8 @@ impl BuildFunc {
     // TODO: this is just for validating execution right now
     fn gen_inst_call(&mut self, inst: InstructionValue) {
         if inst.get_num_operands() == 2 {
-            let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap() {
+            let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap()
+            {
                 BasicValueEnum::IntValue(v) => {
                     if v.is_const() {
                         let ptr = self.mmap.new_tmp();
@@ -758,21 +786,33 @@ impl BuildFunc {
                 let tmp_sub = self.mmap.new_tmp();
 
                 match rv1 {
-                    RValue::Imm(v) => self.pushop(Op::StoreImm(v, tmp_sub.address)),
+                    RValue::Imm(v) => {
+                        self.pushop(Op::StoreImm(v, tmp_sub.address))
+                    }
                     RValue::Addr(from) => {
                         let tmp_cop = self.mmap.new_tmp();
-                        self.pushop(Op::Move2(from.address, tmp_sub.address, tmp_cop.address));
+                        self.pushop(Op::Move2(
+                            from.address,
+                            tmp_sub.address,
+                            tmp_cop.address,
+                        ));
                         self.pushop(Op::Move(tmp_cop.address, from.address));
                         self.mmap.discard(tmp_cop);
                     }
                 };
                 match rv2 {
-                    RValue::Imm(v) => self.pushop(Op::SubImm(v, tmp_sub.address)),
+                    RValue::Imm(v) => {
+                        self.pushop(Op::SubImm(v, tmp_sub.address))
+                    }
                     RValue::Addr(from) => {
                         let tmp_cop1 = self.mmap.new_tmp();
                         let tmp_cop2 = self.mmap.new_tmp();
 
-                        self.pushop(Op::Move2(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.pushop(Op::Move2(
+                            from.address,
+                            tmp_cop1.address,
+                            tmp_cop2.address,
+                        ));
                         self.pushop(Op::Move(tmp_cop2.address, from.address));
                         self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
@@ -789,21 +829,33 @@ impl BuildFunc {
                 let tmp_sub = self.mmap.new_tmp();
 
                 match rv1 {
-                    RValue::Imm(v) => self.pushop(Op::StoreImm(v, tmp_sub.address)),
+                    RValue::Imm(v) => {
+                        self.pushop(Op::StoreImm(v, tmp_sub.address))
+                    }
                     RValue::Addr(from) => {
                         let tmp_cop = self.mmap.new_tmp();
-                        self.pushop(Op::Move2(from.address, tmp_sub.address, tmp_cop.address));
+                        self.pushop(Op::Move2(
+                            from.address,
+                            tmp_sub.address,
+                            tmp_cop.address,
+                        ));
                         self.pushop(Op::Move(tmp_cop.address, from.address));
                         self.mmap.discard(tmp_cop);
                     }
                 };
                 match rv2 {
-                    RValue::Imm(v) => self.pushop(Op::SubImm(v, tmp_sub.address)),
+                    RValue::Imm(v) => {
+                        self.pushop(Op::SubImm(v, tmp_sub.address))
+                    }
                     RValue::Addr(from) => {
                         let tmp_cop1 = self.mmap.new_tmp();
                         let tmp_cop2 = self.mmap.new_tmp();
 
-                        self.pushop(Op::Move2(from.address, tmp_cop1.address, tmp_cop2.address));
+                        self.pushop(Op::Move2(
+                            from.address,
+                            tmp_cop1.address,
+                            tmp_cop2.address,
+                        ));
                         self.pushop(Op::Move(tmp_cop2.address, from.address));
                         self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
@@ -837,7 +889,9 @@ impl BuildFunc {
             let fblock = { self.block_from_bblock(fblock).unwrap().address };
 
             match op1 {
-                RValue::Addr(cell) => self.pushop(Op::Cond(cell.address, tblock, fblock)),
+                RValue::Addr(cell) => {
+                    self.pushop(Op::Cond(cell.address, tblock, fblock))
+                }
                 _ => unimplemented!("unhandled operand to br"),
             };
         } else if inst.get_num_operands() == 1 {
