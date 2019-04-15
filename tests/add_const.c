@@ -2,6 +2,6 @@
 
 // TEST:{ "func": "main", "output": "h" }
 int main() {
-  int a = 'H';
+  uint8_t a = 'H';
   putc(a + 0x20);
 };
