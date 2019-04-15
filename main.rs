@@ -883,6 +883,28 @@ impl BuildFunc {
         }
     }
 
+    fn gen_inst_result_noop(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_num_operands(), 1);
+
+        let src =
+            self.rvalue_from_bval(inst.get_operand(0).unwrap().left().unwrap());
+
+        let dest = self.mmap.for_inst(inst);
+        let tmp = self.mmap.new_tmp();
+
+        match src {
+            RValue::Imm(_) => {
+                panic!("why tho");
+            }
+            RValue::Addr(src) => {
+                self.pushop(Op::Move2(src.address, dest.address, tmp.address));
+                self.pushop(Op::Move(tmp.address, src.address));
+            }
+        }
+
+        self.mmap.discard(tmp);
+    }
+
     fn gen_inst_br(&mut self, inst: InstructionValue) {
         assert!(inst.get_num_operands() == 3 || inst.get_num_operands() == 1);
 
@@ -938,6 +960,9 @@ impl BuildFunc {
                 InstructionOpcode::Mul => self.gen_inst_mul(inst),
                 InstructionOpcode::ICmp => self.gen_inst_icmp(inst),
                 InstructionOpcode::Br => self.gen_inst_br(inst),
+
+                InstructionOpcode::ZExt => self.gen_inst_result_noop(inst),
+                InstructionOpcode::Trunc => self.gen_inst_result_noop(inst),
                 _ => {
                     unimplemented!("instruction {:#?}", inst.get_opcode());
                 }

@@ -2,7 +2,7 @@
 
 // TEST:{ "func": "main", "output": "hey!", "input": "hey!" }
 int main() {
-  int a;
+  uint8_t a;
 
   while ((a = getc())) {
     putc(a);

@@ -2,7 +2,7 @@
 
 // TEST:{ "func": "main", "output": "y" }
 int main() {
-  int a = 'b';
+  uint8_t a = 'b';
   if (a == 'a') {
     putc('x');
   } else if (a == 'b') {
