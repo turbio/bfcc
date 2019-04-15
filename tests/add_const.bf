@@ -1,16 +1,4 @@
 === begin func main ==============
-
-; Function Attrs: noinline nounwind optnone sspstrong uwtable
-define dso_local i32 @main() #0 {
-  %1 = alloca i32, align 4
-  store i32 72, i32* %1, align 4
-  %2 = load i32, i32* %1, align 4
-  %3 = add nsw i32 %2, 32
-  call void @putc(i32 %3)
-  ret i32 0
-}
-
-
 === func prelude ============
 do func
 store 1 at %0       [-]+
@@ -41,9 +29,5 @@ check %1       >]<
 === end func main ================
 
 === begin func putc ==============
-
-declare void @putc(i32) #1
-
-
 === end func putc ================
 

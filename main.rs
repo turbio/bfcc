@@ -13,6 +13,12 @@ use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
+    // raw bf ops
+    Inc(usize),
+    Dec(usize),
+    Movr(usize),
+    Movl(usize),
+
     StoreImm(u8, usize),        // a -> b
     Move(usize, usize),         // a -> b
     Move2(usize, usize, usize), // a -> b, c
@@ -30,6 +36,7 @@ enum Op {
 
     Branch(usize),             // unconditional branch to a
     Cond(usize, usize, usize), // if a branch to b else branch to c
+    Loop(usize, Vec<Op>),      // while a do ops
 }
 
 impl Op {
@@ -37,6 +44,11 @@ impl Op {
         format!(
             "{:20}{}",
             match self {
+                Op::Inc(v) => format!("inc {}", v),
+                Op::Dec(v) => format!("dec {}", v),
+                Op::Movr(v) => format!("movr {}", v),
+                Op::Movl(v) => format!("movl {}", v),
+
                 Op::StoreImm(val, dest) => format!("store {} at %{}", val, dest),
                 Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
                 Op::Move2(src, dest1, dest2) => format!("move %{} to %{} %{}", src, dest1, dest2),
@@ -51,6 +63,14 @@ impl Op {
                 Op::Getc(addr) => format!("getc %{}", addr),
                 Op::Branch(addr) => format!("do block %{}", addr),
                 Op::Cond(src, tru, fals) => format!("if %{} th %{} el %{}", src, tru, fals),
+                Op::Loop(src, ops) => format!(
+                    "while %{} do\n{}",
+                    src,
+                    ops.iter()
+                        .map(|op| format!("\t{}", op.pretty_print()))
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                ),
             },
             self.print(),
         )
@@ -58,6 +78,11 @@ impl Op {
 
     fn print(&self) -> String {
         match self {
+            Op::Inc(v) => format!("{}", "+".repeat(*v)),
+            Op::Dec(v) => format!("{}", "-".repeat(*v)),
+            Op::Movr(v) => format!("{}", ">".repeat(*v)),
+            Op::Movl(v) => format!("{}", "<".repeat(*v)),
+
             Op::StoreImm(v, dest) => format!(
                 "{}[-]{}{}",
                 print_tape_move(0, *dest),
@@ -144,6 +169,8 @@ impl Op {
             .map(|o| o.print())
             .collect::<Vec<String>>()
             .join(""),
+
+            Op::Loop(_, _) => format!("todo lol"),
 
             Op::Ret(addr) => format!(
                 "{}-{}",
@@ -445,7 +472,70 @@ impl BuildFunc {
 
                 let eltype = v.get_type().get_element_type();
                 match eltype {
-                    AnyTypeEnum::PointerType(_) => panic!("what we gonna do?"),
+                    AnyTypeEnum::PointerType(_) => {
+                        // this whole thing is pretty hairy. The idea is to
+                        // clear the first few cells, copy the pointer value
+                        // into this area then move forward while moving cells
+                        // infront behind and decrementing the pointer.
+                        //
+                        // for example: say we have the memory tape:
+                        // | a | b | c | x | y | z | p | d | ? | ? | ? |
+                        //
+                        // where `p` is the address we want to deref, `d`
+                        // is where we want to store the value and `z` is the
+                        // value pointed to by `p` (p would equal 6)
+                        //
+                        // first we'll make room at the beginning:
+                        // | 0 | 0 | 0 | x | y | z | p | d | a | b | c |
+                        //
+                        // then copy the pointer there (sub 3)
+                        // | 0 | 0 | 2 | x | y | z | p | d | a | b | c |
+                        //
+                        // next we'll move forward one. the ptr copy is
+                        // decremented and a return counter is incremented.
+                        // | x | 0 | 1 | 1 | y | z | p | d | a | b | c |
+                        //
+                        // reap until the ptr copy is 0.
+                        // | x | y | 0 | 2 | 0 | z | p | d | a | b | c |
+                        //
+                        // once ptr copy is 0 we'll copy the next value
+                        // into its place
+                        // | x | y | 0 | 2 | z | z | p | d | a | b | c |
+                        //
+                        // reverse the process, moving back until the return
+                        // counter is 0.
+                        // | x | 0 | 1 | z | y | z | p | d | a | b | c |
+                        //
+                        // | 0 | 0 | z | x | y | z | p | d | a | b | c |
+                        //
+                        // once 0 copy the value over to d and restore the moved
+                        // cells
+                        //
+                        // | a | b | c | x | y | z | p | z | ? | ? | ? |
+                        //
+                        // it's like a train! choo choo
+
+                        let tmp0 = { self.mmap.new_tmp() };
+                        let tmp1 = { self.mmap.new_tmp() };
+                        let tmp2 = { self.mmap.new_tmp() };
+
+                        self.pushop(Op::Move(0, tmp0.address));
+                        self.pushop(Op::Move(1, tmp1.address));
+                        self.pushop(Op::Move(2, tmp2.address));
+
+                        self.pushop(Op::Move2(src, 0, 1));
+                        self.pushop(Op::Move(1, src));
+
+                        self.pushop(Op::Loop(0, vec![Op::Move(3, 2), Op::Move(3, 2)]));
+
+                        self.pushop(Op::Move(tmp0.address, 0));
+                        self.pushop(Op::Move(tmp1.address, 1));
+                        self.pushop(Op::Move(tmp2.address, 2));
+
+                        self.mmap.discard(tmp0);
+                        self.mmap.discard(tmp1);
+                        self.mmap.discard(tmp2);
+                    }
                     AnyTypeEnum::IntType(_) => {
                         let tmp = { self.mmap.new_tmp() };
 
@@ -908,7 +998,7 @@ fn compile(path: &Path, print_llvm: bool) {
 }
 
 fn main() {
-    let mut print_llvm = true;
+    let mut print_llvm = false;
     let mut pathstr = String::new();
 
     for arg in env::args().skip(1).by_ref() {
