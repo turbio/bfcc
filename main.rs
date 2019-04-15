@@ -14,6 +14,7 @@ use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
+    Load(usize, usize),         // *a -> b warning: uses cells 0-3
     StoreImm(u8, usize),        // a -> b
     Move(usize, usize),         // a -> b
     Move2(usize, usize, usize), // a -> b, c
@@ -39,6 +40,7 @@ impl Op {
         format!(
             "{:20}{}",
             match self {
+                Op::Load(src, dest) => format!("load *%{} to %{}", src, dest),
                 Op::StoreImm(val, dest) => {
                     format!("store {} at %{}", val, dest)
                 }
@@ -76,6 +78,78 @@ impl Op {
 
     fn print(&self) -> String {
         match self {
+            // this whole thing is pretty hairy. The idea is to
+            // clear the first few cells, copy the pointer value
+            // into this area then move forward while moving cells
+            // infront behind and decrementing the pointer.
+            //
+            // for example: say we have the memory tape:
+            // | a | b | c | x | y | z | p | d |
+            //
+            // where `p` is the address we want to deref, `d`
+            // is where we want to store the value and `z` is the
+            // value pointed to by `p` (p would equal 5). a, b, and
+            // c are the train station.
+            //
+            // then copy the pointer to the train station
+            // | 0 | 0 | 2 | x | y | z | p | d |
+            //
+            // next we'll move forward one. the ptr copy is
+            // decremented and a return counter is incremented.
+            // | x | 0 | 1 | 1 | y | z | p | d |
+            //
+            // repeat until the ptr copy is 0.
+            // | x | y | 0 | 2 | 0 | z | p | d |
+            //
+            // once ptr copy is 0 we'll copy the next value
+            // into its place
+            // | x | y | 0 | 2 | z | z | p | d |
+            //
+            // reverse the process, moving back until the return
+            // counter is 0.
+            // | x | 0 | 1 | z | y | z | p | d |
+            //
+            // | 0 | 0 | z | x | y | z | p | d |
+            //
+            // once 0 copy the value over to d and restore the moved
+            // cells
+            //
+            // | a | b | c | x | y | z | p | z |
+            //
+            // it's like a train! choo choo
+            Op::Load(src, dest) => format!(
+                "
+copy addr to 2\t{} {}
+dec 2 by 3\t{}
+dec 2 inc 1\t>>[-<+<
+move 3 to 0\t{}
+move 2 to 3\t{}
+move 1 to 2\t{}
+drive right\t>
+>>]<<
+copy 3 to 2\t{} {}
+>[-<
+move 1 to 0\t{}
+move 2 to 1\t{}
+drive left\t<
+move 0 to 3\t{}
+>]<
+copy 2 to dest\t{}
+",
+                Op::Move2(*src, 1, 2).print(),
+                Op::Move(1, *src).print(),
+                Op::SubImm(3, 2).print(),
+                Op::Move(3, 0).print(),
+                Op::Move(2, 3).print(),
+                Op::Move(1, 2).print(),
+                Op::Move2(3, 0, 2).print(),
+                Op::Move(0, 3).print(),
+                Op::Move(1, 0).print(),
+                Op::Move(2, 1).print(),
+                Op::Move(0, 3).print(),
+                Op::Move(2, *dest).print(),
+            ),
+
             Op::StoreImm(v, dest) => format!(
                 "{}[-]{}{}",
                 print_tape_move(0, *dest),
@@ -161,7 +235,7 @@ impl Op {
             .iter()
             .map(|o| o.print())
             .collect::<Vec<String>>()
-            .join(""),
+            .join(" "),
 
             Op::Loop(_, _) => format!("todo lol"),
 
@@ -339,7 +413,7 @@ impl Mmap {
 
 #[derive(Debug)]
 struct BuildFunc {
-    address: isize,
+    address: usize,
     mmap: Mmap,
     blocks: Vec<Block>,
     cblock: usize,
@@ -465,71 +539,7 @@ impl BuildFunc {
                 let eltype = v.get_type().get_element_type();
                 match eltype {
                     AnyTypeEnum::PointerType(_) => {
-                        // this whole thing is pretty hairy. The idea is to
-                        // clear the first few cells, copy the pointer value
-                        // into this area then move forward while moving cells
-                        // infront behind and decrementing the pointer.
-                        //
-                        // for example: say we have the memory tape:
-                        // | a | b | c | x | y | z | p | d | ? | ? | ? |
-                        //
-                        // where `p` is the address we want to deref, `d`
-                        // is where we want to store the value and `z` is the
-                        // value pointed to by `p` (p would equal 6)
-                        //
-                        // first we'll make room at the beginning:
-                        // | 0 | 0 | 0 | x | y | z | p | d | a | b | c |
-                        //
-                        // then copy the pointer there (sub 3)
-                        // | 0 | 0 | 2 | x | y | z | p | d | a | b | c |
-                        //
-                        // next we'll move forward one. the ptr copy is
-                        // decremented and a return counter is incremented.
-                        // | x | 0 | 1 | 1 | y | z | p | d | a | b | c |
-                        //
-                        // reap until the ptr copy is 0.
-                        // | x | y | 0 | 2 | 0 | z | p | d | a | b | c |
-                        //
-                        // once ptr copy is 0 we'll copy the next value
-                        // into its place
-                        // | x | y | 0 | 2 | z | z | p | d | a | b | c |
-                        //
-                        // reverse the process, moving back until the return
-                        // counter is 0.
-                        // | x | 0 | 1 | z | y | z | p | d | a | b | c |
-                        //
-                        // | 0 | 0 | z | x | y | z | p | d | a | b | c |
-                        //
-                        // once 0 copy the value over to d and restore the moved
-                        // cells
-                        //
-                        // | a | b | c | x | y | z | p | z | ? | ? | ? |
-                        //
-                        // it's like a train! choo choo
-
-                        let tmp0 = { self.mmap.new_tmp() };
-                        let tmp1 = { self.mmap.new_tmp() };
-                        let tmp2 = { self.mmap.new_tmp() };
-
-                        self.pushop(Op::Move(0, tmp0.address));
-                        self.pushop(Op::Move(1, tmp1.address));
-                        self.pushop(Op::Move(2, tmp2.address));
-
-                        self.pushop(Op::Move2(src, 0, 1));
-                        self.pushop(Op::Move(1, src));
-
-                        self.pushop(Op::Loop(
-                            0,
-                            vec![Op::Move(3, 2), Op::Move(3, 2)],
-                        ));
-
-                        self.pushop(Op::Move(tmp0.address, 0));
-                        self.pushop(Op::Move(tmp1.address, 1));
-                        self.pushop(Op::Move(tmp2.address, 2));
-
-                        self.mmap.discard(tmp0);
-                        self.mmap.discard(tmp1);
-                        self.mmap.discard(tmp2);
+                        self.pushop(Op::Load(src, dest.address));
                     }
                     AnyTypeEnum::IntType(_) => {
                         let tmp = { self.mmap.new_tmp() };
@@ -673,7 +683,8 @@ impl BuildFunc {
     fn gen_inst_ret(&mut self, inst: InstructionValue) {
         // FAKE NEWS
 
-        self.pushop(Op::Ret(0));
+        let addr = { self.address };
+        self.pushop(Op::Ret(addr)); // just guess where
         return assert_eq!(inst.get_num_operands(), 1);
 
         let operand = inst.get_operand(0).unwrap().left().unwrap();
@@ -959,7 +970,17 @@ fn gen_func(func: FunctionValue) {
         prelude: vec![],
     };
 
+    // reserve blocks for traion station
+    println!("pointer train station");
+    let station = bfunc.mmap.for_block();
+    bfunc.pushprelude(Op::StoreImm(0, station.address));
+    let station = bfunc.mmap.for_block();
+    bfunc.pushprelude(Op::StoreImm(0, station.address));
+    let station = bfunc.mmap.for_block();
+    bfunc.pushprelude(Op::StoreImm(0, station.address));
+
     let funcl = bfunc.mmap.for_block();
+    bfunc.address = funcl.address;
 
     let mut maybe_block = func.get_first_basic_block();
     while maybe_block.is_some() {
@@ -980,10 +1001,10 @@ fn gen_func(func: FunctionValue) {
     bfunc.pushprelude(Op::StoreImm(1, funcl.address));
     for i in 0..bfunc.blocks.len() {
         let v = if i == 0 {
-            println!("do block 0");
+            println!("do block");
             1
         } else {
-            println!("skip block 0");
+            println!("skip block");
             0
         };
 
@@ -993,7 +1014,11 @@ fn gen_func(func: FunctionValue) {
         bfunc.pushprelude(Op::StoreImm(v, addr));
     }
 
-    println!("[ ; begin func block");
+    println!(
+        "{}[{} ; begin func block",
+        print_tape_move(0, funcl.address),
+        print_tape_move(funcl.address, 0),
+    );
 
     println!("");
 
@@ -1002,7 +1027,11 @@ fn gen_func(func: FunctionValue) {
         bfunc.gen_bblock();
     }
 
-    println!("] ; end func block")
+    println!(
+        "{}]{} ; end func block",
+        print_tape_move(0, funcl.address),
+        print_tape_move(funcl.address, 0),
+    )
 }
 
 fn compile(path: &Path, print_llvm: bool) {
