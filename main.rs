@@ -14,18 +14,26 @@ use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
-    Load(usize, usize),         // *a -> b warning: uses cells 0-3
-    StoreImm(u8, usize),        // a -> b
+    // warning: load and store use the train station
+    Load(usize, usize),  // *a -> b
+    Store(usize, usize), // a -> *b
+
+    StoreImm(u8, usize),     // a -> b
+    StoreAddr(usize, usize), // a -> b (same as StoreImm, but retains  meaning)
+
     Move(usize, usize),         // a -> b
     Move2(usize, usize, usize), // a -> b, c
-    Add(usize, usize),          // a + b -> b
-    Sub(usize, usize),          // b - a -> b
-    AddImm(u8, usize),          // a + b -> b
-    SubImm(u8, usize),          // b - a -> b
-    Not(usize, usize),          // !a -> b
-    BitCast(usize, usize),      // !!a -> b
 
-    Ret(usize), // FAKE NEWS :/
+    Add(usize, usize), // a + b -> b
+    Sub(usize, usize), // b - a -> b
+
+    AddImm(u8, usize), // a + b -> b
+    SubImm(u8, usize), // b - a -> b
+
+    Not(usize, usize),     // !a -> b
+    BitCast(usize, usize), // !!a -> b
+
+    Ret(usize), // FAKE NEWS -_-
 
     Putc(usize), // TODO just for testing
     Getc(usize), // TODO just for testing
@@ -37,43 +45,45 @@ enum Op {
 
 impl Op {
     fn pretty_print(&self) -> String {
-        format!(
-            "{:20}{}",
-            match self {
-                Op::Load(src, dest) => format!("load *%{} to %{}", src, dest),
-                Op::StoreImm(val, dest) => {
-                    format!("store {} at %{}", val, dest)
-                }
-                Op::Move(src, dest) => format!("move %{} to %{}", src, dest),
-                Op::Move2(src, dest1, dest2) => {
-                    format!("move %{} to %{} %{}", src, dest1, dest2)
-                }
-                Op::Add(src, dest) => format!("add %{} to %{}", src, dest),
-                Op::Sub(src, dest) => format!("sub %{} from %{}", src, dest),
-                Op::AddImm(src, dest) => format!("add {} to %{}", src, dest),
-                Op::SubImm(src, dest) => format!("sub {} from %{}", src, dest),
-                Op::Not(src, dest) => format!("not %{} to %{}", src, dest),
-                Op::BitCast(src, dest) => {
-                    format!("bitcast %{} to %{}", src, dest)
-                }
-                Op::Ret(addr) => format!("return %{} TODO", addr),
-                Op::Putc(addr) => format!("putc %{}", addr),
-                Op::Getc(addr) => format!("getc %{}", addr),
-                Op::Branch(addr) => format!("do block %{}", addr),
-                Op::Cond(src, tru, fals) => {
-                    format!("if %{} th %{} el %{}", src, tru, fals)
-                }
-                Op::Loop(src, ops) => format!(
-                    "while %{} do\n{}",
-                    src,
-                    ops.iter()
-                        .map(|op| format!("\t{}", op.pretty_print()))
-                        .collect::<Vec<String>>()
-                        .join("\n")
-                ),
-            },
-            self.print(),
-        )
+        let as_str = match self {
+            Op::Load(src, dest) => format!("load *#{} to #{}", src, dest),
+            Op::Store(src, dest) => format!("store #{} at *#{}", src, dest),
+            Op::StoreImm(val, dest) => format!("store {} at #{}", val, dest),
+            Op::StoreAddr(val, dest) => format!("store &#{} at #{}", val, dest),
+            Op::Move(src, dest) => format!("move #{} to #{}", src, dest),
+            Op::Move2(src, dest1, dest2) => {
+                format!("move #{} to #{} #{}", src, dest1, dest2)
+            }
+            Op::Add(src, dest) => format!("add #{} to #{}", src, dest),
+            Op::Sub(src, dest) => format!("sub #{} from #{}", src, dest),
+            Op::AddImm(src, dest) => format!("add {} to #{}", src, dest),
+            Op::SubImm(src, dest) => format!("sub {} from #{}", src, dest),
+            Op::Not(src, dest) => format!("not #{} to #{}", src, dest),
+            Op::BitCast(src, dest) => format!("bitcast #{} to #{}", src, dest),
+            Op::Ret(addr) => format!("return #{} TODO", addr),
+            Op::Putc(addr) => format!("putc #{}", addr),
+            Op::Getc(addr) => format!("getc #{}", addr),
+            Op::Branch(addr) => format!("do block #{}", addr),
+            Op::Cond(src, t, f) => {
+                format!("if #{} then #{} else #{}", src, t, f)
+            }
+            Op::Loop(src, ops) => format!(
+                "while #{} do\n{}",
+                src,
+                ops.iter()
+                    .map(|op| format!("\t{}", op.pretty_print()))
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ),
+        };
+
+        const OPCODES: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.'];
+
+        if as_str.find(OPCODES).is_some() {
+            panic!("pretty printed output {} has opcode", as_str);
+        }
+
+        format!("{:20}{}", as_str, self.print())
     }
 
     fn print(&self) -> String {
@@ -83,7 +93,7 @@ impl Op {
             // into this area then move forward while moving cells
             // infront behind and decrementing the pointer.
             //
-            // for example: say we have the memory tape:
+            // for example: say we have the tape:
             // | a | b | c | x | y | z | p | d |
             //
             // where `p` is the address we want to deref, `d`
@@ -92,21 +102,26 @@ impl Op {
             // c are the train station.
             //
             // then copy the pointer to the train station
+            //
             // | 0 | 0 | 2 | x | y | z | p | d |
             //
             // next we'll move forward one. the ptr copy is
             // decremented and a return counter is incremented.
+            //
             // | x | 0 | 1 | 1 | y | z | p | d |
             //
             // repeat until the ptr copy is 0.
+            //
             // | x | y | 0 | 2 | 0 | z | p | d |
             //
             // once ptr copy is 0 we'll copy the next value
             // into its place
+            //
             // | x | y | 0 | 2 | z | z | p | d |
             //
             // reverse the process, moving back until the return
             // counter is 0.
+            //
             // | x | 0 | 1 | z | y | z | p | d |
             //
             // | 0 | 0 | z | x | y | z | p | d |
@@ -119,22 +134,22 @@ impl Op {
             // it's like a train! choo choo
             Op::Load(src, dest) => format!(
                 "
-copy addr to 2\t{} {}
-dec 2 by 3\t{}
-dec 2 inc 1\t>>[-<+<
-move 3 to 0\t{}
-move 2 to 3\t{}
-move 1 to 2\t{}
-drive right\t>
->>]<<
-copy 3 to 2\t{} {}
->[-<
-move 1 to 0\t{}
-move 2 to 1\t{}
-drive left\t<
-move 0 to 3\t{}
->]<
-copy 2 to dest\t{}
+copy addr to #2 \t{} {}
+dec #2 by 3     \t{}
+dec #2 inc #1   \t>>[-<+<
+move #3 to #0   \t{}
+move #2 to #3   \t{}
+move #1 to #2   \t{}
+drive right     \t>
+                \t>>]<<
+copy #3 to #2   \t{} {}
+                \t>[-<
+move #1 to #0   \t{}
+move #2 to #1   \t{}
+drive left      \t<
+move #0 to #3   \t{}
+                \t>]<
+copy #2 to dest \t{}
 ",
                 Op::Move2(*src, 1, 2).print(),
                 Op::Move(1, *src).print(),
@@ -150,10 +165,66 @@ copy 2 to dest\t{}
                 Op::Move(2, *dest).print(),
             ),
 
+            Op::Store(src, dest) => format!(
+                // store works in a similar fasion to load, just in reverse.
+                // the layout is
+                //   0     1       2     3
+                // | tmp | value | ret | addr
+                "
+copy addr to #3 \t{} {}
+dec #3 by 4     \t{}
+copy v to #1    \t{}
+dec #3 inc #2   \t>>>[-<+<<
+move #4 to #0   \t{}
+move #3 to #4   \t{}
+move #2 to #3   \t{}
+move #1 to #2   \t{}
+drive right     \t>
+                \t>>>]<<<
+move #1 to #4   \t{}
+                \t>>[-<<
+move #2 to #1   \t{}
+drive left      \t<
+move #0 to #3   \t{}
+                \t>>]<<
+",
+                // copy addr to #3 (addr)
+                Op::Move2(*dest, 2, 3).print(),
+                Op::Move(2, *dest).print(),
+                // dec #3 (addr) by 4 (we're starting at cell 4)
+                Op::SubImm(4, 3).print(),
+                // copy v to #1
+                Op::Move(*src, 1).print(),
+                // dec #3 inc #2
+                // move #4 to #0
+                Op::Move(4, 0).print(),
+                // move #3 to #4
+                Op::Move(3, 4).print(),
+                // move #2 to #3
+                Op::Move(2, 3).print(),
+                // move #1 to #2
+                Op::Move(1, 2).print(),
+                // drive right
+                // copy #3 to #2
+                Op::Move(1, 4).print(),
+                // move #2 to #1
+                Op::Move(2, 1).print(),
+                // drive left
+                // move #0 to #3
+                Op::Move(0, 4).print(),
+            ),
+
             Op::StoreImm(v, dest) => format!(
                 "{}[-]{}{}",
                 print_tape_move(0, *dest),
                 "+".repeat(*v as usize),
+                print_tape_move(*dest, 0),
+            ),
+
+            Op::StoreAddr(v, dest) => format!(
+                "{}[-]{}{}",
+                print_tape_move(0, *dest),
+                "+".repeat(*v),
                 print_tape_move(*dest, 0),
             ),
 
@@ -295,7 +366,7 @@ impl Block {
     fn pretty_print_begin(&self) -> String {
         format!(
             "{:15}{}",
-            format!("check unset %{}", self.address),
+            format!("check clear #{}", self.address),
             self.print_begin()
         )
     }
@@ -303,7 +374,7 @@ impl Block {
     fn pretty_print_end(&self) -> String {
         format!(
             "{:15}{}",
-            format!("check %{}", self.address),
+            format!("check #{}", self.address),
             self.print_end()
         )
     }
@@ -319,6 +390,7 @@ enum RValue {
 enum CellFrom {
     Inst(InstructionValue),
     Block,
+    Alloc,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -332,26 +404,18 @@ struct Mmap(Vec<Cell>);
 
 impl Mmap {
     fn for_inst(&mut self, from: InstructionValue) -> Cell {
-        let next_addr = {
-            let last = self.0.last();
-            if last.is_some() {
-                last.unwrap().address + 1
-            } else {
-                0
-            }
-        };
-
-        let ent = Cell {
-            address: next_addr,
-            from: Some(CellFrom::Inst(from)),
-        };
-
-        self.0.push(ent);
-
-        ent
+        self.new(CellFrom::Inst(from))
     }
 
     fn for_block(&mut self) -> Cell {
+        self.new(CellFrom::Block)
+    }
+
+    fn for_alloc(&mut self) -> Cell {
+        self.new(CellFrom::Alloc)
+    }
+
+    fn new_tmp(&mut self) -> Cell {
         let next_addr = {
             let last = self.0.last();
             if last.is_some() {
@@ -360,30 +424,30 @@ impl Mmap {
                 0
             }
         };
-
-        let ent = Cell {
-            address: next_addr,
-            from: Some(CellFrom::Block),
-        };
-
-        self.0.push(ent);
-
-        ent
-    }
-
-    fn new_tmp(&mut self) -> Cell {
-        let mut next_addr = 0;
-
-        {
-            let last = self.0.last();
-            if last.is_some() {
-                next_addr = last.unwrap().address + 1;
-            }
-        }
 
         let ent = Cell {
             address: next_addr,
             from: None,
+        };
+
+        self.0.push(ent);
+
+        ent
+    }
+
+    fn new(&mut self, from: CellFrom) -> Cell {
+        let next_addr = {
+            let last = self.0.last();
+            if last.is_some() {
+                last.unwrap().address + 1
+            } else {
+                0
+            }
+        };
+
+        let ent = Cell {
+            address: next_addr,
+            from: Some(from),
         };
 
         self.0.push(ent);
@@ -463,7 +527,10 @@ impl BuildFunc {
                 // println!("{}", ">".repeat(cells));
 
                 // for now we'll just assume all allocas are one byte :/
-                self.mmap.for_inst(inst);
+
+                let addr = self.mmap.for_alloc().address;
+                let ptr = self.mmap.for_inst(inst);
+                self.pushop(Op::StoreAddr(addr, ptr.address));
             }
             _ => panic!("unsupported operand to alloca"),
         };
@@ -489,35 +556,49 @@ impl BuildFunc {
                 if v.is_const() {
                     let immv = v.get_zero_extended_constant().unwrap();
 
-                    let newop = {
-                        if immv > 255 {
-                            unimplemented!("unsupported value")
-                        }
-                        Op::StoreImm(immv as u8, dest)
-                    };
+                    if immv > 255 {
+                        unimplemented!("unsupported value")
+                    }
 
-                    self.pushop(newop);
+                    let tmp = self.mmap.new_tmp();
+                    self.pushop(Op::StoreImm(immv as u8, tmp.address));
+                    self.pushop(Op::Store(tmp.address, dest));
+                    self.mmap.discard(tmp);
                 } else {
                     let src = {
                         let src = v.as_instruction().unwrap();
                         self.mmap.from_inst(src).unwrap().address
                     };
-                    let tmp = self.mmap.new_tmp();
-                    self.pushop(Op::Move2(src, dest, tmp.address));
-                    self.pushop(Op::Move(tmp.address, src));
-                    self.mmap.discard(tmp);
+
+                    let tmp1 = self.mmap.new_tmp();
+                    let tmp2 = self.mmap.new_tmp();
+
+                    self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
+                    self.pushop(Op::Move(tmp2.address, src));
+                    self.pushop(Op::Store(tmp1.address, dest));
+
+                    self.mmap.discard(tmp1);
+                    self.mmap.discard(tmp2);
                 }
             }
 
             BasicValueEnum::PointerValue(p) => {
                 let instsrc = p.as_instruction().unwrap();
-                let cellsrc = { self.mmap.from_inst(instsrc).unwrap().address };
+                let src = { self.mmap.from_inst(instsrc).unwrap().address };
 
-                if cellsrc > 0xff {
+                if src > 0xff {
                     unimplemented!("address out of range, char addresses");
                 }
 
-                self.pushop(Op::StoreImm(cellsrc as u8, dest));
+                let tmp1 = self.mmap.new_tmp();
+                let tmp2 = self.mmap.new_tmp();
+
+                self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
+                self.pushop(Op::Move(tmp2.address, src));
+                self.pushop(Op::Store(tmp1.address, dest));
+
+                self.mmap.discard(tmp1);
+                self.mmap.discard(tmp2);
             }
 
             _ => unimplemented!("unsupported store source {:#?}", src),
@@ -531,29 +612,10 @@ impl BuildFunc {
 
         let src = inst.get_operand(0).unwrap().left().unwrap();
 
-        match src {
-            BasicValueEnum::PointerValue(v) => {
-                let src = src.as_instruction_value().unwrap();
-                let src = { self.mmap.from_inst(src).unwrap().address };
+        let src = src.as_instruction_value().unwrap();
+        let src = { self.mmap.from_inst(src).unwrap().address };
 
-                let eltype = v.get_type().get_element_type();
-                match eltype {
-                    AnyTypeEnum::PointerType(_) => {
-                        self.pushop(Op::Load(src, dest.address));
-                    }
-                    AnyTypeEnum::IntType(_) => {
-                        let tmp = { self.mmap.new_tmp() };
-
-                        self.pushop(Op::Move2(src, dest.address, tmp.address));
-                        self.pushop(Op::Move(tmp.address, src));
-
-                        self.mmap.discard(tmp);
-                    }
-                    _ => unimplemented!("load type {:#?}", eltype),
-                }
-            }
-            _ => unimplemented!("load {:#?}", src),
-        }
+        self.pushop(Op::Load(src, dest.address));
     }
 
     fn gen_inst_add(&mut self, inst: InstructionValue) {
@@ -938,7 +1000,7 @@ impl BuildFunc {
     }
 
     fn gen_bblock(&mut self) {
-        println!("=== begin block {}% =========", self.getblock().address);
+        println!("=== begin block #{} =========", self.getblock().address);
 
         println!("{}", self.getblock().pretty_print_begin());
 
@@ -980,7 +1042,7 @@ impl BuildFunc {
         //     .collect::<Vec<String>>()
         //     .join("\n"),
 
-        println!("=== end block {}% ===========", self.getblock().address);
+        println!("=== end block #{} ===========", self.getblock().address);
         println!("{}", self.getblock().pretty_print_end());
         println!("");
     }
@@ -997,6 +1059,8 @@ fn gen_func(func: FunctionValue) {
 
     // reserve blocks for traion station
     println!("pointer train station");
+    let station = bfunc.mmap.for_block();
+    bfunc.pushprelude(Op::StoreImm(0, station.address));
     let station = bfunc.mmap.for_block();
     bfunc.pushprelude(Op::StoreImm(0, station.address));
     let station = bfunc.mmap.for_block();

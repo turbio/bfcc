@@ -134,6 +134,9 @@ struct Debugger {
 
 impl Debugger {
     fn new(code: String, input: Vec<u8>) -> Debugger {
+        // technically incorrect but at least it won't break rendering
+        let code = code.replace('\t', "    ");
+
         Debugger {
             state: vec![State::new(code, input)],
             root: ncurses::initscr(),
