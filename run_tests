@@ -11,7 +11,8 @@ fi
 bin="./target/debug/bfcc"
 execbin="./target/debug/bfexec"
 
-cargo build
+cargo build --bin bfcc
+cargo build --bin bfexec
 
 for c_file in ${tests}; do
   if [[ $c_file != *.c ]]; then

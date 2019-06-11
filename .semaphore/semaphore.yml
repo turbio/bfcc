@@ -13,6 +13,5 @@ blocks:
           commands:
             - checkout
             - change-gcc-version 8
-            - install-package llvm-7-dev clang cargo
-            - cargo build
+            - sudo apt install llvm-7-dev clang cargo
             - ./run_tests
