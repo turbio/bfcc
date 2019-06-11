@@ -1,5 +1,5 @@
 version: v1.0
-name: brainfuq
+name: bfcc
 agent:
   machine:
     type: e1-standard-8
@@ -13,5 +13,5 @@ blocks:
           commands:
             - checkout
             - change-gcc-version 8
-            - sudo apt install llvm-7-dev clang cargo
+            - sudo install-package llvm-7-dev clang cargo
             - ./run_tests
