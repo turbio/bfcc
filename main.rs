@@ -5,7 +5,6 @@ extern crate inkwell;
 
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::Module;
-use inkwell::types::AnyTypeEnum;
 use inkwell::values::{
     BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode,
     InstructionValue,
@@ -41,6 +40,8 @@ enum Op {
     Branch(usize),             // unconditional branch to a
     Cond(usize, usize, usize), // if a branch to b else branch to c
     Loop(usize, Vec<Op>),      // while a do ops
+
+    Call(String), // representds a call
 }
 
 impl Op {
@@ -747,7 +748,8 @@ impl BuildFunc {
 
         let addr = { self.address };
         self.pushop(Op::Ret(addr)); // just guess where
-        return assert_eq!(inst.get_num_operands(), 1);
+
+        return;
 
         let operand = inst.get_operand(0).unwrap().left().unwrap();
 
