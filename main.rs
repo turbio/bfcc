@@ -41,7 +41,7 @@ enum Op {
     Cond(usize, usize, usize), // if a branch to b else branch to c
     Loop(usize, Vec<Op>),      // while a do ops
 
-    Call(String), // representds a call
+    Call(String), // representds a call (they symbol has yet to be resolved)
 }
 
 impl Op {
@@ -68,6 +68,7 @@ impl Op {
             Op::Cond(src, t, f) => {
                 format!("if #{} then #{} else #{}", src, t, f)
             }
+            Op::Call(sym) => format!("call {:?}", sym),
             Op::Loop(src, ops) => format!(
                 "while #{} do\n{}",
                 src,
@@ -89,6 +90,8 @@ impl Op {
 
     fn print(&self) -> String {
         match self {
+            Op::Call(_) => String::new(),
+
             // this whole thing is pretty hairy. The idea is to
             // clear the first few cells, copy the pointer value
             // into this area then move forward while moving cells
@@ -774,69 +777,94 @@ impl BuildFunc {
         }
     }
 
-    // TODO: this is just for validating execution right now
-    fn gen_inst_call(&mut self, inst: InstructionValue) {
-        if inst.get_num_operands() == 2 {
-            let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap()
-            {
-                BasicValueEnum::IntValue(v) => {
-                    if v.is_const() {
-                        let ptr = self.mmap.new_tmp();
+    fn gen_builtin_putc(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_num_operands(), 2);
 
-                        let immv = v.get_zero_extended_constant().unwrap();
+        let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap() {
+            BasicValueEnum::IntValue(v) => {
+                if v.is_const() {
+                    let ptr = self.mmap.new_tmp();
 
-                        let newop = {
-                            if immv > 255 {
-                                panic!("unsupported value")
-                            }
-                            Op::StoreImm(immv as u8, ptr.address)
-                        };
+                    let immv = v.get_zero_extended_constant().unwrap();
 
-                        self.pushop(newop);
+                    let newop = {
+                        if immv > 255 {
+                            panic!("unsupported value")
+                        }
+                        Op::StoreImm(immv as u8, ptr.address)
+                    };
 
-                        (ptr, true)
-                    } else {
-                        let ptr = {
-                            let src = v.as_instruction().unwrap();
-                            *self.mmap.from_inst(src).unwrap()
-                        };
+                    self.pushop(newop);
 
-                        (ptr, false)
-                    }
+                    (ptr, true)
+                } else {
+                    let ptr = {
+                        let src = v.as_instruction().unwrap();
+                        *self.mmap.from_inst(src).unwrap()
+                    };
+
+                    (ptr, false)
                 }
-                _ => panic!("we only deal in ints!"),
-            };
-
-            let func = match inst.get_operand(1).unwrap().left().unwrap() {
-                BasicValueEnum::PointerValue(v) => v,
-                _ => panic!("unable to call"),
-            };
-
-            if func.get_name().to_str().unwrap() == "putc" {
-                self.pushop(Op::Putc(ptr.address));
-            } else {
-                panic!("we only know how to handle the putc builtin")
             }
+            _ => panic!("we only deal in ints!"),
+        };
 
-            if tmp {
-                self.mmap.discard(ptr);
-            }
-        } else if inst.get_num_operands() == 1 {
-            let func = match inst.get_operand(0).unwrap().left().unwrap() {
-                BasicValueEnum::PointerValue(v) => v,
-                _ => panic!("unable to call"),
-            };
+        let func = match inst.get_operand(1).unwrap().left().unwrap() {
+            BasicValueEnum::PointerValue(v) => v,
+            _ => panic!("unable to call"),
+        };
 
-            let dest = self.mmap.for_inst(inst);
-
-            if func.get_name().to_str().unwrap() == "getc" {
-                self.pushop(Op::Getc(dest.address));
-            } else {
-                panic!("we only know how to handle the putc builtin")
-            }
+        if func.get_name().to_str().unwrap() == "putc" {
+            self.pushop(Op::Putc(ptr.address));
         } else {
-            unimplemented!("yeah, it's all fake :/")
+            panic!("we only know how to handle the putc builtin")
         }
+
+        if tmp {
+            self.mmap.discard(ptr);
+        }
+    }
+
+    fn gen_builtin_getc(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_num_operands(), 1);
+
+        let func = match inst.get_operand(0).unwrap().left().unwrap() {
+            BasicValueEnum::PointerValue(v) => v,
+            _ => panic!("unable to call"),
+        };
+
+        let dest = self.mmap.for_inst(inst);
+
+        if func.get_name().to_str().unwrap() == "getc" {
+            self.pushop(Op::Getc(dest.address));
+        } else {
+            panic!("we only know how to handle the putc builtin")
+        }
+    }
+
+    fn gen_inst_call(&mut self, inst: InstructionValue) {
+        let func_ptr = inst
+            .get_operand(inst.get_num_operands() - 1)
+            .unwrap()
+            .left()
+            .unwrap();
+
+        let func_ptr = match func_ptr {
+            BasicValueEnum::PointerValue(v) => v,
+            _ => panic!("unable to call a non pointer type"),
+        };
+
+        let func_name = func_ptr.get_name().to_str().unwrap();
+
+        if func_name == "putc" {
+            self.gen_builtin_putc(inst);
+            return;
+        } else if func_name == "getc" {
+            self.gen_builtin_getc(inst);
+            return;
+        }
+
+        self.pushop(Op::Call(func_name.to_owned()));
     }
 
     fn gen_inst_mul(&mut self, _inst: InstructionValue) {

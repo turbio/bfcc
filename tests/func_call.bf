@@ -55,3 +55,12 @@ store 1 at #5       >>>>>[-]+<<<<<
 === begin block #5 =========
 check clear #5 >>>>>[[-]<<<<<
 === Call ===================
+call "print_something"
+=== Return ===================
+return #4 TODO      >>>>-<<<<
+=== end block #5 ===========
+check #5       >>>>>]<<<<<
+
+>>>>]<<<< ; end func block
+=== end func main ================
+
