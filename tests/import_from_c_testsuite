@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+rm -rf ./from_c_testsuite
+rm -rf ./c-testsuite
+
+git clone git@github.com:c-testsuite/c-testsuite.git
+mkdir from_c_testsuite
+
+for f in c-testsuite/tests/single-exec/*.c; do
+	cat \
+		<(echo -n "// TEST:") \
+		<(cat "$f.expected" | jq -c -R -s | jq '{"func": "main", "output": .}' -c) \
+		>> "./from_c_testsuite/$(basename $f)"
+
+	cat $f >> "./from_c_testsuite/$(basename $f)"
+done
+
+rm -rf ./c-testsuite

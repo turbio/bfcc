@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+#set -e
 
 if [[ -z $1 ]]; then
   tests=$(find ./tests -printf '%P\n' | sort)
@@ -23,26 +23,36 @@ for c_file in ${tests}; do
 
   echo -n "...     $name"
 
-  bc_file="$(basename "$c_file" .c).bc"
-  clang -emit-llvm -c "./tests/$c_file" -o "./tests/$bc_file"
+  bc_file="$c_file.bc"
+  clang -emit-llvm -c "./tests/$c_file" -o "./tests/$bc_file" 2> /dev/null
   if [[ $? != 0 ]]; then
     echo -e "\n========== \"$name\" clang compile failed =========="
-    exit 1;
+    #exit 1;
+    continue
   fi
 
-  ll_file="$(basename "$c_file" .c).ll"
-  clang -emit-llvm -S "./tests/$c_file" -o "./tests/$ll_file"
+  ll_file="$c_file.ll"
+  clang -emit-llvm -S "./tests/$c_file" -o "./tests/$ll_file" 2> /dev/null
   if [[ $? != 0 ]]; then
     echo -e "\n========== \"$name\" clang compile failed =========="
-    exit 1;
+    #exit 1;
+    continue
   fi
 
-  bf_file="$(basename "$c_file" .c).bf"
+  bf_file="$c_file.bf"
 
-  "${bin}" "./tests/$bc_file" > "./tests/$bf_file"
+  out=$( ("${bin}" "./tests/$bc_file" > "./tests/$bf_file") 2>&1 )
   if [[ $? != 0 ]]; then
-    echo -e "\n========== \"$name\" bf compile failed =========="
-    exit 1;
+    echo -ne '\r'
+    echo -e "      \e[31m✗\e[0m $name"
+
+    echo
+    echo "========== \"$name\" bf compile failed =========="
+    echo "$out"
+    echo
+
+    #exit 1;
+    continue
   fi
 
 
@@ -64,10 +74,10 @@ for c_file in ${tests}; do
     echo "  actual: \"$exec_out\""
     echo -n "$exec_out" | xxd
 
+    echo
 
-    echo "compiler output:"
-    "${bin}" "./tests/$bc_file" -llvm
-    exit 1;
+    #exit 1;
+    continue
   fi
 
   echo -ne '\r'

@@ -1,0 +1,11 @@
+// TEST:{"func":"main","output":""}
+int
+main()
+{
+	int x;
+	
+	x = 1;
+	x = x & 3;
+	return x - 1;
+}
+
