@@ -14,24 +14,15 @@ execbin="./target/debug/bfexec"
 cargo build --bin bfcc
 cargo build --bin bfexec
 
-for c_file in ${tests}; do
-  if [[ $c_file != *.c ]]; then
-    continue
-  fi
-
-  name=$(echo -n $c_file | sed -s 's/\(.*\).c/\1/' | sed -s 's/_/ /g')
+function runtest {
+  c_file="$1"
+  name="$2"
+  flags="$3"
 
   echo -n "...     $name"
 
   bc_file="$(basename "$c_file" .c).bc"
-  clang -emit-llvm -c "./tests/$c_file" -o "./tests/$bc_file"
-  if [[ $? != 0 ]]; then
-    echo -e "\n========== \"$name\" clang compile failed =========="
-    exit 1;
-  fi
-
-  ll_file="$(basename "$c_file" .c).ll"
-  clang -emit-llvm -S "./tests/$c_file" -o "./tests/$ll_file"
+  clang $flags -emit-llvm -c "./tests/$c_file" -o "./tests/$bc_file"
   if [[ $? != 0 ]]; then
     echo -e "\n========== \"$name\" clang compile failed =========="
     exit 1;
@@ -72,5 +63,15 @@ for c_file in ${tests}; do
 
   echo -ne '\r'
   echo -e "      \e[32m✓\e[0m $name"
+}
+
+for testfile in ${tests}; do
+  if [[ $testfile != *.c ]]; then
+    continue
+  fi
+
+  name=$(echo -n $testfile | sed -s 's/\(.*\).c/\1/' | sed -s 's/_/ /g')
+
+  runtest "$testfile" "no opt: $name" "-O0"
 done
 
