@@ -4,11 +4,8 @@ version = "0.1.0"
 authors = ["Mason Clayton <masongclayton@gmail.com>"]
 
 [dependencies]
-inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "llvm3-7" }
+llvm-ir = { version = "0.8.0", features = ["llvm-12"] }
 ncurses = "5.99.0"
-
-[patch."https://github.com/TheDan64/inkwell"]
-inkwell = { path = "./vendor/inkwell" }
 
 [[bin]]
 name = "bfcc"

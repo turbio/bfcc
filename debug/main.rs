@@ -4,16 +4,22 @@ use std::fs;
 extern crate ncurses;
 
 enum Color {
-    Normal = 0,
-    Comment = 1,
-    Jump = 2,
-    Move = 3,
-    Inc = 4,
-    IO = 5,
+    Normal,
+    Comment,
+    Jump,
+    Move,
+    Inc,
+    IO,
+    Annot,
+
+    Mem0,
+    Mem1,
+    Mem,
 }
 
 struct State {
-    tape: [u8; 1000],
+    tape: Vec<u8>,
+    annots: Vec<Option<String>>,
 
     mp: usize,
     pc: usize,
@@ -26,12 +32,13 @@ struct State {
     output: Vec<u8>,
 }
 
-const INSTRUCTS: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.'];
+const INSTRUCTS: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.', '#'];
 
 impl State {
     fn new(code: String, input: Vec<u8>) -> State {
         State {
-            tape: [0; 1000],
+            tape: vec![0],
+            annots: vec![None],
 
             mp: 0,
             pc: code.find(INSTRUCTS).unwrap(),
@@ -59,7 +66,8 @@ impl State {
 
     fn next(&self) -> State {
         let mut n = State {
-            tape: self.tape,
+            tape: self.tape.clone(),
+            annots: self.annots.clone(),
 
             pc: self.pc,
             mp: self.mp,
@@ -74,8 +82,16 @@ impl State {
         match n.ch(n.pc) {
             '+' => n.tape[n.mp] += 1,
             '-' => n.tape[n.mp] -= 1,
-            '>' => n.mp += 1,
-            '<' => n.mp -= 1,
+            '>' => {
+                if n.mp == n.tape.len() - 1 {
+                    n.tape.push(0);
+                    n.annots.push(None);
+                }
+                n.mp += 1;
+            }
+            '<' => {
+                n.mp -= 1;
+            }
             ',' => {
                 n.tape[n.mp] = n.input[n.ic];
                 if n.ic < n.input.len() - 1 {
@@ -114,6 +130,13 @@ impl State {
                         n.pc -= 1;
                     }
                 }
+            }
+            '#' => {
+                let from = 1 + self.pc;
+                let to = self.code[from..]
+                    .find(|c| !char::is_alphanumeric(c) && c != '/' && c != '_')
+                    .unwrap();
+                n.annots[n.mp] = Some(n.code[from..(from + to)].to_string());
             }
             _ => panic!("shouldn't try to handle {:#?}", n.ch(n.pc)),
         };
@@ -238,6 +261,8 @@ impl Debugger {
         }
     }
 
+    fn until(&mut self) {}
+
     fn init(&self) {
         ncurses::noecho();
         ncurses::cbreak();
@@ -252,6 +277,11 @@ impl Debugger {
         ncurses::init_pair(Color::Move as i16, 10, 0);
         ncurses::init_pair(Color::Inc as i16, 3, 0);
         ncurses::init_pair(Color::IO as i16, 5, 0);
+        ncurses::init_pair(Color::Annot as i16, 6, 0);
+
+        ncurses::init_pair(Color::Mem0 as i16, 8, 0);
+        ncurses::init_pair(Color::Mem1 as i16, 2, 0);
+        ncurses::init_pair(Color::Mem as i16, 7, 0);
 
         self.draw();
         ncurses::refresh();
@@ -267,12 +297,20 @@ impl Debugger {
             self.root,
             ncurses::getmaxy(self.root) - 1,
             0,
-            "j: step    k: rewind    J: next    K: prev    q: quite",
+            "j: step    k: rewind    J: next    K: prev    c: continue    q: quite",
         );
 
         self.drawio();
-        self.drawmem();
-        self.drawcode();
+        self.drawcode(0, 3, ncurses::getmaxx(self.root) - 20, -1);
+        self.drawmem(
+            ncurses::getmaxx(self.root) - 20,
+            3,
+            20,
+            std::cmp::min(
+                ncurses::getmaxy(self.root) - 3 - 2,
+                1 + self.cur().tape.len() as i32,
+            ),
+        );
     }
 
     fn drawio(&self) {
@@ -281,7 +319,7 @@ impl Debugger {
         ncurses::wcolor_set(self.root, Color::Normal as i16);
         ncurses::wmove(self.root, top, 0);
         ncurses::hline(ncurses::ACS_HLINE(), ncurses::getmaxx(self.root));
-        ncurses::mvwaddstr(self.root, 0, 0, "io ");
+        ncurses::mvwaddstr(self.root, 0, 1, "io ");
 
         ncurses::wmove(self.root, top + 1, 0);
         ncurses::waddstr(self.root, " input: ");
@@ -305,41 +343,76 @@ impl Debugger {
         }
     }
 
-    fn drawmem(&self) {
-        let top = 3;
+    fn drawmem(&self, x: i32, y: i32, width: i32, height: i32) {
+        let top = y;
+        let left = x;
+        let virt = true;
 
         ncurses::wcolor_set(self.root, Color::Normal as i16);
-        ncurses::wmove(self.root, top, 0);
-        ncurses::hline(ncurses::ACS_HLINE(), ncurses::getmaxx(self.root));
-        ncurses::mvwaddstr(self.root, 0, 0, "io ");
+        ncurses::wmove(self.root, top, left);
+        ncurses::hline(ncurses::ACS_HLINE(), width);
+        ncurses::vline(ncurses::ACS_VLINE(), height);
+        ncurses::mvwaddstr(self.root, top, left + 1, "mem ");
 
-        ncurses::wmove(self.root, top + 1, 0);
+        if virt {
+            for i in 0..height - 1 {
+                if self.cur().mp == i as usize {
+                    ncurses::wmove(self.root, i + top + 1, left);
+                    ncurses::waddstr(self.root, ">");
+                    ncurses::wattron(self.root, ncurses::A_REVERSE());
+                }
 
-        let mut tapestr = self
-            .cur()
-            .tape
-            .iter()
-            .map(|cell| format!("{:03}", cell))
-            .collect::<Vec<String>>()
-            .join(" ");
+                ncurses::wmove(self.root, i + top + 1, left + 1);
 
-        tapestr.truncate(ncurses::getmaxx(self.root) as usize);
+                if self.cur().tape[i as usize] == 0 {
+                    ncurses::wcolor_set(self.root, Color::Mem0 as i16);
+                } else if self.cur().tape[i as usize] == 1 {
+                    ncurses::wcolor_set(self.root, Color::Mem1 as i16);
+                } else {
+                    ncurses::wcolor_set(self.root, Color::Mem as i16);
+                }
 
-        ncurses::waddstr(self.root, &tapestr);
+                ncurses::waddstr(self.root, &format!("{:03}", self.cur().tape[i as usize]));
 
-        if self.cur().mp * 4 < ncurses::getmaxx(self.root) as usize {
-            ncurses::wmove(self.root, top + 2, (self.cur().mp * 4) as i32);
-            ncurses::waddch(self.root, ncurses::ACS_UARROW());
+                ncurses::wattroff(self.root, ncurses::A_REVERSE());
+
+                if self.cur().annots[i as usize].is_some() {
+                    ncurses::wcolor_set(self.root, Color::Annot as i16);
+                    ncurses::waddstr(
+                        self.root,
+                        &format!(" {}", self.cur().annots[i as usize].as_ref().unwrap()),
+                    );
+                    ncurses::wcolor_set(self.root, Color::Normal as i16);
+                }
+            }
+        } else {
+            ncurses::wmove(self.root, top + 1, left);
+            let mut tapestr = self
+                .cur()
+                .tape
+                .iter()
+                .map(|cell| format!("{:03}", cell))
+                .collect::<Vec<String>>()
+                .join(" ");
+
+            tapestr.truncate(ncurses::getmaxx(self.root) as usize);
+
+            ncurses::waddstr(self.root, &tapestr);
+
+            if self.cur().mp * 4 < ncurses::getmaxx(self.root) as usize {
+                ncurses::wmove(self.root, top + 2, (self.cur().mp * 4) as i32);
+                ncurses::waddch(self.root, ncurses::ACS_UARROW());
+            }
         }
     }
 
-    fn drawcode(&self) {
-        let top = 6;
+    fn drawcode(&self, x: i32, y: i32, width: i32, _height: i32) {
+        let top = y;
 
         ncurses::wcolor_set(self.root, Color::Normal as i16);
 
         ncurses::wmove(self.root, top, 0);
-        for _ in 0..ncurses::getmaxx(self.root) {
+        for _ in 0..width {
             ncurses::waddch(self.root, ncurses::ACS_HLINE());
         }
         ncurses::mvwaddstr(self.root, top, 1, "program ");
@@ -358,18 +431,12 @@ impl Debugger {
                 continue;
             }
 
-            if ncurses::getcurx(self.root) == ncurses::getmaxx(self.root) - 1
-                && ch != '\n'
-            {
-                ncurses::wcolor_set(self.root, Color::Normal as i16);
-                ncurses::waddch(self.root, ncurses::ACS_LRCORNER());
-            }
-
             match ch {
                 '>' | '<' => ncurses::wcolor_set(self.root, Color::Move as i16),
                 '+' | '-' => ncurses::wcolor_set(self.root, Color::Inc as i16),
                 '[' | ']' => ncurses::wcolor_set(self.root, Color::Jump as i16),
                 ',' | '.' => ncurses::wcolor_set(self.root, Color::IO as i16),
+                '#' => ncurses::wcolor_set(self.root, Color::Annot as i16),
                 _ => ncurses::wcolor_set(self.root, Color::Comment as i16),
             };
 
@@ -434,6 +501,8 @@ fn main() {
             d.next();
         } else if ch == 'K' as i32 {
             d.prev();
+        } else if ch == 'c' as i32 {
+            d.until();
         } else if ch == 'q' as i32 {
             break;
         } else if ch == ncurses::KEY_MOUSE {

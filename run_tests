@@ -28,6 +28,10 @@ function runtest {
     exit 1;
   fi
 
+  # just to make debuggin easier
+  ll_file="$(basename "$c_file" .c).ll"
+  clang $flags -emit-llvm -S "./tests/$c_file" -o "./tests/$ll_file"
+
   bf_file="$(basename "$c_file" .c).bf"
 
   "${bin}" "./tests/$bc_file" > "./tests/$bf_file"

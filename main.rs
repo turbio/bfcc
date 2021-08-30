@@ -1,16 +1,9 @@
+extern crate llvm_ir;
+
+use std::ops::Deref;
+
 use std::env;
 use std::path::Path;
-
-extern crate inkwell;
-
-use inkwell::basic_block::BasicBlock;
-use inkwell::module::Module;
-use inkwell::types::AnyTypeEnum;
-use inkwell::values::{
-    BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode,
-    InstructionValue,
-};
-use inkwell::IntPredicate;
 
 #[derive(Debug)]
 enum Op {
@@ -343,7 +336,7 @@ fn print_tape_move(from: usize, to: usize) -> String {
 struct Block {
     address: usize, // execute b if a is truthy
     ops: Vec<Op>,
-    bblock: BasicBlock,
+    bblock: llvm_ir::basicblock::BasicBlock,
 }
 
 impl Block {
@@ -386,24 +379,24 @@ enum RValue {
     Imm(u8),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum CellFrom {
-    Inst(InstructionValue),
+    Inst(llvm_ir::instruction::Instruction),
     Block,
     Alloc,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Cell {
     address: usize,
     from: Option<CellFrom>,
 }
 
 #[derive(Debug)]
-struct Mmap(Vec<Cell>);
+struct RegMap(Vec<Cell>);
 
-impl Mmap {
-    fn for_inst(&mut self, from: InstructionValue) -> Cell {
+impl RegMap {
+    fn for_inst(&mut self, from: llvm_ir::instruction::Instruction) -> Cell {
         self.new(CellFrom::Inst(from))
     }
 
@@ -430,7 +423,7 @@ impl Mmap {
             from: None,
         };
 
-        self.0.push(ent);
+        self.0.push(ent.clone());
 
         ent
     }
@@ -450,7 +443,7 @@ impl Mmap {
             from: Some(from),
         };
 
-        self.0.push(ent);
+        self.0.push(ent.clone());
 
         ent
     }
@@ -465,27 +458,28 @@ impl Mmap {
         self.0.remove(index);
     }
 
-    fn from_inst(&self, inst: InstructionValue) -> Option<&Cell> {
-        self.0.iter().filter(|e| e.from.is_some()).find(|e| {
-            match e.from.unwrap() {
+    fn from_inst(&self, inst: llvm_ir::instruction::Instruction) -> Option<&Cell> {
+        self.0
+            .iter()
+            .filter(|e| e.from.is_some())
+            .find(|e| match e.from.clone().unwrap() {
                 CellFrom::Inst(i) => i == inst,
                 _ => false,
-            }
-        })
+            })
     }
 }
 
 #[derive(Debug)]
 struct BuildFunc {
     address: usize,
-    mmap: Mmap,
+    rmap: RegMap,
     blocks: Vec<Block>,
     cblock: usize,
     prelude: Vec<Op>,
 }
 
 impl BuildFunc {
-    fn block_from_bblock(&self, b: BasicBlock) -> Option<&Block> {
+    fn block_from_bblock(&self, b: llvm_ir::BasicBlock) -> Option<&Block> {
         self.blocks.iter().find(|e| e.bblock == b)
     }
 
@@ -513,13 +507,10 @@ impl BuildFunc {
         self.blocks.get(self.cblock).unwrap()
     }
 
-    fn gen_inst_alloca(&mut self, inst: InstructionValue) {
-        assert_eq!(inst.get_num_operands(), 1);
-
-        let operand = inst.get_operand(0).unwrap().left().unwrap();
-
-        match operand {
-            BasicValueEnum::IntValue(_v) => {
+    fn gen_inst_alloca(&mut self, alloca: llvm_ir::instruction::Alloca) {
+        let typ = alloca.allocated_type.deref();
+        match typ {
+            llvm_ir::Type::IntegerType { bits: _ } => {
                 // let uval = v.get_zero_extended_constant().unwrap() as usize;
                 // let bytes = v.get_type().get_bit_width() as usize / 8;
                 // let cells = uval * bytes;
@@ -528,96 +519,115 @@ impl BuildFunc {
 
                 // for now we'll just assume all allocas are one byte :/
 
-                let addr = self.mmap.for_alloc().address;
-                let ptr = self.mmap.for_inst(inst);
+                let addr = self.rmap.for_alloc().address;
+                let ptr = self
+                    .rmap
+                    .for_inst(llvm_ir::instruction::Instruction::Alloca(alloca));
                 self.pushop(Op::StoreAddr(addr, ptr.address));
             }
             _ => panic!("unsupported operand to alloca"),
         };
     }
 
-    fn gen_inst_store(&mut self, inst: InstructionValue) {
-        assert_eq!(inst.get_num_operands(), 2);
-
-        // assume the first operand is a pointer and get the instruction
-        // and get the instruction that created it.
-        let dest = inst.get_operand(1).unwrap().left().unwrap();
-        let dest = match dest {
-            BasicValueEnum::PointerValue(v) => v.as_instruction().unwrap(),
-            _ => unimplemented!("espected store destination to be a pointer"),
+    fn gen_inst_store(&mut self, store: llvm_ir::instruction::Store) {
+        let dest = match store.address.as_constant().unwrap() {
+            llvm_ir::constant::Constant::Int { bits: _, value } => *value as usize,
+            _ => unreachable!("what kinda address is that lol"),
         };
-
-        let dest = { self.mmap.from_inst(dest).unwrap().address };
-
-        let src = inst.get_operand(0).unwrap().left().unwrap();
+        let src = store.value;
 
         match src {
-            BasicValueEnum::IntValue(v) => {
-                if v.is_const() {
-                    let immv = v.get_zero_extended_constant().unwrap();
-
-                    if immv > 255 {
+            llvm_ir::operand::Operand::ConstantOperand(cref) => match cref.deref() {
+                llvm_ir::constant::Constant::Int { bits: _, value } => {
+                    if *value > 255 {
                         unimplemented!("unsupported value")
                     }
 
-                    let tmp = self.mmap.new_tmp();
-                    self.pushop(Op::StoreImm(immv as u8, tmp.address));
+                    let tmp = self.rmap.new_tmp();
+                    self.pushop(Op::StoreImm(*value as u8, tmp.address));
                     self.pushop(Op::Store(tmp.address, dest));
-                    self.mmap.discard(tmp);
-                } else {
-                    let src = {
-                        let src = v.as_instruction().unwrap();
-                        self.mmap.from_inst(src).unwrap().address
-                    };
-
-                    let tmp1 = self.mmap.new_tmp();
-                    let tmp2 = self.mmap.new_tmp();
-
-                    self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
-                    self.pushop(Op::Move(tmp2.address, src));
-                    self.pushop(Op::Store(tmp1.address, dest));
-
-                    self.mmap.discard(tmp1);
-                    self.mmap.discard(tmp2);
-                }
-            }
-
-            BasicValueEnum::PointerValue(p) => {
-                let instsrc = p.as_instruction().unwrap();
-                let src = { self.mmap.from_inst(instsrc).unwrap().address };
-
-                if src > 0xff {
-                    unimplemented!("address out of range, char addresses");
+                    self.rmap.discard(tmp);
                 }
 
-                let tmp1 = self.mmap.new_tmp();
-                let tmp2 = self.mmap.new_tmp();
+                _ => unimplemented!("dunno about that type"),
+            },
 
-                self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
-                self.pushop(Op::Move(tmp2.address, src));
-                self.pushop(Op::Store(tmp1.address, dest));
+            llvm_ir::operand::Operand::LocalOperand { name: _, ty } => match ty.deref() {
+                llvm_ir::types::Type::IntegerType { bits: _ } => {}
+                _ => unimplemented!("unsupported store dest type"),
+            },
 
-                self.mmap.discard(tmp1);
-                self.mmap.discard(tmp2);
-            }
+            _ => unimplemented!("unsupported store source value"), /*
+                                                                   BasicValueEnum::IntValue(v) => {
+                                                                       if v.is_const() {
+                                                                           let immv = v.get_zero_extended_constant().unwrap();
 
-            _ => unimplemented!("unsupported store source {:#?}", src),
+                                                                           if immv > 255 {
+                                                                               unimplemented!("unsupported value")
+                                                                           }
+
+                                                                           let tmp = self.rmap.new_tmp();
+                                                                           self.pushop(Op::StoreImm(immv as u8, tmp.address));
+                                                                           self.pushop(Op::Store(tmp.address, dest));
+                                                                           self.rmap.discard(tmp);
+                                                                       } else {
+                                                                           let src = {
+                                                                               let src = v.as_instruction().unwrap();
+                                                                               self.rmap.from_inst(src).unwrap().address
+                                                                           };
+
+                                                                           let tmp1 = self.rmap.new_tmp();
+                                                                           let tmp2 = self.rmap.new_tmp();
+
+                                                                           self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
+                                                                           self.pushop(Op::Move(tmp2.address, src));
+                                                                           self.pushop(Op::Store(tmp1.address, dest));
+
+                                                                           self.rmap.discard(tmp1);
+                                                                           self.rmap.discard(tmp2);
+                                                                       }
+                                                                   }
+
+                                                                   BasicValueEnum::PointerValue(p) => {
+                                                                       let instsrc = p.as_instruction().unwrap();
+                                                                       let src = { self.rmap.from_inst(instsrc).unwrap().address };
+
+                                                                       if src > 0xff {
+                                                                           unimplemented!("address out of range, char addresses");
+                                                                       }
+
+                                                                       let tmp1 = self.rmap.new_tmp();
+                                                                       let tmp2 = self.rmap.new_tmp();
+
+                                                                       self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
+                                                                       self.pushop(Op::Move(tmp2.address, src));
+                                                                       self.pushop(Op::Store(tmp1.address, dest));
+
+                                                                       self.rmap.discard(tmp1);
+                                                                       self.rmap.discard(tmp2);
+                                                                   }
+
+                                                                   _ => unimplemented!("unsupported store source {:#?}", src),
+                                                                   */
         };
     }
 
+    /*
     fn gen_inst_load(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 1);
 
-        let dest = { self.mmap.for_inst(inst) };
+        let dest = { self.rmap.for_inst(inst) };
 
         let src = inst.get_operand(0).unwrap().left().unwrap();
 
         let src = src.as_instruction_value().unwrap();
-        let src = { self.mmap.from_inst(src).unwrap().address };
+        let src = { self.rmap.from_inst(src).unwrap().address };
 
         self.pushop(Op::Load(src, dest.address));
     }
+    */
 
+    /*
     fn gen_inst_add(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 2);
 
@@ -631,21 +641,21 @@ impl BuildFunc {
             (op1, op2)
         };
 
-        let dest = self.mmap.for_inst(inst);
+        let dest = self.rmap.for_inst(inst);
 
         match rv1 {
             RValue::Imm(v) => {
                 self.pushop(Op::StoreImm(v, dest.address));
             }
             RValue::Addr(src) => {
-                let tmp_cop = self.mmap.new_tmp();
+                let tmp_cop = self.rmap.new_tmp();
                 self.pushop(Op::Move2(
                     src.address,
                     dest.address,
                     tmp_cop.address,
                 ));
                 self.pushop(Op::Move(tmp_cop.address, src.address));
-                self.mmap.discard(tmp_cop);
+                self.rmap.discard(tmp_cop);
             }
         }
 
@@ -654,8 +664,8 @@ impl BuildFunc {
                 self.pushop(Op::AddImm(v, dest.address));
             }
             RValue::Addr(src) => {
-                let tmp_cop1 = self.mmap.new_tmp();
-                let tmp_cop2 = self.mmap.new_tmp();
+                let tmp_cop1 = self.rmap.new_tmp();
+                let tmp_cop2 = self.rmap.new_tmp();
 
                 self.pushop(Op::Move2(
                     src.address,
@@ -665,17 +675,19 @@ impl BuildFunc {
                 self.pushop(Op::Move(tmp_cop2.address, src.address));
                 self.pushop(Op::Add(tmp_cop1.address, dest.address));
 
-                self.mmap.discard(tmp_cop1);
-                self.mmap.discard(tmp_cop2);
+                self.rmap.discard(tmp_cop1);
+                self.rmap.discard(tmp_cop2);
             }
         }
     }
+    */
 
+    /*
     fn rvalue_from_bval(&self, b: BasicValueEnum) -> RValue {
         if b.as_instruction_value().is_some() {
             RValue::Addr(
                 *self
-                    .mmap
+                    .rmap
                     .from_inst(b.as_instruction_value().unwrap())
                     .unwrap(),
             )
@@ -688,7 +700,9 @@ impl BuildFunc {
             }
         }
     }
+    */
 
+    /*
     fn gen_inst_sub(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 2);
 
@@ -702,21 +716,21 @@ impl BuildFunc {
             (op1, op2)
         };
 
-        let dest = self.mmap.for_inst(inst);
+        let dest = self.rmap.for_inst(inst);
 
         match rv1 {
             RValue::Imm(v) => {
                 self.pushop(Op::StoreImm(v, dest.address));
             }
             RValue::Addr(src) => {
-                let tmp_cop = self.mmap.new_tmp();
+                let tmp_cop = self.rmap.new_tmp();
                 self.pushop(Op::Move2(
                     src.address,
                     dest.address,
                     tmp_cop.address,
                 ));
                 self.pushop(Op::Move(tmp_cop.address, src.address));
-                self.mmap.discard(tmp_cop);
+                self.rmap.discard(tmp_cop);
             }
         }
 
@@ -725,8 +739,8 @@ impl BuildFunc {
                 self.pushop(Op::SubImm(v, dest.address));
             }
             RValue::Addr(src) => {
-                let tmp_cop1 = self.mmap.new_tmp();
-                let tmp_cop2 = self.mmap.new_tmp();
+                let tmp_cop1 = self.rmap.new_tmp();
+                let tmp_cop2 = self.rmap.new_tmp();
 
                 self.pushop(Op::Move2(
                     src.address,
@@ -736,12 +750,14 @@ impl BuildFunc {
                 self.pushop(Op::Move(tmp_cop2.address, src.address));
                 self.pushop(Op::Sub(tmp_cop1.address, dest.address));
 
-                self.mmap.discard(tmp_cop1);
-                self.mmap.discard(tmp_cop2);
+                self.rmap.discard(tmp_cop1);
+                self.rmap.discard(tmp_cop2);
             }
         }
     }
+    */
 
+    /*
     fn gen_inst_ret(&mut self, inst: InstructionValue) {
         // FAKE NEWS
 
@@ -756,14 +772,14 @@ impl BuildFunc {
                 if v.is_const() {
                     let i = v.get_zero_extended_constant().unwrap();
 
-                    let tmp = self.mmap.new_tmp();
+                    let tmp = self.rmap.new_tmp();
                     self.pushop(Op::StoreImm(i as u8, tmp.address));
                     self.pushop(Op::Ret(tmp.address));
 
-                    self.mmap.discard(tmp);
+                    self.rmap.discard(tmp);
                 } else {
                     let i = v.as_instruction_value().unwrap();
-                    let i = { self.mmap.from_inst(i).unwrap().address };
+                    let i = { self.rmap.from_inst(i).unwrap().address };
 
                     self.pushop(Op::Ret(i));
                 }
@@ -771,7 +787,9 @@ impl BuildFunc {
             _ => panic!("oh no, we don't handle that"),
         }
     }
+    */
 
+    /*
     // TODO: this is just for validating execution right now
     fn gen_inst_call(&mut self, inst: InstructionValue) {
         if inst.get_num_operands() == 2 {
@@ -779,7 +797,7 @@ impl BuildFunc {
             {
                 BasicValueEnum::IntValue(v) => {
                     if v.is_const() {
-                        let ptr = self.mmap.new_tmp();
+                        let ptr = self.rmap.new_tmp();
 
                         let immv = v.get_zero_extended_constant().unwrap();
 
@@ -796,7 +814,7 @@ impl BuildFunc {
                     } else {
                         let ptr = {
                             let src = v.as_instruction().unwrap();
-                            *self.mmap.from_inst(src).unwrap()
+                            *self.rmap.from_inst(src).unwrap()
                         };
 
                         (ptr, false)
@@ -817,7 +835,7 @@ impl BuildFunc {
             }
 
             if tmp {
-                self.mmap.discard(ptr);
+                self.rmap.discard(ptr);
             }
         } else if inst.get_num_operands() == 1 {
             let func = match inst.get_operand(0).unwrap().left().unwrap() {
@@ -825,7 +843,7 @@ impl BuildFunc {
                 _ => panic!("unable to call"),
             };
 
-            let dest = self.mmap.for_inst(inst);
+            let dest = self.rmap.for_inst(inst);
 
             if func.get_name().to_str().unwrap() == "getc" {
                 self.pushop(Op::Getc(dest.address));
@@ -836,11 +854,15 @@ impl BuildFunc {
             unimplemented!("yeah, it's all fake :/")
         }
     }
+    */
 
+    /*
     fn gen_inst_mul(&mut self, _inst: InstructionValue) {
         unimplemented!("we can't multiply yet :(");
     }
+    */
 
+    /*
     fn gen_inst_icmp(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 2);
 
@@ -852,25 +874,25 @@ impl BuildFunc {
         let rv2 = inst.get_operand(1).unwrap().left().unwrap();
         let rv2 = self.rvalue_from_bval(rv2);
 
-        let dest = self.mmap.for_inst(inst);
+        let dest = self.rmap.for_inst(inst);
 
         match pred {
             IntPredicate::EQ => {
-                let tmp_sub = self.mmap.new_tmp();
+                let tmp_sub = self.rmap.new_tmp();
 
                 match rv1 {
                     RValue::Imm(v) => {
                         self.pushop(Op::StoreImm(v, tmp_sub.address))
                     }
                     RValue::Addr(from) => {
-                        let tmp_cop = self.mmap.new_tmp();
+                        let tmp_cop = self.rmap.new_tmp();
                         self.pushop(Op::Move2(
                             from.address,
                             tmp_sub.address,
                             tmp_cop.address,
                         ));
                         self.pushop(Op::Move(tmp_cop.address, from.address));
-                        self.mmap.discard(tmp_cop);
+                        self.rmap.discard(tmp_cop);
                     }
                 };
                 match rv2 {
@@ -878,8 +900,8 @@ impl BuildFunc {
                         self.pushop(Op::SubImm(v, tmp_sub.address))
                     }
                     RValue::Addr(from) => {
-                        let tmp_cop1 = self.mmap.new_tmp();
-                        let tmp_cop2 = self.mmap.new_tmp();
+                        let tmp_cop1 = self.rmap.new_tmp();
+                        let tmp_cop2 = self.rmap.new_tmp();
 
                         self.pushop(Op::Move2(
                             from.address,
@@ -889,31 +911,31 @@ impl BuildFunc {
                         self.pushop(Op::Move(tmp_cop2.address, from.address));
                         self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
-                        self.mmap.discard(tmp_cop1);
-                        self.mmap.discard(tmp_cop2);
+                        self.rmap.discard(tmp_cop1);
+                        self.rmap.discard(tmp_cop2);
                     }
                 };
 
                 self.pushop(Op::Not(tmp_sub.address, dest.address));
 
-                self.mmap.discard(tmp_sub);
+                self.rmap.discard(tmp_sub);
             }
             IntPredicate::NE => {
-                let tmp_sub = self.mmap.new_tmp();
+                let tmp_sub = self.rmap.new_tmp();
 
                 match rv1 {
                     RValue::Imm(v) => {
                         self.pushop(Op::StoreImm(v, tmp_sub.address))
                     }
                     RValue::Addr(from) => {
-                        let tmp_cop = self.mmap.new_tmp();
+                        let tmp_cop = self.rmap.new_tmp();
                         self.pushop(Op::Move2(
                             from.address,
                             tmp_sub.address,
                             tmp_cop.address,
                         ));
                         self.pushop(Op::Move(tmp_cop.address, from.address));
-                        self.mmap.discard(tmp_cop);
+                        self.rmap.discard(tmp_cop);
                     }
                 };
                 match rv2 {
@@ -921,8 +943,8 @@ impl BuildFunc {
                         self.pushop(Op::SubImm(v, tmp_sub.address))
                     }
                     RValue::Addr(from) => {
-                        let tmp_cop1 = self.mmap.new_tmp();
-                        let tmp_cop2 = self.mmap.new_tmp();
+                        let tmp_cop1 = self.rmap.new_tmp();
+                        let tmp_cop2 = self.rmap.new_tmp();
 
                         self.pushop(Op::Move2(
                             from.address,
@@ -932,27 +954,44 @@ impl BuildFunc {
                         self.pushop(Op::Move(tmp_cop2.address, from.address));
                         self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
 
-                        self.mmap.discard(tmp_cop1);
-                        self.mmap.discard(tmp_cop2);
+                        self.rmap.discard(tmp_cop1);
+                        self.rmap.discard(tmp_cop2);
                     }
                 };
 
                 self.pushop(Op::BitCast(tmp_sub.address, dest.address));
 
-                self.mmap.discard(tmp_sub);
+                self.rmap.discard(tmp_sub);
             }
             _ => unimplemented!("can't handle icmp type {:#?}", pred),
         }
     }
+    */
 
+    /*
+    fn gen_inst_phi(&mut self, inst: InstructionValue) {
+        assert_eq!(inst.get_opcode(), InstructionOpcode::Phi);
+        assert!(inst.get_previous_instruction().is_none());
+        assert_eq!(inst.get_num_operands(), 2);
+
+        let a = inst.get_operand(0).unwrap().left().unwrap();
+        let b = inst.get_operand(1).unwrap().left().unwrap();
+
+        let a = a.as_any_value_enum();
+
+        println!("wiw {:?}", a);
+    }
+    */
+
+    /*
     fn gen_inst_result_noop(&mut self, inst: InstructionValue) {
         assert_eq!(inst.get_num_operands(), 1);
 
         let src =
             self.rvalue_from_bval(inst.get_operand(0).unwrap().left().unwrap());
 
-        let dest = self.mmap.for_inst(inst);
-        let tmp = self.mmap.new_tmp();
+        let dest = self.rmap.for_inst(inst);
+        let tmp = self.rmap.new_tmp();
 
         match src {
             RValue::Imm(_) => {
@@ -964,9 +1003,11 @@ impl BuildFunc {
             }
         }
 
-        self.mmap.discard(tmp);
+        self.rmap.discard(tmp);
     }
+    */
 
+    /*
     fn gen_inst_br(&mut self, inst: InstructionValue) {
         assert!(inst.get_num_operands() == 3 || inst.get_num_operands() == 1);
 
@@ -998,40 +1039,44 @@ impl BuildFunc {
             panic!("unexpected number of operands");
         }
     }
+    */
 
     fn gen_bblock(&mut self) {
         println!("=== begin block #{} =========", self.getblock().address);
 
         println!("{}", self.getblock().pretty_print_begin());
 
-        let mut maybe_inst = self.getblock().bblock.get_first_instruction();
-        while maybe_inst.is_some() {
-            let inst = maybe_inst.unwrap();
-            maybe_inst = inst.get_next_instruction();
+        for inst in self.getblock().bblock.instrs.clone().into_iter() {
+            println!("=== {:#?} ===================", inst);
 
-            println!("=== {:#?} ===================", inst.get_opcode());
+            match inst {
+                llvm_ir::instruction::Instruction::Alloca(i) => self.gen_inst_alloca(i),
+                llvm_ir::instruction::Instruction::Store(i) => self.gen_inst_store(i),
+                //llvm_ir::instruction::Instruction::Load(i) => self.gen_inst_load(i),
+                //llvm_ir::instruction::Instruction::Add(i) => self.gen_inst_add(i),
+                //llvm_ir::instruction::Instruction::Sub(i) => self.gen_inst_sub(i),
+                //llvm_ir::instruction::Instruction::Call(i) => self.gen_inst_call(i),
+                //llvm_ir::instruction::Instruction::Mul(i) => self.gen_inst_mul(i),
+                //llvm_ir::instruction::Instruction::ICmp(i) => self.gen_inst_icmp(i),
 
-            match inst.get_opcode() {
-                InstructionOpcode::Alloca => self.gen_inst_alloca(inst),
-                InstructionOpcode::Store => self.gen_inst_store(inst),
-                InstructionOpcode::Load => self.gen_inst_load(inst),
-                InstructionOpcode::Add => self.gen_inst_add(inst),
-                InstructionOpcode::Sub => self.gen_inst_sub(inst),
-                InstructionOpcode::Return => self.gen_inst_ret(inst),
-                InstructionOpcode::Call => self.gen_inst_call(inst),
-                InstructionOpcode::Mul => self.gen_inst_mul(inst),
-                InstructionOpcode::ICmp => self.gen_inst_icmp(inst),
-                InstructionOpcode::Br => self.gen_inst_br(inst),
+                //llvm_ir::instruction::Instruction::Phi(i) => self.gen_inst_phi(i),
 
-                InstructionOpcode::ZExt => self.gen_inst_result_noop(inst),
-                InstructionOpcode::Trunc => self.gen_inst_result_noop(inst),
+                // i mean.......
+                //llvm_ir::instruction::Instruction::ZExt(i) => self.gen_inst_result_noop(i),
+                //llvm_ir::instruction::Instruction::Trunc(i) => self.gen_inst_result_noop(i),
+
+                //llvm_ir::instruction::Instruction::Invoke(i) => unimplemented!("invoke is unsupported, pls lower '-lowerinvoke'"),
+                //llvm_ir::instruction::Instruction::Switch(i) => unimplemented!("switch is unsupported, pls lower '-lowerswitch'"),
+
+                //InstructionOpcode::Return => self.gen_inst_ret(inst),
+                //InstructionOpcode::Br => self.gen_inst_br(inst),
                 _ => {
-                    unimplemented!("instruction {:#?}", inst.get_opcode());
+                    unimplemented!("instruction {:#?}", inst);
                 }
             }
 
             // no tmps are left over
-            for m in self.mmap.0.iter() {
+            for m in self.rmap.0.iter() {
                 assert!(m.from.is_some());
             }
         }
@@ -1048,10 +1093,10 @@ impl BuildFunc {
     }
 }
 
-fn gen_func(func: FunctionValue) {
+fn gen_func(func: llvm_ir::Function) {
     let mut bfunc = BuildFunc {
         address: 0,
-        mmap: Mmap(vec![]),
+        rmap: RegMap(vec![]),
         blocks: vec![],
         cblock: 0,
         prelude: vec![],
@@ -1059,24 +1104,20 @@ fn gen_func(func: FunctionValue) {
 
     // reserve blocks for traion station
     println!("pointer train station");
-    let station = bfunc.mmap.for_block();
+    let station = bfunc.rmap.for_block();
     bfunc.pushprelude(Op::StoreImm(0, station.address));
-    let station = bfunc.mmap.for_block();
+    let station = bfunc.rmap.for_block();
     bfunc.pushprelude(Op::StoreImm(0, station.address));
-    let station = bfunc.mmap.for_block();
+    let station = bfunc.rmap.for_block();
     bfunc.pushprelude(Op::StoreImm(0, station.address));
-    let station = bfunc.mmap.for_block();
+    let station = bfunc.rmap.for_block();
     bfunc.pushprelude(Op::StoreImm(0, station.address));
 
-    let funcl = bfunc.mmap.for_block();
+    let funcl = bfunc.rmap.for_block();
     bfunc.address = funcl.address;
 
-    let mut maybe_block = func.get_first_basic_block();
-    while maybe_block.is_some() {
-        let block = maybe_block.unwrap();
-        maybe_block = block.get_next_basic_block();
-
-        let blockcell = bfunc.mmap.for_block();
+    for block in func.basic_blocks.into_iter() {
+        let blockcell = bfunc.rmap.for_block();
 
         bfunc.blocks.push(Block {
             address: blockcell.address,
@@ -1123,49 +1164,377 @@ fn gen_func(func: FunctionValue) {
     )
 }
 
-fn compile(path: &Path, print_llvm: bool) {
-    let path = path.canonicalize().unwrap();
-    let module = Module::parse_bitcode_from_path(path).unwrap();
-
-    let mut maybe_func = module.get_first_function();
-
-    while maybe_func.is_some() {
-        let func = maybe_func.unwrap();
-        maybe_func = func.get_next_function();
-
+fn ppmod(module: &llvm_ir::Module) {
+    for func in module.functions.iter() {
         println!(
-            "=== begin func {} ==============",
-            func.get_name().to_str().unwrap()
+            "{:?} {:?} -> {:?}",
+            func.name, func.parameters, func.return_type
         );
 
-        if print_llvm {
-            println!("{}\n", func.print_to_string().to_string());
+        for block in func.basic_blocks.iter() {
+            let blockn = n2usize(&block.name);
+            println!("\t{}:", blockn);
+            for instr in block.instrs.iter() {
+                println!("\t\t{}", instr.to_string());
+            }
+            println!("\t\t<- {}", block.term.to_string());
         }
-
-        if func.get_basic_blocks().len() != 0 {
-            gen_func(func);
-        }
-
-        println!(
-            "=== end func {} ================\n",
-            func.get_name().to_str().unwrap()
-        );
     }
 }
 
+fn compile(path: &Path) {
+    let path = path.canonicalize().unwrap();
+    let mut module = llvm_ir::Module::from_bc_path(path).unwrap();
+
+    // Split all blocks at calls. This should result in all calls being the last
+    // instruction of their block before a unconditional branch.
+    //
+    // This makes it way easier to generate brainfuck control flow as calls
+    // use the same control flow mechanism as blocks. A call/branch combo sets
+    // up the current and next frames then switches to the next frame. Since it
+    // always makes up the end of a block we'll re-enter the main loop and
+    // continue into the next frame. Upon returning the branch will have setup
+    // frame to resume right into the right block.
+    // what a deal!
+    for func in module.functions.iter_mut() {
+        let mut b = 0;
+        while b < func.basic_blocks.len() {
+            let mut i = 0;
+            while i < func.basic_blocks[b].instrs.len() {
+                match &func.basic_blocks[b].instrs[i] {
+                    llvm_ir::Instruction::Call(c) => c,
+                    _ => {
+                        i += 1;
+                        continue;
+                    }
+                };
+
+                let nextn = llvm_ir::Name::Number(
+                    func.basic_blocks
+                        .iter()
+                        .map(|b| n2usize(&b.name))
+                        .max()
+                        .unwrap()
+                        + 1,
+                );
+
+                if i == func.basic_blocks[b].instrs.len() - 1 {
+                    let splitn = llvm_ir::BasicBlock {
+                        name: nextn.clone(),
+                        instrs: vec![],
+                        term: func.basic_blocks[b].term.clone(),
+                    };
+                    func.basic_blocks.insert(b + 1, splitn);
+
+                    func.basic_blocks[b].term = llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
+                        debugloc: None,
+                        dest: nextn.clone(),
+                    });
+                } else {
+                    let splitn = llvm_ir::BasicBlock {
+                        name: nextn.clone(),
+                        instrs: func.basic_blocks[b].instrs.split_off(i + 1),
+                        term: func.basic_blocks[b].term.clone(),
+                    };
+                    func.basic_blocks.insert(b + 1, splitn);
+
+                    func.basic_blocks[b].term = llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
+                        debugloc: None,
+                        dest: nextn.clone(),
+                    });
+                }
+                i += 1;
+            }
+
+            b += 1;
+        }
+    }
+
+    // TODO: this isn't really the move imo
+    // function calls always call into block0. Thing is, if we're making a call
+    // from block0 into another block0 we'll end up setting everything up but
+    // then rerunning block0 in the calling function instead of the target.
+    for func in module.functions.iter_mut() {
+        let hascall = func.basic_blocks[0].instrs.iter().any(|i| match i {
+            llvm_ir::Instruction::Call(_) => true,
+            _ => false,
+        });
+
+        if hascall {
+            let nextn = llvm_ir::Name::Number(
+                func.basic_blocks
+                    .iter()
+                    .map(|b| n2usize(&b.name))
+                    .max()
+                    .unwrap()
+                    + 1,
+            );
+
+            func.basic_blocks.insert(
+                0,
+                llvm_ir::BasicBlock {
+                    name: nextn,
+                    instrs: vec![],
+                    term: llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
+                        debugloc: None,
+                        dest: func.basic_blocks[0].name.clone(),
+                    }),
+                },
+            );
+        }
+    }
+
+    //ppmod(&module);
+
+    // stacks frames are laid out as:
+    // <main loop bit> | <func mask> | <block mask> | <registers> | <scratch>
+    // the main loop bit: is always `1` and part of the runtime's flow control
+    // func/block masks: control the current block of execution
+    struct FnFlow {
+        fid: usize,
+        blks: std::collections::HashMap<usize, usize>,
+        intrinsic: Option<String>,
+    }
+
+    let funcns = module.functions.len();
+
+    let intrinsics = vec![("putchar", "PUTCHAR"), ("getchar", "GETCHAR")]
+        .into_iter()
+        .collect::<std::collections::HashMap<&str, &str>>();
+
+    // <function name> -> <function index>
+    //                    <block num> -> <block index>
+    let func2id = module
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            (
+                f.name.as_str(),
+                FnFlow {
+                    fid: i,
+                    blks: f
+                        .basic_blocks
+                        .iter()
+                        .enumerate()
+                        .map(|(i, b)| (n2usize(&b.name), i))
+                        .collect(),
+                    intrinsic: None,
+                },
+            )
+        })
+        .chain(
+            vec![
+                (
+                    "putchar",
+                    FnFlow {
+                        fid: 0,
+                        blks: Default::default(),
+                        intrinsic: Some("".to_string()),
+                    },
+                ),
+                (
+                    "putchar",
+                    FnFlow {
+                        fid: 0,
+                        blks: Default::default(),
+                        intrinsic: Some("".to_string()),
+                    },
+                ),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut f)| {
+                f.1.fid = module.functions.len() + i;
+                return f;
+            }),
+        )
+        .collect::<std::collections::HashMap<&str, FnFlow>>();
+
+    let mainfid = func2id["main"].fid;
+
+    println!("runtime init: ");
+    println!("+ #mainloop");
+    gotofunc(0, mainfid, || println!("+ call #main"));
+    gotoblock(0, funcns, 0, || println!("+ at #main/entry"));
+    println!("");
+
+    println!("[ main_loop");
+
+    struct Reg {
+        llvm_id: usize,
+    }
+
+    for (fid, func) in module.functions.iter().enumerate() {
+        gotofunc(0, fid, || println!("#{} [", func.name));
+
+        let mut regmap: Vec<Reg> = Default::default();
+
+        for (bid, block) in func.basic_blocks.iter().enumerate() {
+            let blockn = n2usize(&block.name);
+
+            gotoblock(1, funcns, bid, || {
+                println!("\t#{}/{} [-", func.name, blockn)
+            });
+
+            let mut handle_call = false;
+
+            for (iid, instr) in block.instrs.iter().enumerate() {
+                println!("\t\t{}", bfsan(instr.to_string()));
+                match instr {
+                    llvm_ir::Instruction::Call(c) => {
+                        handle_call = true;
+                        let br = match &block.term {
+                            llvm_ir::Terminator::Br(br) => n2usize(&br.dest),
+                            _ => unreachable!("terminator of call block must be branch"),
+                        };
+
+                        assert!(block.instrs.len() - 1 == iid);
+
+                        let fnn = match c.function.as_ref().unwrap_right().as_constant().unwrap() {
+                            llvm_ir::Constant::GlobalReference { name, .. } => n2nam(&name),
+
+                            _ => unimplemented!("ohnoes"),
+                        };
+
+                        let brto = func2id[func.name.as_str()].blks[&br];
+
+                        gotoblock(2, funcns, brto, || {
+                            println!("\t\t+ enable next #{}/{}", func.name, br)
+                        });
+                        println!("\t\t{} next frame", ">".repeat(16));
+                        println!("\t\t+ place #mainloop_{}", fnn);
+                        gotofunc(2, func2id[fnn.as_str()].fid, || {
+                            println!("\t\t+ call func #{}", fnn)
+                        });
+                        gotoblock(2, funcns, 0, || println!("\t\t+ #{}/entry", fnn));
+                    }
+                    llvm_ir::Instruction::Alloca(c) => {
+                        match c.allocated_type.deref() {
+                            llvm_ir::Type::IntegerType { bits } => {
+                                //assert!(*bits == 8, "ohno {} bits", bits) lolz
+                            }
+                            _ => unimplemented!("those types arent welcome here"),
+                        };
+
+                        regmap.push(Reg {
+                            llvm_id: n2usize(&c.dest),
+                        })
+                    }
+                    llvm_ir::Instruction::Store(s) => {
+                        let to = match &s.address {
+                            llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
+                            _ => unimplemented!("how tf we gonna deref that"),
+                        };
+                        let val = match &s.value {
+                            llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
+                                llvm_ir::constant::Constant::Int { bits, value } => value,
+                                _ => unimplemented!("how tf we gonna store that"),
+                            },
+                            _ => {
+                                println!("TODO {:?}", s.value);
+                                &0
+                            }
+                        };
+
+                        let blockns = func.basic_blocks.len();
+
+                        gotoreg(2, to, funcns, blockns, || {
+                            println!("\t\t{} #const_{}", "+".repeat(*val as usize), val)
+                        });
+                    }
+                    _ => {
+                        println!("\t\tunimpl");
+                    }
+                }
+            }
+            if !handle_call {
+                println!("\t\tE {}", bfsan(block.term.to_string()));
+                match &block.term {
+                    llvm_ir::Terminator::Br(br) => {
+                        let to = n2usize(&br.dest);
+                        let toblock = func2id[func.name.as_str()].blks[&to];
+
+                        gotoblock(2, funcns, toblock, || {
+                            println!("\t\t+ #{}/{}", func.name, to)
+                        });
+                    }
+                    llvm_ir::Terminator::CondBr(_) => {}
+                    llvm_ir::Terminator::Ret(_) => {}
+                    _ => unimplemented!("soon? {:?}", block.term),
+                };
+            }
+
+            gotoblock(1, funcns, bid, || println!("\t] b{}", blockn));
+        }
+
+        gotofunc(0, fid, || println!("] {}", func.name));
+    }
+
+    println!("] main_loop");
+}
+
+fn gotoreg<F>(i: usize, reg: usize, funcns: usize, blockns: usize, f: F)
+where
+    F: FnOnce(),
+{
+    println!(
+        "{}{}",
+        "\t".repeat(i),
+        ">".repeat(1 + funcns + blockns + reg)
+    );
+    f();
+    println!(
+        "{}{}",
+        "\t".repeat(i),
+        "<".repeat(1 + funcns + blockns + reg)
+    );
+}
+
+fn gotoblock<F>(i: usize, bid: usize, funcns: usize, f: F)
+where
+    F: FnOnce(),
+{
+    println!("{}{}", "\t".repeat(i), ">".repeat(1 + bid + funcns));
+    f();
+    println!("{}{}", "\t".repeat(i), "<".repeat(1 + bid + funcns));
+}
+
+fn gotofunc<F>(i: usize, fid: usize, f: F)
+where
+    F: FnOnce(),
+{
+    println!("{}{}", "\t".repeat(i), ">".repeat(1 + fid));
+    f();
+    println!("{}{}", "\t".repeat(i), "<".repeat(1 + fid));
+}
+
+fn n2nam(n: &llvm_ir::Name) -> String {
+    match n {
+        llvm_ir::Name::Name(n) => *n.clone(),
+        llvm_ir::Name::Number(_) => unimplemented!("we only deal in names here"),
+    }
+}
+
+fn n2usize(n: &llvm_ir::Name) -> usize {
+    match n {
+        llvm_ir::Name::Number(n) => *n,
+        _ => unimplemented!("we only deal in usize"),
+    }
+}
+
+fn bfsan(s: String) -> String {
+    s.replace(",", "_")
+}
+
 fn main() {
-    let mut print_llvm = false;
     let mut pathstr = String::new();
 
     for arg in env::args().skip(1).by_ref() {
-        if arg == "-llvm" {
-            print_llvm = true;
-        } else if pathstr == "" {
-            if arg == "-" {
-                pathstr = "/dev/stdin".to_owned();
-            } else {
-                pathstr = arg;
-            }
+        if arg == "-" {
+            pathstr = "/dev/stdin".to_owned();
+        } else {
+            pathstr = arg;
         }
     }
 
@@ -1175,5 +1544,5 @@ fn main() {
 
     let bcfile = Path::new(&pathstr);
 
-    compile(&bcfile, print_llvm);
+    compile(&bcfile);
 }
