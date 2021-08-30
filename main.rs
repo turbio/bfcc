@@ -1439,7 +1439,14 @@ fn compile(path: &Path) {
 
                         let blockns = func.basic_blocks.len();
 
-                        gotoreg(2, to, funcns, blockns, || {
+                        let reg = regmap
+                            .iter()
+                            .enumerate()
+                            .find(|(_, x)| x.llvm_id == to)
+                            .unwrap()
+                            .0;
+
+                        gotoreg(2, reg, funcns, blockns, || {
                             println!("\t\t{} #const_{}", "+".repeat(*val as usize), val)
                         });
                     }

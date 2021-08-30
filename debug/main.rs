@@ -32,7 +32,7 @@ struct State {
     output: Vec<u8>,
 }
 
-const INSTRUCTS: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.', '#'];
+const INSTRUCTS: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.'];
 
 impl State {
     fn new(code: String, input: Vec<u8>) -> State {
@@ -52,19 +52,31 @@ impl State {
         }
     }
 
-    fn nextop(&self) -> usize {
-        self.code.as_str()[1 + self.pc..]
-            .find(INSTRUCTS)
-            .unwrap_or(0)
-            + self.pc
-            + 1
+    fn nextop(&self) -> (usize, Option<String>) {
+        let from = 1 + self.pc;
+        let nextpc = self.code.as_str()[from..].find(INSTRUCTS).unwrap_or(0) + from;
+
+        let annot = self.code[from..nextpc].rfind(|c| c == '#');
+        if annot.is_some() {
+            let annot = annot.unwrap() + 1;
+            let to = self.code[(from + annot)..]
+                .find(|c| !char::is_alphanumeric(c) && c != '/' && c != '_')
+                .unwrap();
+
+            (
+                nextpc,
+                Some(self.code[(from + annot)..(from + annot + to)].to_string()),
+            )
+        } else {
+            (nextpc, None)
+        }
     }
 
     fn ch(&self, i: usize) -> char {
         self.code.chars().nth(i).unwrap()
     }
 
-    fn next(&self) -> State {
+    fn next(&self) -> (State, Option<String>) {
         let mut n = State {
             tape: self.tape.clone(),
             annots: self.annots.clone(),
@@ -131,19 +143,16 @@ impl State {
                     }
                 }
             }
-            '#' => {
-                let from = 1 + self.pc;
-                let to = self.code[from..]
-                    .find(|c| !char::is_alphanumeric(c) && c != '/' && c != '_')
-                    .unwrap();
-                n.annots[n.mp] = Some(n.code[from..(from + to)].to_string());
-            }
             _ => panic!("shouldn't try to handle {:#?}", n.ch(n.pc)),
         };
 
-        n.pc = n.nextop();
+        let (pc, annot) = n.nextop();
+        n.pc = pc;
+        if annot.is_some() {
+            n.annots[n.mp] = annot.clone();
+        }
 
-        n
+        (n, annot)
     }
 }
 
@@ -236,7 +245,7 @@ impl Debugger {
 
     fn step(&mut self) {
         let next = self.cur().next();
-        self.state.push(next);
+        self.state.push(next.0);
     }
 
     fn rewind(&mut self) {
@@ -261,7 +270,23 @@ impl Debugger {
         }
     }
 
-    fn until(&mut self) {}
+    fn until(&mut self, annot: Option<&str>) {
+        self.step();
+
+        loop {
+            let (next, found) = self.cur().next();
+
+            if match (&annot, &found) {
+                (Some(a), Some(f)) => a == f,
+                (None, Some(_)) => true,
+                _ => false,
+            } {
+                break;
+            }
+
+            self.state.push(next);
+        }
+    }
 
     fn init(&self) {
         ncurses::noecho();
@@ -282,12 +307,9 @@ impl Debugger {
         ncurses::init_pair(Color::Mem0 as i16, 8, 0);
         ncurses::init_pair(Color::Mem1 as i16, 2, 0);
         ncurses::init_pair(Color::Mem as i16, 7, 0);
-
-        self.draw();
-        ncurses::refresh();
     }
 
-    fn draw(&self) {
+    fn draw(&self, bp: Option<&str>) {
         ncurses::erase();
 
         ncurses::wcolor_set(self.root, Color::Normal as i16);
@@ -297,7 +319,7 @@ impl Debugger {
             self.root,
             ncurses::getmaxy(self.root) - 1,
             0,
-            "j: step    k: rewind    J: next    K: prev    c: continue    q: quite",
+            "j: step    k: rewind    J: next    K: prev    c: continue    b: breakpoint    q: quite",
         );
 
         self.drawio();
@@ -311,6 +333,20 @@ impl Debugger {
                 1 + self.cur().tape.len() as i32,
             ),
         );
+
+        let steps = format!(
+            " step: {} bp: {} ",
+            self.state.len(),
+            bp.as_ref().unwrap_or(&"*")
+        );
+
+        ncurses::wmove(
+            self.root,
+            0,
+            ncurses::getmaxx(self.root) - steps.len() as i32 - 2,
+        );
+        ncurses::wcolor_set(self.root, Color::Normal as i16);
+        ncurses::waddstr(self.root, &steps);
     }
 
     fn drawio(&self) {
@@ -482,8 +518,10 @@ fn main() {
 
     let mut d = Debugger::new(code, "hi\0".as_bytes().to_vec());
 
+    let mut bp = None;
+
     d.init();
-    d.draw();
+    d.draw(bp);
 
     ncurses::mousemask(
         (ncurses::ALL_MOUSE_EVENTS | ncurses::REPORT_MOUSE_POSITION) as u32,
@@ -502,7 +540,9 @@ fn main() {
         } else if ch == 'K' as i32 {
             d.prev();
         } else if ch == 'c' as i32 {
-            d.until();
+            d.until(bp);
+        } else if ch == 'b' as i32 {
+            bp = Some("a/0");
         } else if ch == 'q' as i32 {
             break;
         } else if ch == ncurses::KEY_MOUSE {
@@ -525,7 +565,7 @@ fn main() {
             }
         }
 
-        d.draw();
+        d.draw(bp);
     }
 
     ncurses::endwin();
