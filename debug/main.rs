@@ -34,6 +34,10 @@ struct State {
 
 const INSTRUCTS: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.'];
 
+fn is_instr(i: char) -> bool {
+    return INSTRUCTS.iter().find(|c| **c == i).is_some();
+}
+
 impl State {
     fn new(code: String, input: Vec<u8>) -> State {
         State {
@@ -52,23 +56,28 @@ impl State {
         }
     }
 
-    fn nextop(&self) -> (usize, Option<String>) {
+    fn nextop(&self) -> Result<(usize, Option<String>), ()> {
         let from = 1 + self.pc;
-        let nextpc = self.code.as_str()[from..].find(INSTRUCTS).unwrap_or(0) + from;
+        let nextpc = self.code.as_str()[from..].find(INSTRUCTS);
+        if nextpc.is_none() {
+            return Err(());
+        }
+
+        let nextpc = nextpc.unwrap() + from;
 
         let annot = self.code[from..nextpc].rfind(|c| c == '#');
         if annot.is_some() {
             let annot = annot.unwrap() + 1;
             let to = self.code[(from + annot)..]
-                .find(|c| !char::is_alphanumeric(c) && c != '/' && c != '_')
+                .find(|c| char::is_whitespace(c) || is_instr(c))
                 .unwrap();
 
-            (
+            Ok((
                 nextpc,
                 Some(self.code[(from + annot)..(from + annot + to)].to_string()),
-            )
+            ))
         } else {
-            (nextpc, None)
+            Ok((nextpc, None))
         }
     }
 
@@ -76,7 +85,7 @@ impl State {
         self.code.chars().nth(i).unwrap()
     }
 
-    fn next(&self) -> (State, Option<String>) {
+    fn next(&self) -> Result<(State, Option<String>), &str> {
         let mut n = State {
             tape: self.tape.clone(),
             annots: self.annots.clone(),
@@ -92,8 +101,20 @@ impl State {
         };
 
         match n.ch(n.pc) {
-            '+' => n.tape[n.mp] += 1,
-            '-' => n.tape[n.mp] -= 1,
+            '+' => {
+                if n.tape[n.mp] == 255 {
+                    return Err("overflow");
+                }
+
+                n.tape[n.mp] += 1
+            },
+            '-' => {
+                if n.tape[n.mp] == 0 {
+                    return Err("underflow");
+                }
+
+                n.tape[n.mp] -= 1
+            },
             '>' => {
                 if n.mp == n.tape.len() - 1 {
                     n.tape.push(0);
@@ -102,6 +123,10 @@ impl State {
                 n.mp += 1;
             }
             '<' => {
+                if n.mp == 0 {
+                    return Err("negative tape");
+                }
+
                 n.mp -= 1;
             }
             ',' => {
@@ -146,23 +171,34 @@ impl State {
             _ => panic!("shouldn't try to handle {:#?}", n.ch(n.pc)),
         };
 
-        let (pc, annot) = n.nextop();
+        let next = n.nextop();
+        if next.is_err() {
+            return Err("EOF");
+        }
+
+        let (pc, annot) = next.unwrap();
+
         n.pc = pc;
         if annot.is_some() {
             n.annots[n.mp] = annot.clone();
         }
 
-        (n, annot)
+        Ok((n, annot))
     }
 }
 
 struct Debugger {
     state: Vec<State>,
 
-    scroll: isize,
+    code_scroll: isize,
+    mem_scroll: isize,
+
+    status: String,
 
     root: ncurses::SCREEN,
 }
+
+const mem_wid: usize = 30;
 
 impl Debugger {
     fn new(code: String, input: Vec<u8>) -> Debugger {
@@ -172,19 +208,33 @@ impl Debugger {
         Debugger {
             state: vec![State::new(code, input)],
             root: ncurses::initscr(),
-            scroll: 0,
+            code_scroll: 0,
+            mem_scroll: 0,
+            status: "".to_string(),
         }
     }
 
-    fn scroll(&mut self, l: isize) {
-        let lines = self.cur().code.as_str().lines().count() as isize;
+    fn scroll(&mut self, l: isize, x: usize, y: usize) {
+        if x < ncurses::getmaxx(self.root) as usize - mem_wid {
+            let lines = self.cur().code.as_str().lines().count() as isize;
 
-        self.scroll = if l + self.scroll < 0 {
-            0
-        } else if self.scroll + l > lines {
-            lines
+            self.code_scroll = if l + self.code_scroll < 0 {
+                0
+            } else if self.code_scroll + l > lines {
+                lines
+            } else {
+                self.code_scroll + l
+            }
         } else {
-            self.scroll + l
+            let cells = self.cur().tape.len();
+
+            self.mem_scroll = if l + self.mem_scroll < 0 {
+                0
+            } else if self.mem_scroll + l > cells as isize{
+                cells as isize
+            } else {
+                self.mem_scroll + l
+            }
         }
     }
 
@@ -243,9 +293,16 @@ impl Debugger {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> Result<(), &str>{
         let next = self.cur().next();
-        self.state.push(next.0);
+
+        if next.is_err() {
+            self.status = next.err().unwrap().to_string();
+            Err("step failed")
+        } else {
+            self.state.push(next.unwrap().0);
+            Ok(())
+        }
     }
 
     fn rewind(&mut self) {
@@ -270,11 +327,32 @@ impl Debugger {
         }
     }
 
+    fn scrolltoview(&mut self) {
+        let cline = self.cur().code[..self.cur().pc]
+            .chars()
+            .filter(|c| *c == '\n')
+            .count() as isize;
+
+        let maxy = ncurses::getmaxy(self.root) as isize - (4 + 3);
+
+        if cline < self.code_scroll {
+            self.code_scroll = cline as isize;
+        } else if cline > self.code_scroll + maxy {
+            self.code_scroll = cline as isize - maxy;
+        }
+    }
+
     fn until(&mut self, annot: Option<&str>) {
         self.step();
 
         loop {
-            let (next, found) = self.cur().next();
+            let ret = self.cur().next();
+            if ret.is_err() {
+                self.status = format!("step err: {}", ret.err().unwrap());
+                break;
+            }
+
+            let (next, found) = ret.unwrap();
 
             if match (&annot, &found) {
                 (Some(a), Some(f)) => a == f,
@@ -323,21 +401,19 @@ impl Debugger {
         );
 
         self.drawio();
-        self.drawcode(0, 3, ncurses::getmaxx(self.root) - 20, -1);
+        self.drawcode(0, 3, ncurses::getmaxx(self.root) - mem_wid as i32, -1);
         self.drawmem(
-            ncurses::getmaxx(self.root) - 20,
+            ncurses::getmaxx(self.root) - mem_wid as i32,
             3,
-            20,
-            std::cmp::min(
-                ncurses::getmaxy(self.root) - 3 - 2,
-                1 + self.cur().tape.len() as i32,
-            ),
+            mem_wid as i32,
+            ncurses::getmaxy(self.root) - 3 - 2,
         );
 
         let steps = format!(
-            " step: {} bp: {} ",
+            " step: {} bp: {} st: {}",
             self.state.len(),
-            bp.as_ref().unwrap_or(&"*")
+            bp.as_ref().unwrap_or(&"*"),
+            self.status,
         );
 
         ncurses::wmove(
@@ -392,13 +468,18 @@ impl Debugger {
 
         if virt {
             for i in 0..height - 1 {
+                let i = i + self.mem_scroll as i32;
+                if i >= self.cur().tape.len() as i32{
+                    continue;
+                }
+
                 if self.cur().mp == i as usize {
-                    ncurses::wmove(self.root, i + top + 1, left);
+                    ncurses::wmove(self.root, i + top + 1 - (self.mem_scroll as i32), left);
                     ncurses::waddstr(self.root, ">");
                     ncurses::wattron(self.root, ncurses::A_REVERSE());
                 }
 
-                ncurses::wmove(self.root, i + top + 1, left + 1);
+                ncurses::wmove(self.root, i + top + 1 - (self.mem_scroll as i32), left + 1);
 
                 if self.cur().tape[i as usize] == 0 {
                     ncurses::wcolor_set(self.root, Color::Mem0 as i16);
@@ -460,7 +541,7 @@ impl Debugger {
                 break;
             }
 
-            if self.scroll > l {
+            if self.code_scroll > l {
                 if ch == '\n' {
                     l += 1;
                 }
@@ -499,9 +580,33 @@ impl Debugger {
 
 fn main() {
     let mut pathstr = "".to_owned();
+    let mut bpa: String;
+    let mut input: String = "\0".to_string();
+    let mut bp: Option<&str> = None;
 
-    for arg in env::args().skip(1).by_ref() {
-        pathstr = arg;
+    let mut skip = false;
+    for (i, arg) in env::args().enumerate().skip(1).by_ref() {
+        if skip {
+            skip = false;
+            continue;
+        }
+
+        if arg == "-b"
+            || arg == "-break"
+            || arg == "-breakpoint"
+            || arg == "--b"
+            || arg == "--break"
+            || arg == "--breakpoint"
+        {
+            bpa = env::args().nth(i + 1).unwrap();
+            bp = Some(bpa.as_str());
+            skip = true;
+        } else if arg == "-i" || arg == "-input" || arg == "--input" {
+            input = env::args().nth(i + 1).unwrap();
+            skip = true;
+        } else {
+            pathstr = arg;
+        }
     }
 
     if pathstr == "" {
@@ -516,9 +621,7 @@ fn main() {
         return;
     }
 
-    let mut d = Debugger::new(code, "hi\0".as_bytes().to_vec());
-
-    let mut bp = None;
+    let mut d = Debugger::new(code, input.as_bytes().to_vec());
 
     d.init();
     d.draw(bp);
@@ -530,6 +633,7 @@ fn main() {
 
     loop {
         let ch = ncurses::wgetch(d.root);
+        let mut didscroll = false;
 
         if ch == 'j' as i32 {
             d.step();
@@ -542,7 +646,7 @@ fn main() {
         } else if ch == 'c' as i32 {
             d.until(bp);
         } else if ch == 'b' as i32 {
-            bp = Some("a/0");
+            bp = None;
         } else if ch == 'q' as i32 {
             break;
         } else if ch == ncurses::KEY_MOUSE {
@@ -556,13 +660,19 @@ fn main() {
 
             if ncurses::getmouse(&mut mev) == ncurses::OK {
                 if mev.bstate & ncurses::BUTTON5_PRESSED as u32 != 0 {
-                    d.scroll(5);
+                    d.scroll(5, mev.x as usize, mev.y as usize);
+                    didscroll = true;
                 } else if mev.bstate & ncurses::BUTTON4_PRESSED as u32 != 0 {
-                    d.scroll(-5);
+                    d.scroll(-5, mev.x as usize, mev.y as usize);
+                    didscroll = true;
                 } else if mev.bstate & (ncurses::BUTTON1_PRESSED) as u32 != 0 {
                     d.jumpto(mev.x, mev.y);
                 }
             }
+        }
+
+        if !didscroll {
+            d.scrolltoview();
         }
 
         d.draw(bp);
