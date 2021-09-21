@@ -34,6 +34,10 @@ struct State {
 
 const INSTRUCTS: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.'];
 
+fn is_instr(i: char) -> bool {
+    return INSTRUCTS.iter().find(|c| **c == i).is_some();
+}
+
 impl State {
     fn new(code: String, input: Vec<u8>) -> State {
         State {
@@ -60,7 +64,7 @@ impl State {
         if annot.is_some() {
             let annot = annot.unwrap() + 1;
             let to = self.code[(from + annot)..]
-                .find(|c| !char::is_alphanumeric(c) && c != '/' && c != '_')
+                .find(|c| char::is_whitespace(c) || is_instr(c))
                 .unwrap();
 
             (
@@ -159,10 +163,13 @@ impl State {
 struct Debugger {
     state: Vec<State>,
 
-    scroll: isize,
+    code_scroll: isize,
+    mem_scroll: isize,
 
     root: ncurses::SCREEN,
 }
+
+const mem_wid: usize = 30;
 
 impl Debugger {
     fn new(code: String, input: Vec<u8>) -> Debugger {
@@ -172,19 +179,22 @@ impl Debugger {
         Debugger {
             state: vec![State::new(code, input)],
             root: ncurses::initscr(),
-            scroll: 0,
+            code_scroll: 0,
+            mem_scroll: 0,
         }
     }
 
-    fn scroll(&mut self, l: isize) {
-        let lines = self.cur().code.as_str().lines().count() as isize;
+    fn scroll(&mut self, l: isize, x: usize, y: usize) {
+        if x < ncurses::getmaxx(self.root) as usize - mem_wid {
+            let lines = self.cur().code.as_str().lines().count() as isize;
 
-        self.scroll = if l + self.scroll < 0 {
-            0
-        } else if self.scroll + l > lines {
-            lines
-        } else {
-            self.scroll + l
+            self.code_scroll = if l + self.code_scroll < 0 {
+                0
+            } else if self.code_scroll + l > lines {
+                lines
+            } else {
+                self.code_scroll + l
+            }
         }
     }
 
@@ -270,6 +280,21 @@ impl Debugger {
         }
     }
 
+    fn scrolltoview(&mut self) {
+        let cline = self.cur().code[..self.cur().pc]
+            .chars()
+            .filter(|c| *c == '\n')
+            .count() as isize;
+
+        let maxy = ncurses::getmaxy(self.root) as isize - (4 + 3);
+
+        if cline < self.code_scroll {
+            self.code_scroll = cline as isize;
+        } else if cline > self.code_scroll + maxy {
+            self.code_scroll = cline as isize - maxy;
+        }
+    }
+
     fn until(&mut self, annot: Option<&str>) {
         self.step();
 
@@ -323,11 +348,11 @@ impl Debugger {
         );
 
         self.drawio();
-        self.drawcode(0, 3, ncurses::getmaxx(self.root) - 20, -1);
+        self.drawcode(0, 3, ncurses::getmaxx(self.root) - mem_wid as i32, -1);
         self.drawmem(
-            ncurses::getmaxx(self.root) - 20,
+            ncurses::getmaxx(self.root) - mem_wid as i32,
             3,
-            20,
+            mem_wid as i32,
             std::cmp::min(
                 ncurses::getmaxy(self.root) - 3 - 2,
                 1 + self.cur().tape.len() as i32,
@@ -460,7 +485,7 @@ impl Debugger {
                 break;
             }
 
-            if self.scroll > l {
+            if self.code_scroll > l {
                 if ch == '\n' {
                     l += 1;
                 }
@@ -499,9 +524,33 @@ impl Debugger {
 
 fn main() {
     let mut pathstr = "".to_owned();
+    let mut bpa: String;
+    let mut input: String = "\0".to_string();
+    let mut bp: Option<&str> = None;
 
-    for arg in env::args().skip(1).by_ref() {
-        pathstr = arg;
+    let mut skip = false;
+    for (i, arg) in env::args().enumerate().skip(1).by_ref() {
+        if skip {
+            skip = false;
+            continue;
+        }
+
+        if arg == "-b"
+            || arg == "-break"
+            || arg == "-breakpoint"
+            || arg == "--b"
+            || arg == "--break"
+            || arg == "--breakpoint"
+        {
+            bpa = env::args().nth(i + 1).unwrap();
+            bp = Some(bpa.as_str());
+            skip = true;
+        } else if arg == "-i" || arg == "-input" || arg == "--input" {
+            input = env::args().nth(i + 1).unwrap();
+            skip = true;
+        } else {
+            pathstr = arg;
+        }
     }
 
     if pathstr == "" {
@@ -516,9 +565,7 @@ fn main() {
         return;
     }
 
-    let mut d = Debugger::new(code, "hi\0".as_bytes().to_vec());
-
-    let mut bp = None;
+    let mut d = Debugger::new(code, input.as_bytes().to_vec());
 
     d.init();
     d.draw(bp);
@@ -530,6 +577,7 @@ fn main() {
 
     loop {
         let ch = ncurses::wgetch(d.root);
+        let mut didscroll = false;
 
         if ch == 'j' as i32 {
             d.step();
@@ -542,7 +590,7 @@ fn main() {
         } else if ch == 'c' as i32 {
             d.until(bp);
         } else if ch == 'b' as i32 {
-            bp = Some("a/0");
+            bp = None;
         } else if ch == 'q' as i32 {
             break;
         } else if ch == ncurses::KEY_MOUSE {
@@ -556,13 +604,19 @@ fn main() {
 
             if ncurses::getmouse(&mut mev) == ncurses::OK {
                 if mev.bstate & ncurses::BUTTON5_PRESSED as u32 != 0 {
-                    d.scroll(5);
+                    d.scroll(5, mev.x as usize, mev.y as usize);
+                    didscroll = true;
                 } else if mev.bstate & ncurses::BUTTON4_PRESSED as u32 != 0 {
-                    d.scroll(-5);
+                    d.scroll(-5, mev.x as usize, mev.y as usize);
+                    didscroll = true;
                 } else if mev.bstate & (ncurses::BUTTON1_PRESSED) as u32 != 0 {
                     d.jumpto(mev.x, mev.y);
                 }
             }
+        }
+
+        if !didscroll {
+            d.scrolltoview();
         }
 
         d.draw(bp);
