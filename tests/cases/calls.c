@@ -5,9 +5,7 @@ void b(void);
 void c(void);
 
 void c(void) {
-  putchar('a');
-  putchar('b');
-  putchar('c');
+  putchar('.');
 }
 
 void b(void) {
@@ -22,7 +20,7 @@ void a(void) {
   }
 }
 
-// TEST:{ "func": "main", "output": "1 1 2 3 5 8" }
+// TEST:{ "name": "calls", "output": "...." }
 void main(void) {
   a();
 };

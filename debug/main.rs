@@ -56,9 +56,14 @@ impl State {
         }
     }
 
-    fn nextop(&self) -> (usize, Option<String>) {
+    fn nextop(&self) -> Result<(usize, Option<String>), ()> {
         let from = 1 + self.pc;
-        let nextpc = self.code.as_str()[from..].find(INSTRUCTS).unwrap_or(0) + from;
+        let nextpc = self.code.as_str()[from..].find(INSTRUCTS);
+        if nextpc.is_none() {
+            return Err(());
+        }
+
+        let nextpc = nextpc.unwrap() + from;
 
         let annot = self.code[from..nextpc].rfind(|c| c == '#');
         if annot.is_some() {
@@ -67,12 +72,12 @@ impl State {
                 .find(|c| char::is_whitespace(c) || is_instr(c))
                 .unwrap();
 
-            (
+            Ok((
                 nextpc,
                 Some(self.code[(from + annot)..(from + annot + to)].to_string()),
-            )
+            ))
         } else {
-            (nextpc, None)
+            Ok((nextpc, None))
         }
     }
 
@@ -80,7 +85,7 @@ impl State {
         self.code.chars().nth(i).unwrap()
     }
 
-    fn next(&self) -> (State, Option<String>) {
+    fn next(&self) -> Result<(State, Option<String>), &str> {
         let mut n = State {
             tape: self.tape.clone(),
             annots: self.annots.clone(),
@@ -96,8 +101,20 @@ impl State {
         };
 
         match n.ch(n.pc) {
-            '+' => n.tape[n.mp] += 1,
-            '-' => n.tape[n.mp] -= 1,
+            '+' => {
+                if n.tape[n.mp] == 255 {
+                    return Err("overflow");
+                }
+
+                n.tape[n.mp] += 1
+            },
+            '-' => {
+                if n.tape[n.mp] == 0 {
+                    return Err("underflow");
+                }
+
+                n.tape[n.mp] -= 1
+            },
             '>' => {
                 if n.mp == n.tape.len() - 1 {
                     n.tape.push(0);
@@ -106,6 +123,10 @@ impl State {
                 n.mp += 1;
             }
             '<' => {
+                if n.mp == 0 {
+                    return Err("negative tape");
+                }
+
                 n.mp -= 1;
             }
             ',' => {
@@ -150,13 +171,19 @@ impl State {
             _ => panic!("shouldn't try to handle {:#?}", n.ch(n.pc)),
         };
 
-        let (pc, annot) = n.nextop();
+        let next = n.nextop();
+        if next.is_err() {
+            return Err("EOF");
+        }
+
+        let (pc, annot) = next.unwrap();
+
         n.pc = pc;
         if annot.is_some() {
             n.annots[n.mp] = annot.clone();
         }
 
-        (n, annot)
+        Ok((n, annot))
     }
 }
 
@@ -165,6 +192,8 @@ struct Debugger {
 
     code_scroll: isize,
     mem_scroll: isize,
+
+    status: String,
 
     root: ncurses::SCREEN,
 }
@@ -181,6 +210,7 @@ impl Debugger {
             root: ncurses::initscr(),
             code_scroll: 0,
             mem_scroll: 0,
+            status: "".to_string(),
         }
     }
 
@@ -194,6 +224,16 @@ impl Debugger {
                 lines
             } else {
                 self.code_scroll + l
+            }
+        } else {
+            let cells = self.cur().tape.len();
+
+            self.mem_scroll = if l + self.mem_scroll < 0 {
+                0
+            } else if self.mem_scroll + l > cells as isize{
+                cells as isize
+            } else {
+                self.mem_scroll + l
             }
         }
     }
@@ -253,9 +293,16 @@ impl Debugger {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> Result<(), &str>{
         let next = self.cur().next();
-        self.state.push(next.0);
+
+        if next.is_err() {
+            self.status = next.err().unwrap().to_string();
+            Err("step failed")
+        } else {
+            self.state.push(next.unwrap().0);
+            Ok(())
+        }
     }
 
     fn rewind(&mut self) {
@@ -299,7 +346,13 @@ impl Debugger {
         self.step();
 
         loop {
-            let (next, found) = self.cur().next();
+            let ret = self.cur().next();
+            if ret.is_err() {
+                self.status = format!("step err: {}", ret.err().unwrap());
+                break;
+            }
+
+            let (next, found) = ret.unwrap();
 
             if match (&annot, &found) {
                 (Some(a), Some(f)) => a == f,
@@ -353,16 +406,14 @@ impl Debugger {
             ncurses::getmaxx(self.root) - mem_wid as i32,
             3,
             mem_wid as i32,
-            std::cmp::min(
-                ncurses::getmaxy(self.root) - 3 - 2,
-                1 + self.cur().tape.len() as i32,
-            ),
+            ncurses::getmaxy(self.root) - 3 - 2,
         );
 
         let steps = format!(
-            " step: {} bp: {} ",
+            " step: {} bp: {} st: {}",
             self.state.len(),
-            bp.as_ref().unwrap_or(&"*")
+            bp.as_ref().unwrap_or(&"*"),
+            self.status,
         );
 
         ncurses::wmove(
@@ -417,13 +468,18 @@ impl Debugger {
 
         if virt {
             for i in 0..height - 1 {
+                let i = i + self.mem_scroll as i32;
+                if i >= self.cur().tape.len() as i32{
+                    continue;
+                }
+
                 if self.cur().mp == i as usize {
-                    ncurses::wmove(self.root, i + top + 1, left);
+                    ncurses::wmove(self.root, i + top + 1 - (self.mem_scroll as i32), left);
                     ncurses::waddstr(self.root, ">");
                     ncurses::wattron(self.root, ncurses::A_REVERSE());
                 }
 
-                ncurses::wmove(self.root, i + top + 1, left + 1);
+                ncurses::wmove(self.root, i + top + 1 - (self.mem_scroll as i32), left + 1);
 
                 if self.cur().tape[i as usize] == 0 {
                     ncurses::wcolor_set(self.root, Color::Mem0 as i16);

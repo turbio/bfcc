@@ -5,9 +5,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: noinline nounwind optnone sspstrong uwtable
 define void @c() #0 {
-  call void @putchar(i8 zeroext 97)
-  call void @putchar(i8 zeroext 98)
-  call void @putchar(i8 zeroext 99)
+  call void @putchar(i8 zeroext 46)
   ret void
 }
 
@@ -77,7 +75,7 @@ attributes #1 = { "disable-tail-calls"="false" "frame-pointer"="all" "less-preci
 
 !0 = !{i32 1, !"wchar_size", i32 4}
 !1 = !{i32 7, !"PIC Level", i32 2}
-!2 = !{!"clang version 12.0.0"}
+!2 = !{!"clang version 12.0.1"}
 !3 = distinct !{!3, !4}
 !4 = !{!"llvm.loop.mustprogress"}
 !5 = distinct !{!5, !4}

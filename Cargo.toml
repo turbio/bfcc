@@ -6,6 +6,12 @@ authors = ["Mason Clayton <masongclayton@gmail.com>"]
 [dependencies]
 llvm-ir = { version = "0.8.0", features = ["llvm-12"] }
 ncurses = "5.99.0"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+
+[[bin]]
+name = "verify"
+path = "verify.rs"
 
 [[bin]]
 name = "bfcc"

@@ -10,18 +10,22 @@
 
 compile llvm to brainfuck
 
-LLVM bitcode -> bfcc -> brainfuck
+LLVM -> bfcc -> brainfuck
+
+So like in theory any c code can be compiled to brainfuck.
 
 ## conceptual stuff that needs susing
 
 - operand consumption semantics, right now we throw caution to the wind and
   (sometimes?) mostly consume.
   - oh wait loads are never consumptive lol... cause that's memory dude
+  - also mangling vs consumption semantics
 - register reuse, right now we always create a new register even in the case of
   say `%a = add i32 %b, i32 1` even tho `%b` is consumed
 - scratch space zeroing. It's probably the garbage maker's job to clean up any
   scratch registers.
 - pack register order to optimize travel distance
+- register packing for order dependant operations
 - `verifier` for some of these properties
 
 ## coverage

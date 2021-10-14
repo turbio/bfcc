@@ -4,6 +4,8 @@ use std::ops::Deref;
 
 use std::env;
 use std::path::Path;
+use std::fmt::Write;
+
 
 #[derive(Debug)]
 enum Op {
@@ -1182,29 +1184,26 @@ fn ppmod(module: &llvm_ir::Module) {
 	}
 }
 
-fn compile(path: &Path) {
-	let path = path.canonicalize().unwrap();
-	let mut module = llvm_ir::Module::from_bc_path(path).unwrap();
-
-	// Split all blocks at calls. This should result in all calls being the last
-	// instruction of their block before a unconditional branch.
-	//
-	// This makes it way easier to generate brainfuck control flow as calls
-	// use the same control flow mechanism as blocks. A call/branch combo sets
-	// up the current and next frames then switches to the next frame. Since it
-	// always makes up the end of a block we'll re-enter the main loop and
-	// continue into the next frame. Upon returning the branch will have setup
-	// frame to resume right into the right block.
-	// what a deal!
+// Split all blocks at calls. This should result in all calls being the last
+// instruction of their block before a unconditional branch.
+//
+// This makes it way easier to generate brainfuck control flow as calls
+// use the same control flow mechanism as blocks. A call/branch combo sets
+// up the current and next frames then switches to the next frame. Since it
+// always makes up the end of a block we'll re-enter the main loop and
+// continue into the next frame. Upon returning the branch will have setup
+// frame to resume right into the right block.
+// what a deal!
+fn calls_terminate_blocks(module: &mut llvm_ir::Module) {
 	for func in module.functions.iter_mut() {
-		let mut b = 0;
-		while b < func.basic_blocks.len() {
-			let mut i = 0;
-			while i < func.basic_blocks[b].instrs.len() {
-				match &func.basic_blocks[b].instrs[i] {
+		let mut block = 0;
+		while block < func.basic_blocks.len() {
+			let mut instr = 0;
+			while instr < func.basic_blocks[block].instrs.len() {
+				match &func.basic_blocks[block].instrs[instr] {
 					llvm_ir::Instruction::Call(c) => c,
 					_ => {
-						i += 1;
+						instr += 1;
 						continue;
 					}
 				};
@@ -1212,75 +1211,87 @@ fn compile(path: &Path) {
 				let nextn = llvm_ir::Name::Number(
 					func.basic_blocks
 						.iter()
-						.map(|b| n2usize(&b.name))
+						.map(|block| n2usize(&block.name))
 						.max()
 						.unwrap() + 1,
 				);
 
-				if i == func.basic_blocks[b].instrs.len() - 1 {
+				if instr == func.basic_blocks[block].instrs.len() - 1 {
 					let splitn = llvm_ir::BasicBlock {
 						name: nextn.clone(),
 						instrs: vec![],
-						term: func.basic_blocks[b].term.clone(),
+						term: func.basic_blocks[block].term.clone(),
 					};
-					func.basic_blocks.insert(b + 1, splitn);
+					func.basic_blocks.insert(block + 1, splitn);
 
-					func.basic_blocks[b].term = llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
+					func.basic_blocks[block].term = llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
 						debugloc: None,
 						dest: nextn.clone(),
 					});
 				} else {
 					let splitn = llvm_ir::BasicBlock {
 						name: nextn.clone(),
-						instrs: func.basic_blocks[b].instrs.split_off(i + 1),
-						term: func.basic_blocks[b].term.clone(),
+						instrs: func.basic_blocks[block].instrs.split_off(instr + 1),
+						term: func.basic_blocks[block].term.clone(),
 					};
-					func.basic_blocks.insert(b + 1, splitn);
+					func.basic_blocks.insert(block + 1, splitn);
 
-					func.basic_blocks[b].term = llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
+					func.basic_blocks[block].term = llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
 						debugloc: None,
 						dest: nextn.clone(),
 					});
 				}
-				i += 1;
+				instr += 1;
 			}
 
-			b += 1;
+			block += 1;
 		}
 	}
+}
 
-	// TODO: this isn't really the move imo
-	// function calls always call into block0. Thing is, if we're making a call
-	// from block0 into another block0 we'll end up setting everything up but
-	// then rerunning block0 in the calling function instead of the target.
+// TODO: this isn't really the move imo
+// function calls always call into block0. Thing is, if we're making a call
+// from block0 into another block0 we'll end up setting everything up but
+// then rerunning block0 in the calling function instead of the target.
+fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 	for func in module.functions.iter_mut() {
 		let hascall = func.basic_blocks[0].instrs.iter().any(|i| match i {
 			llvm_ir::Instruction::Call(_) => true,
 			_ => false,
 		});
 
-		if hascall {
-			let nextn = llvm_ir::Name::Number(
-				func.basic_blocks
-					.iter()
-					.map(|b| n2usize(&b.name))
-					.max()
-					.unwrap() + 1,
-			);
-
-			func.basic_blocks.insert(
-				0,
-				llvm_ir::BasicBlock {
-					name: nextn,
-					instrs: vec![],
-					term: llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
-						debugloc: None,
-						dest: func.basic_blocks[0].name.clone(),
-					}),
-				},
-			);
+		if !hascall {
+			continue
 		}
+
+		let nextn = llvm_ir::Name::Number(
+			func.basic_blocks
+				.iter()
+				.map(|b| n2usize(&b.name))
+				.max()
+				.unwrap() + 1,
+		);
+
+		func.basic_blocks.insert(
+			0,
+			llvm_ir::BasicBlock {
+				name: nextn,
+				instrs: vec![],
+				term: llvm_ir::Terminator::Br(llvm_ir::terminator::Br {
+					debugloc: None,
+					dest: func.basic_blocks[0].name.clone(),
+				}),
+			},
+		);
 	}
+}
+
+pub fn compile(path: &Path) -> String {
+	let path = path.canonicalize().unwrap();
+	let mut module = llvm_ir::Module::from_bc_path(path).unwrap();
+
+	calls_terminate_blocks(&mut module);
+	calls_never_in_first_block(&mut module);
 
 	//ppmod(&module);
 
@@ -1317,51 +1328,27 @@ fn compile(path: &Path) {
 				},
 			)
 		})
-		/*.chain(
-			vec![
-				(
-					"putchar",
-					FnFlow {
-						fid: 0,
-						blks: Default::default(),
-						intrinsic: Some("PUTCHAR".to_string()),
-					},
-				),
-				(
-					"getchar",
-					FnFlow {
-						fid: 0,
-						blks: Default::default(),
-						intrinsic: Some("GETCHAR".to_string()),
-					},
-				),
-			]
-			.into_iter()
-			.enumerate()
-			.map(|(i, mut f)| {
-				f.1.fid = module.functions.len() + i;
-				return f;
-			}),
-		)
-		*/
 		.collect::<std::collections::HashMap<&str, FnFlow>>();
 
 	let mainfid = func2id["main"].fid;
 
-	println!("runtime init: ");
-	println!("+ #mainloop");
-	gotofunc(0, mainfid, || println!("+ call #main"));
-	gotoblock(0, funcns, 0, || println!("+ at #main/entry"));
-	println!("");
+	let mut out = String::from("");
 
-	println!("[ main_loop");
+	write!(out, "{} first frame\n", ">".repeat(16));
+	write!(out, "runtime init: \n");
+	write!(out, "+ #__FRAME__ENTRY__\n");
+	gotofunc(&mut out, 0, mainfid, || format!("+ call #main\n"));
+	gotoblock(&mut out, 0, funcns, 0, || format!("+ at #main/b0\n"));
+	write!(out,"\n");
+
+	write!(out,"[\n");
 
 	struct Reg {
 		llvm_id: usize,
 	}
 
 	for (fid, func) in module.functions.iter().enumerate() {
-		gotofunc(0, fid, || println!("#{} [", func.name));
+		gotofunc(&mut out, 0, fid, || format!("#{} [\n", func.name));
 
 		let mut regmap: Vec<Reg> = Default::default();
 
@@ -1370,8 +1357,8 @@ fn compile(path: &Path) {
 		for (bid, block) in func.basic_blocks.iter().enumerate() {
 			let blockn = n2usize(&block.name);
 
-			gotoblock(1, funcns, bid, || {
-				println!("\t#{}/{} [-", func.name, blockn)
+			gotoblock(&mut out, 1, funcns, bid, || {
+				format!("t#{}/{} [-\n", func.name, blockn)
 			});
 
 			let mut handle_call = false;
@@ -1379,7 +1366,7 @@ fn compile(path: &Path) {
 			let scratch = 10;
 
 			for (iid, instr) in block.instrs.iter().enumerate() {
-				println!("\t\t{}", bfsan(instr.to_string()));
+				write!(out,"\t\t{}\n", bfsan(instr.to_string()));
 				match instr {
 					llvm_ir::Instruction::Call(c) => {
 						handle_call = true;
@@ -1398,37 +1385,37 @@ fn compile(path: &Path) {
 
 						let brto = func2id[func.name.as_str()].blks[&br];
 
-						gotoblock(2, funcns, brto, || {
-							println!("\t\t+ enable next #{}/{}", func.name, br)
+						gotoblock(&mut out, 2, funcns, brto, || {
+							format!("\t\t+ enable next #{}/{}\n", func.name, br)
 						});
 
 						// intrinsics lol
-						if fnn.as_str() == "putchar" {
+						if fnn == "putchar" {
 							assert!(c.dest.is_none(), "putchar returns nothing");
 							assert!(c.arguments.len() == 1, "putchar expects one argument");
 
-							println!("putchar intrinsic");
+							write!(out,"\t\tputchar intrinsic\n");
 
 							let val = uncop(&c.arguments[0].0);
 
 							let temp0 = scratch + 0;
-							gotoreg(2, temp0, funcns, blockns, || {
-								println!("\t\t{} .[-] #c_{}", "+".repeat(val as usize), val)
+							gotoreg(&mut out, 2, temp0, funcns, blockns, || {
+								format!("\t\t{} .[-]\n", "+".repeat(val as usize))
 							});
 						} else {
-							println!("\t\t{} next frame", ">".repeat(16));
-							println!("\t\t+ place #=={}==", fnn);
-							gotofunc(2, func2id[fnn.as_str()].fid, || {
-								println!("\t\t+ call func #{}", fnn)
+							write!(out,"\t\t{} next frame\n", ">".repeat(16));
+							write!(out,"\t\t+ #__FRAME_{}__\n", fnn);
+							gotofunc(&mut out, 2, func2id[fnn.as_str()].fid, || {
+								format!("\t\t+ call func #{}\n", fnn)
 							});
-							gotoblock(2, funcns, 0, || println!("\t\t+ #{}/entry", fnn));
+							gotoblock(&mut out, 2, funcns, 0, || format!("\t\t+ #{}/b0\n", fnn));
 						}
 					}
 					llvm_ir::Instruction::Alloca(c) => {
 						match c.allocated_type.deref() {
 							llvm_ir::Type::IntegerType { .. } => {
-								gotoreg(2, n2usize(&c.dest), funcns, blockns, || {
-									println!("\t\t#alloca_{}", c.dest)
+								gotoreg(&mut out, 2, n2usize(&c.dest), funcns, blockns, || {
+									format!("\t\t#alloca_{}\n", c.dest)
 								});
 
 								//assert!(*bits == 8, "ohno {} bits", bits) lolz
@@ -1448,19 +1435,19 @@ fn compile(path: &Path) {
 								let name = n2usize(name);
 
 								// zero %addr (probably alloca)
-								gotoreg(2, addr, funcns, blockns, || println!("\t\t[-]"));
+								gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t[-]\n"));
 
 								// move name to %addr
-								gotoreg(2, name, funcns, blockns, || println!("\t\t[-"));
-								gotoreg(2, addr, funcns, blockns, || println!("\t\t+"));
-								gotoreg(2, name, funcns, blockns, || println!("\t\t]"));
+								gotoreg(&mut out, 2, name, funcns, blockns, || format!("\t\t[-\n"));
+								gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t+\n"));
+								gotoreg(&mut out, 2, name, funcns, blockns, || format!("\t\t]\n"));
 							}
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
 									let val = *value;
 
-									gotoreg(2, addr, funcns, blockns, || {
-										println!("\t\t[-]{}", "+".repeat(val as usize))
+									gotoreg(&mut out, 2, addr, funcns, blockns, || {
+										format!("\t\t[-]{}\n", "+".repeat(val as usize))
 									});
 								}
 								_ => unimplemented!("how tf we gonna store that"),
@@ -1473,23 +1460,23 @@ fn compile(path: &Path) {
 						let addr = unlop(&l.address);
 						let dest = n2usize(&l.dest);
 
-						gotoreg(2, dest, funcns, blockns, || {
-							println!("\t\t #lod_%{}_to_%{}", addr, dest)
+						gotoreg(&mut out, 2, dest, funcns, blockns, || {
+							format!("\t\t #load_%{}_to_%{}\n", addr, dest)
 						});
 
 						let temp0 = scratch + 0;
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t #lod_temp0"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t #load_temp0\n"));
 
 						// dup addr -> temp0 + dest
-						gotoreg(2, addr, funcns, blockns, || println!("\t\t[-"));
-						gotoreg(2, dest, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, addr, funcns, blockns, || println!("\t\t]"));
+						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t]\n"));
 
 						// move temp0 -> addr
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t[-"));
-						gotoreg(2, addr, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t]"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t]\n"));
 
 						//println!("\t\tload {} to {}", addr, dest);
 						//println!("\t\tload {:?} ", l);
@@ -1503,35 +1490,35 @@ fn compile(path: &Path) {
 						let temp0 = scratch + 1;
 						let temp1 = scratch + 2; // and scratch + 3, scratch + 4
 
-						gotoreg(2, op0, funcns, blockns, || println!("\t\t#op0"));
-						gotoreg(2, scratch + 0, funcns, blockns, || println!("\t\t#op1"));
+						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t#op0\n"));
+						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t#op1\n"));
 
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t#temp0"));
-						gotoreg(2, temp1, funcns, blockns, || println!("\t\t#temp1_a"));
-						gotoreg(2, temp1 + 1, funcns, blockns, || println!("\t\t#temp1_b"));
-						gotoreg(2, temp1 + 2, funcns, blockns, || println!("\t\t#temp1_c"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t#temp0\n"));
+						gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t#temp1_a\n"));
+						gotoreg(&mut out, 2, temp1 + 1, funcns, blockns, || format!("\t\t#temp1_b\n"));
+						gotoreg(&mut out, 2, temp1 + 2, funcns, blockns, || format!("\t\t#temp1_c\n"));
 
-						gotoreg(2, dest, funcns, blockns, || {
-							println!("\t\t #%{}_icmp_%{}_lt_{}", dest, op0, op1)
+						gotoreg(&mut out, 2, dest, funcns, blockns, || {
+							format!("\t\t #%{}_icmp_%{}_lt_{}\n", dest, op0, op1)
 						});
 
-						gotoreg(2, op0, funcns, blockns, || println!("\t\t["));
-						gotoreg(2, scratch + 0, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, dest, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, op0, funcns, blockns, || println!("\t\t-]"));
+						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[\n"));
+						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t-]\n"));
 
-						gotoreg(2, scratch + 0, funcns, blockns, || println!("\t\t["));
-						gotoreg(2, op0, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, scratch + 0, funcns, blockns, || println!("\t\t-]"));
+						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t[\n"));
+						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t-]\n"));
 
-						gotoreg(2, scratch + 0, funcns, blockns, || {
-							println!("\t\t{}", "+".repeat(op1 as usize))
+						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || {
+							format!("\t\t{}\n", "+".repeat(op1 as usize))
 						});
 						let op1 = scratch + 0;
 
 						match pred {
 							llvm_ir::IntPredicate::SLT => {
-								println!("\t\ticmp: %{} {} {}", op0, pred, op1);
+								format!("\t\ticmp: %{} {} {}\n", op0, pred, op1);
 
 								// x and y are unsigned. temp1 is the first of
 								// three consecutive temporary cells. The
@@ -1550,45 +1537,45 @@ fn compile(path: &Path) {
 
 								//let stolen = stolen.replace("temp0", ">")
 
-								gotoreg(2, temp1, funcns, blockns, || {
-									println!("\t\ttemp1 >+ > <<")
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || {
+									format!("\t\ttemp1 >+ > <<\n")
 								});
 
 								// y[temp0+ temp1+ y-]
-								gotoreg(2, op1, funcns, blockns, || println!("\t\ty["));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\t+"));
-								gotoreg(2, temp1, funcns, blockns, || println!("\t\t+"));
-								gotoreg(2, op1, funcns, blockns, || println!("\t\t-]"));
+								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\ty[\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t+\n"));
+								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t-]\n"));
 
 								// temp0[y+ temp0-]
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\ttemp0["));
-								gotoreg(2, op1, funcns, blockns, || println!("\t\ty+"));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\ttemp0-]"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\ttemp0[\n"));
+								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\ty+\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\ttemp0-]\n"));
 
 								// x[temp0+ x-]+
-								gotoreg(2, dest, funcns, blockns, || println!("\t\t["));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\ttemp0+"));
-								gotoreg(2, dest, funcns, blockns, || println!("\t\tx-]+"));
+								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t[\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\ttemp0+\n"));
+								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\tx-]+\n"));
 
 								// temp1[>-]> [< x- temp0[-] temp1>->]<+<
-								gotoreg(2, temp1, funcns, blockns, || println!("\t\t[>-]> [<"));
-								gotoreg(2, dest, funcns, blockns, || println!("\t\t-"));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\t[-]"));
-								gotoreg(2, temp1, funcns, blockns, || println!("\t\t>->]<+<"));
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t[>-]> [<\n"));
+								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t-\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]\n"));
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t>->]<+<\n"));
 
 								// temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\t["));
-								gotoreg(2, temp1, funcns, blockns, || println!("\t\t- [>-]> [<"));
-								gotoreg(2, dest, funcns, blockns, || println!("\t\t-"));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\t[-]+"));
-								gotoreg(2, temp1, funcns, blockns, || println!("\t\t>->]<+<"));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\t-]"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[\n"));
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t- [>-]> [<\n"));
+								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t-\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]+\n"));
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t>->]<+<\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t-]\n"));
 
-								gotoreg(2, op1, funcns, blockns, || println!("\t\t[-]"));
-								gotoreg(2, temp0, funcns, blockns, || println!("\t\t[-]"));
-								gotoreg(2, temp1, funcns, blockns, || println!("\t\t[-]"));
-								gotoreg(2, temp1 + 1, funcns, blockns, || println!("\t\t[-]"));
-								gotoreg(2, temp1 + 2, funcns, blockns, || println!("\t\t[-]"));
+								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t[-]\n"));
+								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]\n"));
+								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t[-]\n"));
+								gotoreg(&mut out, 2, temp1 + 1, funcns, blockns, || format!("\t\t[-]\n"));
+								gotoreg(&mut out, 2, temp1 + 2, funcns, blockns, || format!("\t\t[-]\n"));
 							}
 							_ => unimplemented!("ohlort"),
 						}
@@ -1598,25 +1585,25 @@ fn compile(path: &Path) {
 						let op1 = uncop(&a.operand1);
 						let dest = n2usize(&a.dest);
 
-						gotoreg(2, dest, funcns, blockns, || {
-							println!("\t\t#add_%{}_c{}", op0, op1)
+						gotoreg(&mut out, 2, dest, funcns, blockns, || {
+							format!("\t\t#add_%{}_c{}\n", op0, op1)
 						});
 
 						// assume op1 is always constant lol
-						gotoreg(2, scratch + 0, funcns, blockns, || {
-							println!("\t\t{}", "+".repeat(op1 as usize))
+						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || {
+							format!("\t\t{}\n", "+".repeat(op1 as usize))
 						});
 						let op1 = scratch + 0;
 
 						// move op0 to dest
-						gotoreg(2, op0, funcns, blockns, || println!("\t\t[-"));
-						gotoreg(2, dest, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, op0, funcns, blockns, || println!("\t\t]"));
+						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t]\n"));
 
 						// move op1 to dest
-						gotoreg(2, op1, funcns, blockns, || println!("\t\t[-"));
-						gotoreg(2, dest, funcns, blockns, || println!("\t\t+"));
-						gotoreg(2, op1, funcns, blockns, || println!("\t\t]"));
+						gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t]\n"));
 					}
 					_ => {
 						unimplemented!("\t\tunimpl");
@@ -1628,21 +1615,21 @@ fn compile(path: &Path) {
 			// the terminator was a unconditional branch. These are both
 			// rolled into the call instruction generator.
 			if !handle_call {
-				println!("\t\tE {}", bfsan(block.term.to_string()));
+				write!(out,"\t\tE {}\n", bfsan(block.term.to_string()));
 				match &block.term {
 					llvm_ir::Terminator::Br(br) => {
 						let to = n2usize(&br.dest);
 						let toblock = func2id[func.name.as_str()].blks[&to];
 
-						gotoblock(2, funcns, toblock, || {
-							println!("\t\t+ #{}/{}", func.name, to)
+						gotoblock(&mut out, 2, funcns, toblock, || {
+							format!("\t\t+ #{}/{}\n", func.name, to)
 						});
 					}
 
 					llvm_ir::Terminator::CondBr(cbr) => {
 						let cond = unlop(&cbr.condition);
 
-						//gotoreg(2, cond, funcns, blockns, || println!("\t\t#cond"));
+						//gotoreg(&mut out, 2, cond, funcns, blockns, || write!(out,"\t\t#cond\n"));
 
 						let tru = n2usize(&cbr.true_dest);
 						let tru = func2id[func.name.as_str()].blks[&tru];
@@ -1651,40 +1638,43 @@ fn compile(path: &Path) {
 						let fals = func2id[func.name.as_str()].blks[&fals];
 
 						let temp0 = scratch + 0;
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t+"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
 
-						gotoreg(2, cond, funcns, blockns, || println!("\t\t[-"));
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t-"));
-						gotoblock(2, funcns, tru, || {
-							println!("\t\t+ #{}/{}", func.name, n2usize(&cbr.true_dest))
+						gotoreg(&mut out, 2, cond, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t-\n"));
+						gotoblock(&mut out, 2, funcns, tru, || {
+							format!("\t\t+ #{}/{}\n", func.name, n2usize(&cbr.true_dest))
 						});
-						gotoreg(2, cond, funcns, blockns, || println!("\t\t]"));
+						gotoreg(&mut out, 2, cond, funcns, blockns, || format!("\t\t]\n"));
 
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t[-"));
-						gotoblock(2, funcns, fals, || {
-							println!("\t\t+ #{}/{}", func.name, n2usize(&cbr.false_dest))
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-\n"));
+						gotoblock(&mut out, 2, funcns, fals, || {
+							format!("\t\t+ #{}/{}\n", func.name, n2usize(&cbr.false_dest))
 						});
-						gotoreg(2, temp0, funcns, blockns, || println!("\t\t]"));
+						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t]\n"));
 					}
 
 					llvm_ir::Terminator::Ret(_) => {
-						println!("\t\t- #ded_func_xx");
-						gotofunc(2, func2id[func.name.as_str()].fid, || {
-							println!("\t\t- uncall func {}", func.name)
+						write!(out,"\t\t- #ded_func_{}\n", func.name);
+						gotofunc(&mut out, 2, func2id[func.name.as_str()].fid, || {
+							format!("\t\t- uncall func {}\n", func.name)
 						});
-						println!("\t\t{} prev frame", "<".repeat(16));
+
+						write!(out,"\t\t{} prev frame\n", "<".repeat(16));
 					}
 					_ => unimplemented!("soon? {:?}", block.term),
 				};
 			}
 
-			gotoblock(1, funcns, bid, || println!("\t] b{}", blockn));
+			gotoblock(&mut out, 1, funcns, bid, || format!("\t] b{}\n", blockn));
 		}
 
-		gotofunc(0, fid, || println!("] {}", func.name));
+		gotofunc(&mut out, 0, fid, || format!("] {}\n", func.name));
 	}
 
-	println!("] main_loop");
+	write!(out,"]\n");
+
+	out
 }
 
 fn unlop(op: &llvm_ir::Operand) -> usize {
@@ -1706,39 +1696,39 @@ fn uncop(op: &llvm_ir::Operand) -> u64 {
 	}
 }
 
-fn gotoreg<F>(i: usize, reg: usize, funcns: usize, blockns: usize, f: F)
+fn gotoreg<F>(out: &mut String, i: usize, reg: usize, funcns: usize, blockns: usize, f: F)
 where
-	F: FnOnce(),
+	F: FnOnce() -> String,
 {
-	println!(
-		"{}{}",
+	write!(out,
+		"{}{}\n",
 		"\t".repeat(i),
 		">".repeat(1 + funcns + blockns + reg)
 	);
-	f();
-	println!(
-		"{}{}",
+	write!(out, "{}", f());
+	write!(out,
+		"{}{}\n",
 		"\t".repeat(i),
 		"<".repeat(1 + funcns + blockns + reg)
 	);
 }
 
-fn gotoblock<F>(i: usize, bid: usize, funcns: usize, f: F)
+fn gotoblock<F>(out: &mut String, i: usize, bid: usize, funcns: usize, f: F)
 where
-	F: FnOnce(),
+	F: FnOnce() -> String,
 {
-	println!("{}{}", "\t".repeat(i), ">".repeat(1 + bid + funcns));
-	f();
-	println!("{}{}", "\t".repeat(i), "<".repeat(1 + bid + funcns));
+	write!(out,"{}{}\n", "\t".repeat(i), ">".repeat(1 + bid + funcns));
+	write!(out, "{}", f());
+	write!(out,"{}{}\n", "\t".repeat(i), "<".repeat(1 + bid + funcns));
 }
 
-fn gotofunc<F>(i: usize, fid: usize, f: F)
+fn gotofunc<F>(out: &mut String, i: usize, fid: usize, f: F)
 where
-	F: FnOnce(),
+	F: FnOnce() -> String,
 {
-	println!("{}{}", "\t".repeat(i), ">".repeat(1 + fid));
-	f();
-	println!("{}{}", "\t".repeat(i), "<".repeat(1 + fid));
+	write!(out,"{}{}\n", "\t".repeat(i), ">".repeat(1 + fid));
+	write!(out, "{}", f());
+	write!(out,"{}{}\n", "\t".repeat(i), "<".repeat(1 + fid));
 }
 
 fn n2nam(n: &llvm_ir::Name) -> String {

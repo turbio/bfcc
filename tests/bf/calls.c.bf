@@ -1,19 +1,19 @@
 >>>>>>>>>>>>>>>> first frame
 runtime init: 
-+ #mainloop
++ #__FRAME__ENTRY__
 >>>>
 + call #main
 <<<<
 >>>>>
-+ at #main/entry
++ at #main/b0
 <<<<<
 
-[ #mainloop
+[
 >
 #c [
 <
 	>>>>>
-	#c/2 [-
+t#c/2 [-
 	<<<<<
 		E br label %0
 		>>>>>>
@@ -23,21 +23,21 @@ runtime init:
 	] b2
 	<<<<<
 	>>>>>>
-	#c/0 [-
+t#c/0 [-
 	<<<<<<
 		call @putchar(i8 46)
 		>>>>>>>
 		+ enable next #c/1
 		<<<<<<<
-putchar intrinsic
+		putchar intrinsic
 		>>>>>>>>>>>>>>>>>>
-		++++++++++++++++++++++++++++++++++++++++++++++ .[-] #c_46
+		++++++++++++++++++++++++++++++++++++++++++++++ .[-]
 		<<<<<<<<<<<<<<<<<<
 	>>>>>>
 	] b0
 	<<<<<<
 	>>>>>>>
-	#c/1 [-
+t#c/1 [-
 	<<<<<<<
 		E ret void
 		- #ded_func_c
@@ -55,7 +55,7 @@ putchar intrinsic
 #b [
 <<
 	>>>>>
-	#b/0 [-
+t#b/0 [-
 	<<<<<
 		%1 = alloca i32_ align 4
 		>>>>>>>>>>>>
@@ -73,7 +73,7 @@ putchar intrinsic
 	] b0
 	<<<<<
 	>>>>>>
-	#b/2 [-
+t#b/2 [-
 	<<<<<<
 		%3 = load i32* %1_ align 4
 		>>>>>>>>>>>>>>
@@ -149,7 +149,6 @@ putchar intrinsic
 		>>>>>>>>>>>>>>>>>>>>>
 		++
 		<<<<<<<<<<<<<<<<<<<<<
-		icmp: %3 slt 10
 		>>>>>>>>>>>>>>>>>>>>>>>
 		temp1 >+ > <<
 		<<<<<<<<<<<<<<<<<<<<<<<
@@ -257,25 +256,25 @@ putchar intrinsic
 	] b2
 	<<<<<<
 	>>>>>>>
-	#b/5 [-
+t#b/5 [-
 	<<<<<<<
 		call @c()
 		>>>>>>>>
 		+ enable next #b/10
 		<<<<<<<<
 		>>>>>>>>>>>>>>>> next frame
-		+ place #==c==
+		+ #__FRAME_c__
 		>
 		+ call func #c
 		<
 		>>>>>
-		+ #c/entry
+		+ #c/b0
 		<<<<<
 	>>>>>>>
 	] b5
 	<<<<<<<
 	>>>>>>>>
-	#b/10 [-
+t#b/10 [-
 	<<<<<<<<
 		E br label %6
 		>>>>>>>>>
@@ -285,7 +284,7 @@ putchar intrinsic
 	] b10
 	<<<<<<<<
 	>>>>>>>>>
-	#b/6 [-
+t#b/6 [-
 	<<<<<<<<<
 		%7 = load i32* %1_ align 4
 		>>>>>>>>>>>>>>>>>>
@@ -361,7 +360,7 @@ putchar intrinsic
 	] b6
 	<<<<<<<<<
 	>>>>>>>>>>
-	#b/9 [-
+t#b/9 [-
 	<<<<<<<<<<
 		E ret void
 		- #ded_func_b
@@ -379,7 +378,7 @@ putchar intrinsic
 #a [
 <<<
 	>>>>>
-	#a/0 [-
+t#a/0 [-
 	<<<<<
 		%1 = alloca i32_ align 4
 		>>>>>>>>>>>>
@@ -397,7 +396,7 @@ putchar intrinsic
 	] b0
 	<<<<<
 	>>>>>>
-	#a/2 [-
+t#a/2 [-
 	<<<<<<
 		%3 = load i32* %1_ align 4
 		>>>>>>>>>>>>>>
@@ -473,7 +472,6 @@ putchar intrinsic
 		>>>>>>>>>>>>>>>>>>>>>
 		++
 		<<<<<<<<<<<<<<<<<<<<<
-		icmp: %3 slt 10
 		>>>>>>>>>>>>>>>>>>>>>>>
 		temp1 >+ > <<
 		<<<<<<<<<<<<<<<<<<<<<<<
@@ -581,25 +579,25 @@ putchar intrinsic
 	] b2
 	<<<<<<
 	>>>>>>>
-	#a/5 [-
+t#a/5 [-
 	<<<<<<<
 		call @b()
 		>>>>>>>>
 		+ enable next #a/10
 		<<<<<<<<
 		>>>>>>>>>>>>>>>> next frame
-		+ place #==b==
+		+ #__FRAME_b__
 		>>
 		+ call func #b
 		<<
 		>>>>>
-		+ #b/entry
+		+ #b/b0
 		<<<<<
 	>>>>>>>
 	] b5
 	<<<<<<<
 	>>>>>>>>
-	#a/10 [-
+t#a/10 [-
 	<<<<<<<<
 		E br label %6
 		>>>>>>>>>
@@ -609,7 +607,7 @@ putchar intrinsic
 	] b10
 	<<<<<<<<
 	>>>>>>>>>
-	#a/6 [-
+t#a/6 [-
 	<<<<<<<<<
 		%7 = load i32* %1_ align 4
 		>>>>>>>>>>>>>>>>>>
@@ -685,7 +683,7 @@ putchar intrinsic
 	] b6
 	<<<<<<<<<
 	>>>>>>>>>>
-	#a/9 [-
+t#a/9 [-
 	<<<<<<<<<<
 		E ret void
 		- #ded_func_a
@@ -703,7 +701,7 @@ putchar intrinsic
 #main [
 <<<<
 	>>>>>
-	#main/2 [-
+t#main/2 [-
 	<<<<<
 		E br label %0
 		>>>>>>
@@ -713,25 +711,25 @@ putchar intrinsic
 	] b2
 	<<<<<
 	>>>>>>
-	#main/0 [-
+t#main/0 [-
 	<<<<<<
 		call @a()
 		>>>>>>>
 		+ enable next #main/1
 		<<<<<<<
 		>>>>>>>>>>>>>>>> next frame
-		+ place #==a==
+		+ #__FRAME_a__
 		>>>
 		+ call func #a
 		<<<
 		>>>>>
-		+ #a/entry
+		+ #a/b0
 		<<<<<
 	>>>>>>
 	] b0
 	<<<<<<
 	>>>>>>>
-	#main/1 [-
+t#main/1 [-
 	<<<<<<<
 		E ret void
 		- #ded_func_main
@@ -745,4 +743,4 @@ putchar intrinsic
 >>>>
 ] main
 <<<<
-] mainloop
+]
