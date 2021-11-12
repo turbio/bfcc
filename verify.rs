@@ -70,6 +70,8 @@ fn main() {
 			println!("  actual: {}", result.output);
 			panic!("output mismatch")
 		}
+
+		println!("PASS {} in {} steps", info.name, result.steps);
 	}
 }
 
@@ -106,7 +108,7 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 	let mut output: Vec<char> = vec![];
 
 	while pc < code.len() {
-		coverage.insert(pc, coverage.get(&pc).unwrap_or(&0)+1);
+		//coverage.insert(pc, coverage.get(&pc).unwrap_or(&0)+1);
 
 		match code[pc] {
 			',' => {

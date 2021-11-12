@@ -6,1166 +6,6 @@ use std::env;
 use std::path::Path;
 use std::fmt::Write;
 
-
-#[derive(Debug)]
-enum Op {
-	// warning: load and store use the train station
-	Load(usize, usize),  // *a -> b
-	Store(usize, usize), // a -> *b
-
-	StoreImm(u8, usize),     // a -> b
-	StoreAddr(usize, usize), // a -> b (same as StoreImm, but retains  meaning)
-
-	Move(usize, usize),         // a -> b
-	Move2(usize, usize, usize), // a -> b, c
-
-	Add(usize, usize), // a + b -> b
-	Sub(usize, usize), // b - a -> b
-
-	AddImm(u8, usize), // a + b -> b
-	SubImm(u8, usize), // b - a -> b
-
-	Not(usize, usize),     // !a -> b
-	BitCast(usize, usize), // !!a -> b
-
-	Ret(usize), // FAKE NEWS -_-
-
-	Putc(usize), // TODO just for testing
-	Getc(usize), // TODO just for testing
-
-	Branch(usize),             // unconditional branch to a
-	Cond(usize, usize, usize), // if a branch to b else branch to c
-	Loop(usize, Vec<Op>),      // while a do ops
-}
-
-impl Op {
-	fn pretty_print(&self) -> String {
-		let as_str = match self {
-			Op::Load(src, dest) => format!("load *#{} to #{}", src, dest),
-			Op::Store(src, dest) => format!("store #{} at *#{}", src, dest),
-			Op::StoreImm(val, dest) => format!("store {} at #{}", val, dest),
-			Op::StoreAddr(val, dest) => format!("store &#{} at #{}", val, dest),
-			Op::Move(src, dest) => format!("move #{} to #{}", src, dest),
-			Op::Move2(src, dest1, dest2) => {
-				format!("move #{} to #{} #{}", src, dest1, dest2)
-			}
-			Op::Add(src, dest) => format!("add #{} to #{}", src, dest),
-			Op::Sub(src, dest) => format!("sub #{} from #{}", src, dest),
-			Op::AddImm(src, dest) => format!("add {} to #{}", src, dest),
-			Op::SubImm(src, dest) => format!("sub {} from #{}", src, dest),
-			Op::Not(src, dest) => format!("not #{} to #{}", src, dest),
-			Op::BitCast(src, dest) => format!("bitcast #{} to #{}", src, dest),
-			Op::Ret(addr) => format!("return #{} TODO", addr),
-			Op::Putc(addr) => format!("putc #{}", addr),
-			Op::Getc(addr) => format!("getc #{}", addr),
-			Op::Branch(addr) => format!("do block #{}", addr),
-			Op::Cond(src, t, f) => {
-				format!("if #{} then #{} else #{}", src, t, f)
-			}
-			Op::Loop(src, ops) => format!(
-				"while #{} do\n{}",
-				src,
-				ops.iter()
-					.map(|op| format!("\t{}", op.pretty_print()))
-					.collect::<Vec<String>>()
-					.join("\n")
-			),
-		};
-
-		const OPCODES: &[char] = &['[', ']', '+', '-', '>', '<', ',', '.'];
-
-		if as_str.find(OPCODES).is_some() {
-			panic!("pretty printed output {} has opcode", as_str);
-		}
-
-		format!("{:20}{}", as_str, self.print())
-	}
-
-	fn print(&self) -> String {
-		match self {
-			// this whole thing is pretty hairy. The idea is to
-			// clear the first few cells, copy the pointer value
-			// into this area then move forward while moving cells
-			// infront behind and decrementing the pointer.
-			//
-			// for example: say we have the tape:
-			// | a | b | c | x | y | z | p | d |
-			//
-			// where `p` is the address we want to deref, `d`
-			// is where we want to store the value and `z` is the
-			// value pointed to by `p` (p would equal 5). a, b, and
-			// c are the train station.
-			//
-			// then copy the pointer to the train station
-			//
-			// | 0 | 0 | 2 | x | y | z | p | d |
-			//
-			// next we'll move forward one. the ptr copy is
-			// decremented and a return counter is incremented.
-			//
-			// | x | 0 | 1 | 1 | y | z | p | d |
-			//
-			// repeat until the ptr copy is 0.
-			//
-			// | x | y | 0 | 2 | 0 | z | p | d |
-			//
-			// once ptr copy is 0 we'll copy the next value
-			// into its place
-			//
-			// | x | y | 0 | 2 | z | z | p | d |
-			//
-			// reverse the process, moving back until the return
-			// counter is 0.
-			//
-			// | x | 0 | 1 | z | y | z | p | d |
-			//
-			// | 0 | 0 | z | x | y | z | p | d |
-			//
-			// once 0 copy the value over to d and restore the moved
-			// cells
-			//
-			// | a | b | c | x | y | z | p | z |
-			//
-			// it's like a train! choo choo
-			Op::Load(src, dest) => format!(
-				"
-copy addr to #2 \t{} {}
-dec #2 by 3		\t{}
-dec #2 inc #1	\t>>[-<+<
-move #3 to #0	\t{}
-move #2 to #3	\t{}
-move #1 to #2	\t{}
-drive right		\t>
-				\t>>]<<
-copy #3 to #2	\t{} {}
-				\t>[-<
-move #1 to #0	\t{}
-move #2 to #1	\t{}
-drive left		\t<
-move #0 to #3	\t{}
-				\t>]<
-copy #2 to dest \t{}
-",
-				Op::Move2(*src, 1, 2).print(),
-				Op::Move(1, *src).print(),
-				Op::SubImm(3, 2).print(),
-				Op::Move(3, 0).print(),
-				Op::Move(2, 3).print(),
-				Op::Move(1, 2).print(),
-				Op::Move2(3, 0, 2).print(),
-				Op::Move(0, 3).print(),
-				Op::Move(1, 0).print(),
-				Op::Move(2, 1).print(),
-				Op::Move(0, 3).print(),
-				Op::Move(2, *dest).print(),
-			),
-
-			Op::Store(src, dest) => format!(
-				// store works in a similar fasion to load, just in reverse.
-				// the layout is
-				//	 0	   1	   2	 3
-				// | tmp | value | ret | addr
-				"
-copy addr to #3 \t{} {}
-dec #3 by 4		\t{}
-copy v to #1	\t{}
-dec #3 inc #2	\t>>>[-<+<<
-move #4 to #0	\t{}
-move #3 to #4	\t{}
-move #2 to #3	\t{}
-move #1 to #2	\t{}
-drive right		\t>
-				\t>>>]<<<
-move #1 to #4	\t{}
-				\t>>[-<<
-move #2 to #1	\t{}
-drive left		\t<
-move #0 to #3	\t{}
-				\t>>]<<
-",
-				// copy addr to #3 (addr)
-				Op::Move2(*dest, 2, 3).print(),
-				Op::Move(2, *dest).print(),
-				// dec #3 (addr) by 4 (we're starting at cell 4)
-				Op::SubImm(4, 3).print(),
-				// copy v to #1
-				Op::Move(*src, 1).print(),
-				// dec #3 inc #2
-				// move #4 to #0
-				Op::Move(4, 0).print(),
-				// move #3 to #4
-				Op::Move(3, 4).print(),
-				// move #2 to #3
-				Op::Move(2, 3).print(),
-				// move #1 to #2
-				Op::Move(1, 2).print(),
-				// drive right
-				// copy #3 to #2
-				Op::Move(1, 4).print(),
-				// move #2 to #1
-				Op::Move(2, 1).print(),
-				// drive left
-				// move #0 to #3
-				Op::Move(0, 4).print(),
-			),
-
-			Op::StoreImm(v, dest) => format!(
-				"{}[-]{}{}",
-				print_tape_move(0, *dest),
-				"+".repeat(*v as usize),
-				print_tape_move(*dest, 0),
-			),
-
-			Op::StoreAddr(v, dest) => format!(
-				"{}[-]{}{}",
-				print_tape_move(0, *dest),
-				"+".repeat(*v),
-				print_tape_move(*dest, 0),
-			),
-
-			Op::Move2(src, dest1, dest2) => format!(
-				"{}[-]{}[-]{}[-{}+{}+{}]{}",
-				print_tape_move(0, *dest1),
-				print_tape_move(*dest1, *dest2),
-				print_tape_move(*dest2, *src),
-				print_tape_move(*src, *dest1),
-				print_tape_move(*dest1, *dest2),
-				print_tape_move(*dest2, *src),
-				print_tape_move(*src, 0),
-			),
-
-			Op::Move(src, dest) => format!(
-				"{}[-]{}[-{}+{}]{}",
-				print_tape_move(0, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, 0)
-			),
-
-			Op::Add(src, dest) => format!(
-				"{}[-{}+{}]{}",
-				print_tape_move(0, *src),
-				print_tape_move(*src, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, 0)
-			),
-
-			Op::Sub(src, dest) => format!(
-				"{}[-{}-{}]{}",
-				print_tape_move(0, *src),
-				print_tape_move(*src, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, 0)
-			),
-
-			Op::AddImm(v, dest) => format!(
-				"{}{}{}",
-				print_tape_move(0, *dest),
-				"+".repeat(*v as usize),
-				print_tape_move(*dest, 0),
-			),
-
-			Op::SubImm(v, dest) => format!(
-				"{}{}{}",
-				print_tape_move(0, *dest),
-				"-".repeat(*v as usize),
-				print_tape_move(*dest, 0)
-			),
-
-			Op::Not(src, dest) => format!(
-				"{}+{}[{}-{}[-]]{}",
-				print_tape_move(0, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, 0),
-			),
-
-			Op::BitCast(src, dest) => format!(
-				"{}[-]{}[{}+{}[-]]{}",
-				print_tape_move(0, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, *dest),
-				print_tape_move(*dest, *src),
-				print_tape_move(*src, 0),
-			),
-
-			Op::Branch(addr) => Op::StoreImm(1, *addr).print(),
-
-			Op::Cond(src, tru, fals) => vec![
-				Op::Move2(*src, *tru, *fals),
-				Op::Move(*fals, *src),
-				Op::Not(*src, *fals),
-			]
-			.iter()
-			.map(|o| o.print())
-			.collect::<Vec<String>>()
-			.join(" "),
-
-			Op::Loop(_, _) => format!("todo lol"),
-
-			Op::Ret(addr) => format!(
-				"{}-{}",
-				print_tape_move(0, *addr),
-				print_tape_move(*addr, 0)
-			),
-
-			Op::Putc(addr) => format!(
-				"{}.{}",
-				print_tape_move(0, *addr),
-				print_tape_move(*addr, 0)
-			),
-
-			Op::Getc(addr) => format!(
-				"{},{}",
-				print_tape_move(0, *addr),
-				print_tape_move(*addr, 0)
-			),
-		}
-	}
-}
-
-fn print_tape_move(from: usize, to: usize) -> String {
-	if from > to {
-		"<".repeat(from - to)
-	} else {
-		">".repeat(to - from)
-	}
-}
-
-#[derive(Debug)]
-struct Block {
-	address: usize, // execute b if a is truthy
-	ops: Vec<Op>,
-	bblock: llvm_ir::basicblock::BasicBlock,
-}
-
-impl Block {
-	fn print_begin(&self) -> String {
-		format!(
-			"{}[[-]{}",
-			print_tape_move(0, self.address),
-			print_tape_move(self.address, 0),
-		)
-	}
-
-	fn print_end(&self) -> String {
-		format!(
-			"{}]{}",
-			print_tape_move(0, self.address),
-			print_tape_move(self.address, 0),
-		)
-	}
-
-	fn pretty_print_begin(&self) -> String {
-		format!(
-			"{:15}{}",
-			format!("check clear #{}", self.address),
-			self.print_begin()
-		)
-	}
-
-	fn pretty_print_end(&self) -> String {
-		format!(
-			"{:15}{}",
-			format!("check #{}", self.address),
-			self.print_end()
-		)
-	}
-}
-
-#[derive(Debug)]
-enum RValue {
-	Addr(Cell),
-	Imm(u8),
-}
-
-#[derive(Debug, Clone)]
-enum CellFrom {
-	Inst(llvm_ir::instruction::Instruction),
-	Block,
-	Alloc,
-}
-
-#[derive(Debug, Clone)]
-struct Cell {
-	address: usize,
-	from: Option<CellFrom>,
-}
-
-#[derive(Debug)]
-struct RegMap(Vec<Cell>);
-
-impl RegMap {
-	fn for_inst(&mut self, from: llvm_ir::instruction::Instruction) -> Cell {
-		self.new(CellFrom::Inst(from))
-	}
-
-	fn for_block(&mut self) -> Cell {
-		self.new(CellFrom::Block)
-	}
-
-	fn for_alloc(&mut self) -> Cell {
-		self.new(CellFrom::Alloc)
-	}
-
-	fn new_tmp(&mut self) -> Cell {
-		let next_addr = {
-			let last = self.0.last();
-			if last.is_some() {
-				last.unwrap().address + 1
-			} else {
-				0
-			}
-		};
-
-		let ent = Cell {
-			address: next_addr,
-			from: None,
-		};
-
-		self.0.push(ent.clone());
-
-		ent
-	}
-
-	fn new(&mut self, from: CellFrom) -> Cell {
-		let next_addr = {
-			let last = self.0.last();
-			if last.is_some() {
-				last.unwrap().address + 1
-			} else {
-				0
-			}
-		};
-
-		let ent = Cell {
-			address: next_addr,
-			from: Some(from),
-		};
-
-		self.0.push(ent.clone());
-
-		ent
-	}
-
-	fn discard(&mut self, e: Cell) {
-		let index = self
-			.0
-			.iter()
-			.position(|ee| ee.address == e.address)
-			.unwrap();
-
-		self.0.remove(index);
-	}
-
-	fn from_inst(&self, inst: llvm_ir::instruction::Instruction) -> Option<&Cell> {
-		self.0
-			.iter()
-			.filter(|e| e.from.is_some())
-			.find(|e| match e.from.clone().unwrap() {
-				CellFrom::Inst(i) => i == inst,
-				_ => false,
-			})
-	}
-}
-
-#[derive(Debug)]
-struct BuildFunc {
-	address: usize,
-	rmap: RegMap,
-	blocks: Vec<Block>,
-	cblock: usize,
-	prelude: Vec<Op>,
-}
-
-impl BuildFunc {
-	fn block_from_bblock(&self, b: llvm_ir::BasicBlock) -> Option<&Block> {
-		self.blocks.iter().find(|e| e.bblock == b)
-	}
-
-	fn pushop(&mut self, op: Op) {
-		println!("{}", op.pretty_print());
-
-		let curblock = self.blocks.get_mut(self.cblock).unwrap();
-		curblock.ops.push(op);
-	}
-
-	fn pushprelude(&mut self, op: Op) {
-		println!("{}", op.pretty_print());
-
-		self.prelude.push(op);
-	}
-
-	fn setblock(&mut self, i: usize) {
-		if self.blocks.get(i).is_none() {
-			panic!("tried to set current block to invalid");
-		}
-		self.cblock = i;
-	}
-
-	fn getblock(&self) -> &Block {
-		self.blocks.get(self.cblock).unwrap()
-	}
-
-	fn gen_inst_alloca(&mut self, alloca: llvm_ir::instruction::Alloca) {
-		let typ = alloca.allocated_type.deref();
-		match typ {
-			llvm_ir::Type::IntegerType { bits: _ } => {
-				// let uval = v.get_zero_extended_constant().unwrap() as usize;
-				// let bytes = v.get_type().get_bit_width() as usize / 8;
-				// let cells = uval * bytes;
-				// println!("alloca {} items * {} bytes = {} cells", uval, bytes, cells);
-				// println!("{}", ">".repeat(cells));
-
-				// for now we'll just assume all allocas are one byte :/
-
-				let addr = self.rmap.for_alloc().address;
-				let ptr = self
-					.rmap
-					.for_inst(llvm_ir::instruction::Instruction::Alloca(alloca));
-				self.pushop(Op::StoreAddr(addr, ptr.address));
-			}
-			_ => panic!("unsupported operand to alloca"),
-		};
-	}
-
-	fn gen_inst_store(&mut self, store: llvm_ir::instruction::Store) {
-		let dest = match store.address.as_constant().unwrap() {
-			llvm_ir::constant::Constant::Int { bits: _, value } => *value as usize,
-			_ => unreachable!("what kinda address is that lol"),
-		};
-		let src = store.value;
-
-		match src {
-			llvm_ir::operand::Operand::ConstantOperand(cref) => match cref.deref() {
-				llvm_ir::constant::Constant::Int { bits: _, value } => {
-					if *value > 255 {
-						unimplemented!("unsupported value")
-					}
-
-					let tmp = self.rmap.new_tmp();
-					self.pushop(Op::StoreImm(*value as u8, tmp.address));
-					self.pushop(Op::Store(tmp.address, dest));
-					self.rmap.discard(tmp);
-				}
-
-				_ => unimplemented!("dunno about that type"),
-			},
-
-			llvm_ir::operand::Operand::LocalOperand { name: _, ty } => match ty.deref() {
-				llvm_ir::types::Type::IntegerType { bits: _ } => {}
-				_ => unimplemented!("unsupported store dest type"),
-			},
-
-			_ => unimplemented!("unsupported store source value"), /*
-																   BasicValueEnum::IntValue(v) => {
-																	   if v.is_const() {
-																		   let immv = v.get_zero_extended_constant().unwrap();
-
-																		   if immv > 255 {
-																			   unimplemented!("unsupported value")
-																		   }
-
-																		   let tmp = self.rmap.new_tmp();
-																		   self.pushop(Op::StoreImm(immv as u8, tmp.address));
-																		   self.pushop(Op::Store(tmp.address, dest));
-																		   self.rmap.discard(tmp);
-																	   } else {
-																		   let src = {
-																			   let src = v.as_instruction().unwrap();
-																			   self.rmap.from_inst(src).unwrap().address
-																		   };
-
-																		   let tmp1 = self.rmap.new_tmp();
-																		   let tmp2 = self.rmap.new_tmp();
-
-																		   self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
-																		   self.pushop(Op::Move(tmp2.address, src));
-																		   self.pushop(Op::Store(tmp1.address, dest));
-
-																		   self.rmap.discard(tmp1);
-																		   self.rmap.discard(tmp2);
-																	   }
-																   }
-
-																   BasicValueEnum::PointerValue(p) => {
-																	   let instsrc = p.as_instruction().unwrap();
-																	   let src = { self.rmap.from_inst(instsrc).unwrap().address };
-
-																	   if src > 0xff {
-																		   unimplemented!("address out of range, char addresses");
-																	   }
-
-																	   let tmp1 = self.rmap.new_tmp();
-																	   let tmp2 = self.rmap.new_tmp();
-
-																	   self.pushop(Op::Move2(src, tmp1.address, tmp2.address));
-																	   self.pushop(Op::Move(tmp2.address, src));
-																	   self.pushop(Op::Store(tmp1.address, dest));
-
-																	   self.rmap.discard(tmp1);
-																	   self.rmap.discard(tmp2);
-																   }
-
-																   _ => unimplemented!("unsupported store source {:#?}", src),
-																   */
-		};
-	}
-
-	/*
-	fn gen_inst_load(&mut self, inst: InstructionValue) {
-		assert_eq!(inst.get_num_operands(), 1);
-
-		let dest = { self.rmap.for_inst(inst) };
-
-		let src = inst.get_operand(0).unwrap().left().unwrap();
-
-		let src = src.as_instruction_value().unwrap();
-		let src = { self.rmap.from_inst(src).unwrap().address };
-
-		self.pushop(Op::Load(src, dest.address));
-	}
-	*/
-
-	/*
-	fn gen_inst_add(&mut self, inst: InstructionValue) {
-		assert_eq!(inst.get_num_operands(), 2);
-
-		let (rv1, rv2) = {
-			let op1 = inst.get_operand(0).unwrap().left().unwrap();
-			let op1 = self.rvalue_from_bval(op1);
-
-			let op2 = inst.get_operand(1).unwrap().left().unwrap();
-			let op2 = self.rvalue_from_bval(op2);
-
-			(op1, op2)
-		};
-
-		let dest = self.rmap.for_inst(inst);
-
-		match rv1 {
-			RValue::Imm(v) => {
-				self.pushop(Op::StoreImm(v, dest.address));
-			}
-			RValue::Addr(src) => {
-				let tmp_cop = self.rmap.new_tmp();
-				self.pushop(Op::Move2(
-					src.address,
-					dest.address,
-					tmp_cop.address,
-				));
-				self.pushop(Op::Move(tmp_cop.address, src.address));
-				self.rmap.discard(tmp_cop);
-			}
-		}
-
-		match rv2 {
-			RValue::Imm(v) => {
-				self.pushop(Op::AddImm(v, dest.address));
-			}
-			RValue::Addr(src) => {
-				let tmp_cop1 = self.rmap.new_tmp();
-				let tmp_cop2 = self.rmap.new_tmp();
-
-				self.pushop(Op::Move2(
-					src.address,
-					tmp_cop1.address,
-					tmp_cop2.address,
-				));
-				self.pushop(Op::Move(tmp_cop2.address, src.address));
-				self.pushop(Op::Add(tmp_cop1.address, dest.address));
-
-				self.rmap.discard(tmp_cop1);
-				self.rmap.discard(tmp_cop2);
-			}
-		}
-	}
-	*/
-
-	/*
-	fn rvalue_from_bval(&self, b: BasicValueEnum) -> RValue {
-		if b.as_instruction_value().is_some() {
-			RValue::Addr(
-				*self
-					.rmap
-					.from_inst(b.as_instruction_value().unwrap())
-					.unwrap(),
-			)
-		} else {
-			match b {
-				BasicValueEnum::IntValue(v) => {
-					RValue::Imm(v.get_zero_extended_constant().unwrap() as u8)
-				}
-				_ => unimplemented!("only ints right now"),
-			}
-		}
-	}
-	*/
-
-	/*
-	fn gen_inst_sub(&mut self, inst: InstructionValue) {
-		assert_eq!(inst.get_num_operands(), 2);
-
-		let (rv1, rv2) = {
-			let op1 = inst.get_operand(0).unwrap().left().unwrap();
-			let op1 = self.rvalue_from_bval(op1);
-
-			let op2 = inst.get_operand(1).unwrap().left().unwrap();
-			let op2 = self.rvalue_from_bval(op2);
-
-			(op1, op2)
-		};
-
-		let dest = self.rmap.for_inst(inst);
-
-		match rv1 {
-			RValue::Imm(v) => {
-				self.pushop(Op::StoreImm(v, dest.address));
-			}
-			RValue::Addr(src) => {
-				let tmp_cop = self.rmap.new_tmp();
-				self.pushop(Op::Move2(
-					src.address,
-					dest.address,
-					tmp_cop.address,
-				));
-				self.pushop(Op::Move(tmp_cop.address, src.address));
-				self.rmap.discard(tmp_cop);
-			}
-		}
-
-		match rv2 {
-			RValue::Imm(v) => {
-				self.pushop(Op::SubImm(v, dest.address));
-			}
-			RValue::Addr(src) => {
-				let tmp_cop1 = self.rmap.new_tmp();
-				let tmp_cop2 = self.rmap.new_tmp();
-
-				self.pushop(Op::Move2(
-					src.address,
-					tmp_cop1.address,
-					tmp_cop2.address,
-				));
-				self.pushop(Op::Move(tmp_cop2.address, src.address));
-				self.pushop(Op::Sub(tmp_cop1.address, dest.address));
-
-				self.rmap.discard(tmp_cop1);
-				self.rmap.discard(tmp_cop2);
-			}
-		}
-	}
-	*/
-
-	/*
-	fn gen_inst_ret(&mut self, inst: InstructionValue) {
-		// FAKE NEWS
-
-		let addr = { self.address };
-		self.pushop(Op::Ret(addr)); // just guess where
-		return assert_eq!(inst.get_num_operands(), 1);
-
-		let operand = inst.get_operand(0).unwrap().left().unwrap();
-
-		match operand {
-			BasicValueEnum::IntValue(v) => {
-				if v.is_const() {
-					let i = v.get_zero_extended_constant().unwrap();
-
-					let tmp = self.rmap.new_tmp();
-					self.pushop(Op::StoreImm(i as u8, tmp.address));
-					self.pushop(Op::Ret(tmp.address));
-
-					self.rmap.discard(tmp);
-				} else {
-					let i = v.as_instruction_value().unwrap();
-					let i = { self.rmap.from_inst(i).unwrap().address };
-
-					self.pushop(Op::Ret(i));
-				}
-			}
-			_ => panic!("oh no, we don't handle that"),
-		}
-	}
-	*/
-
-	/*
-	// TODO: this is just for validating execution right now
-	fn gen_inst_call(&mut self, inst: InstructionValue) {
-		if inst.get_num_operands() == 2 {
-			let (ptr, tmp) = match inst.get_operand(0).unwrap().left().unwrap()
-			{
-				BasicValueEnum::IntValue(v) => {
-					if v.is_const() {
-						let ptr = self.rmap.new_tmp();
-
-						let immv = v.get_zero_extended_constant().unwrap();
-
-						let newop = {
-							if immv > 255 {
-								panic!("unsupported value")
-							}
-							Op::StoreImm(immv as u8, ptr.address)
-						};
-
-						self.pushop(newop);
-
-						(ptr, true)
-					} else {
-						let ptr = {
-							let src = v.as_instruction().unwrap();
-							*self.rmap.from_inst(src).unwrap()
-						};
-
-						(ptr, false)
-					}
-				}
-				_ => panic!("we only deal in ints!"),
-			};
-
-			let func = match inst.get_operand(1).unwrap().left().unwrap() {
-				BasicValueEnum::PointerValue(v) => v,
-				_ => panic!("unable to call"),
-			};
-
-			if func.get_name().to_str().unwrap() == "putc" {
-				self.pushop(Op::Putc(ptr.address));
-			} else {
-				panic!("we only know how to handle the putc builtin")
-			}
-
-			if tmp {
-				self.rmap.discard(ptr);
-			}
-		} else if inst.get_num_operands() == 1 {
-			let func = match inst.get_operand(0).unwrap().left().unwrap() {
-				BasicValueEnum::PointerValue(v) => v,
-				_ => panic!("unable to call"),
-			};
-
-			let dest = self.rmap.for_inst(inst);
-
-			if func.get_name().to_str().unwrap() == "getc" {
-				self.pushop(Op::Getc(dest.address));
-			} else {
-				panic!("we only know how to handle the putc builtin")
-			}
-		} else {
-			unimplemented!("yeah, it's all fake :/")
-		}
-	}
-	*/
-
-	/*
-	fn gen_inst_mul(&mut self, _inst: InstructionValue) {
-		unimplemented!("we can't multiply yet :(");
-	}
-	*/
-
-	/*
-	fn gen_inst_icmp(&mut self, inst: InstructionValue) {
-		assert_eq!(inst.get_num_operands(), 2);
-
-		let pred = inst.get_icmp_predicate().unwrap();
-
-		let rv1 = inst.get_operand(0).unwrap().left().unwrap();
-		let rv1 = self.rvalue_from_bval(rv1);
-
-		let rv2 = inst.get_operand(1).unwrap().left().unwrap();
-		let rv2 = self.rvalue_from_bval(rv2);
-
-		let dest = self.rmap.for_inst(inst);
-
-		match pred {
-			IntPredicate::EQ => {
-				let tmp_sub = self.rmap.new_tmp();
-
-				match rv1 {
-					RValue::Imm(v) => {
-						self.pushop(Op::StoreImm(v, tmp_sub.address))
-					}
-					RValue::Addr(from) => {
-						let tmp_cop = self.rmap.new_tmp();
-						self.pushop(Op::Move2(
-							from.address,
-							tmp_sub.address,
-							tmp_cop.address,
-						));
-						self.pushop(Op::Move(tmp_cop.address, from.address));
-						self.rmap.discard(tmp_cop);
-					}
-				};
-				match rv2 {
-					RValue::Imm(v) => {
-						self.pushop(Op::SubImm(v, tmp_sub.address))
-					}
-					RValue::Addr(from) => {
-						let tmp_cop1 = self.rmap.new_tmp();
-						let tmp_cop2 = self.rmap.new_tmp();
-
-						self.pushop(Op::Move2(
-							from.address,
-							tmp_cop1.address,
-							tmp_cop2.address,
-						));
-						self.pushop(Op::Move(tmp_cop2.address, from.address));
-						self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
-
-						self.rmap.discard(tmp_cop1);
-						self.rmap.discard(tmp_cop2);
-					}
-				};
-
-				self.pushop(Op::Not(tmp_sub.address, dest.address));
-
-				self.rmap.discard(tmp_sub);
-			}
-			IntPredicate::NE => {
-				let tmp_sub = self.rmap.new_tmp();
-
-				match rv1 {
-					RValue::Imm(v) => {
-						self.pushop(Op::StoreImm(v, tmp_sub.address))
-					}
-					RValue::Addr(from) => {
-						let tmp_cop = self.rmap.new_tmp();
-						self.pushop(Op::Move2(
-							from.address,
-							tmp_sub.address,
-							tmp_cop.address,
-						));
-						self.pushop(Op::Move(tmp_cop.address, from.address));
-						self.rmap.discard(tmp_cop);
-					}
-				};
-				match rv2 {
-					RValue::Imm(v) => {
-						self.pushop(Op::SubImm(v, tmp_sub.address))
-					}
-					RValue::Addr(from) => {
-						let tmp_cop1 = self.rmap.new_tmp();
-						let tmp_cop2 = self.rmap.new_tmp();
-
-						self.pushop(Op::Move2(
-							from.address,
-							tmp_cop1.address,
-							tmp_cop2.address,
-						));
-						self.pushop(Op::Move(tmp_cop2.address, from.address));
-						self.pushop(Op::Sub(tmp_cop1.address, tmp_sub.address));
-
-						self.rmap.discard(tmp_cop1);
-						self.rmap.discard(tmp_cop2);
-					}
-				};
-
-				self.pushop(Op::BitCast(tmp_sub.address, dest.address));
-
-				self.rmap.discard(tmp_sub);
-			}
-			_ => unimplemented!("can't handle icmp type {:#?}", pred),
-		}
-	}
-	*/
-
-	/*
-	fn gen_inst_phi(&mut self, inst: InstructionValue) {
-		assert_eq!(inst.get_opcode(), InstructionOpcode::Phi);
-		assert!(inst.get_previous_instruction().is_none());
-		assert_eq!(inst.get_num_operands(), 2);
-
-		let a = inst.get_operand(0).unwrap().left().unwrap();
-		let b = inst.get_operand(1).unwrap().left().unwrap();
-
-		let a = a.as_any_value_enum();
-
-		println!("wiw {:?}", a);
-	}
-	*/
-
-	/*
-	fn gen_inst_result_noop(&mut self, inst: InstructionValue) {
-		assert_eq!(inst.get_num_operands(), 1);
-
-		let src =
-			self.rvalue_from_bval(inst.get_operand(0).unwrap().left().unwrap());
-
-		let dest = self.rmap.for_inst(inst);
-		let tmp = self.rmap.new_tmp();
-
-		match src {
-			RValue::Imm(_) => {
-				panic!("why tho");
-			}
-			RValue::Addr(src) => {
-				self.pushop(Op::Move2(src.address, dest.address, tmp.address));
-				self.pushop(Op::Move(tmp.address, src.address));
-			}
-		}
-
-		self.rmap.discard(tmp);
-	}
-	*/
-
-	/*
-	fn gen_inst_br(&mut self, inst: InstructionValue) {
-		assert!(inst.get_num_operands() == 3 || inst.get_num_operands() == 1);
-
-		if inst.get_num_operands() == 3 {
-			let op1 = inst.get_operand(0).unwrap().left().unwrap();
-			let op1 = self.rvalue_from_bval(op1);
-
-			// hmmm, shold double check this
-			// llvm's interface has the true operand as the second
-
-			let tblock = inst.get_operand(2).unwrap().right().unwrap();
-			let tblock = { self.block_from_bblock(tblock).unwrap().address };
-
-			let fblock = inst.get_operand(1).unwrap().right().unwrap();
-			let fblock = { self.block_from_bblock(fblock).unwrap().address };
-
-			match op1 {
-				RValue::Addr(cell) => {
-					self.pushop(Op::Cond(cell.address, tblock, fblock))
-				}
-				_ => unimplemented!("unhandled operand to br"),
-			};
-		} else if inst.get_num_operands() == 1 {
-			let block = inst.get_operand(0).unwrap().right().unwrap();
-			let block = { self.block_from_bblock(block).unwrap().address };
-
-			self.pushop(Op::Branch(block));
-		} else {
-			panic!("unexpected number of operands");
-		}
-	}
-	*/
-
-	fn gen_bblock(&mut self) {
-		println!("=== begin block #{} =========", self.getblock().address);
-
-		println!("{}", self.getblock().pretty_print_begin());
-
-		for inst in self.getblock().bblock.instrs.clone().into_iter() {
-			println!("=== {:#?} ===================", inst);
-
-			match inst {
-				llvm_ir::instruction::Instruction::Alloca(i) => self.gen_inst_alloca(i),
-				llvm_ir::instruction::Instruction::Store(i) => self.gen_inst_store(i),
-				//llvm_ir::instruction::Instruction::Load(i) => self.gen_inst_load(i),
-				//llvm_ir::instruction::Instruction::Add(i) => self.gen_inst_add(i),
-				//llvm_ir::instruction::Instruction::Sub(i) => self.gen_inst_sub(i),
-				//llvm_ir::instruction::Instruction::Call(i) => self.gen_inst_call(i),
-				//llvm_ir::instruction::Instruction::Mul(i) => self.gen_inst_mul(i),
-				//llvm_ir::instruction::Instruction::ICmp(i) => self.gen_inst_icmp(i),
-
-				//llvm_ir::instruction::Instruction::Phi(i) => self.gen_inst_phi(i),
-
-				// i mean.......
-				//llvm_ir::instruction::Instruction::ZExt(i) => self.gen_inst_result_noop(i),
-				//llvm_ir::instruction::Instruction::Trunc(i) => self.gen_inst_result_noop(i),
-
-				//llvm_ir::instruction::Instruction::Invoke(i) => unimplemented!("invoke is unsupported, pls lower '-lowerinvoke'"),
-				//llvm_ir::instruction::Instruction::Switch(i) => unimplemented!("switch is unsupported, pls lower '-lowerswitch'"),
-
-				//InstructionOpcode::Return => self.gen_inst_ret(inst),
-				//InstructionOpcode::Br => self.gen_inst_br(inst),
-				_ => {
-					unimplemented!("instruction {:#?}", inst);
-				}
-			}
-
-			// no tmps are left over
-			for m in self.rmap.0.iter() {
-				assert!(m.from.is_some());
-			}
-		}
-
-		// self.ops
-		//	   .iter()
-		//	   .map(|op| format!("\t{}", op.pretty_print()))
-		//	   .collect::<Vec<String>>()
-		//	   .join("\n"),
-
-		println!("=== end block #{} ===========", self.getblock().address);
-		println!("{}", self.getblock().pretty_print_end());
-		println!("");
-	}
-}
-
-fn gen_func(func: llvm_ir::Function) {
-	let mut bfunc = BuildFunc {
-		address: 0,
-		rmap: RegMap(vec![]),
-		blocks: vec![],
-		cblock: 0,
-		prelude: vec![],
-	};
-
-	// reserve blocks for traion station
-	println!("pointer train station");
-	let station = bfunc.rmap.for_block();
-	bfunc.pushprelude(Op::StoreImm(0, station.address));
-	let station = bfunc.rmap.for_block();
-	bfunc.pushprelude(Op::StoreImm(0, station.address));
-	let station = bfunc.rmap.for_block();
-	bfunc.pushprelude(Op::StoreImm(0, station.address));
-	let station = bfunc.rmap.for_block();
-	bfunc.pushprelude(Op::StoreImm(0, station.address));
-
-	let funcl = bfunc.rmap.for_block();
-	bfunc.address = funcl.address;
-
-	for block in func.basic_blocks.into_iter() {
-		let blockcell = bfunc.rmap.for_block();
-
-		bfunc.blocks.push(Block {
-			address: blockcell.address,
-			bblock: block,
-			ops: vec![],
-		});
-	}
-
-	println!("=== func prelude ============");
-	println!("do func");
-	bfunc.pushprelude(Op::StoreImm(1, funcl.address));
-	for i in 0..bfunc.blocks.len() {
-		let v = if i == 0 {
-			println!("do block");
-			1
-		} else {
-			println!("skip block");
-			0
-		};
-
-		bfunc.setblock(i);
-		let addr = { bfunc.getblock().address };
-
-		bfunc.pushprelude(Op::StoreImm(v, addr));
-	}
-
-	println!(
-		"{}[{} ; begin func block",
-		print_tape_move(0, funcl.address),
-		print_tape_move(funcl.address, 0),
-	);
-
-	println!("");
-
-	for i in 0..bfunc.blocks.len() {
-		bfunc.setblock(i);
-		bfunc.gen_bblock();
-	}
-
-	println!(
-		"{}]{} ; end func block",
-		print_tape_move(0, funcl.address),
-		print_tape_move(funcl.address, 0),
-	)
-}
-
 fn ppmod(module: &llvm_ir::Module) {
 	for func in module.functions.iter() {
 		println!(
@@ -1286,14 +126,37 @@ fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 	}
 }
 
+#[derive(Debug)]
+enum BfOp {
+	// actual brainfuck
+	Inc(u8),
+	Dec(u8),
+	Right(usize),
+	Left(usize),
+
+	AddI(usize, u8), // *a + n -> *a : a must be less than 255
+	SubI(usize, u8), // *a - n -> *a : a msut be greater than 0
+	Dup(usize, usize, usize), // *a -> *b, *c : a will be zeroed, b and c must be zero
+	Mov(usize, usize), // *a -> *b : a will be zeroed, b must be zero
+
+	Putch(usize),
+	Zero(usize),
+	Loop(usize, Vec<BfOp>),
+
+	Goto(usize),
+	Literal(String),
+
+	// debug
+	Tag(usize, String), // tag address with name in debugger
+	Comment(String), // if you see something say something
+}
+
 pub fn compile(path: &Path) -> String {
 	let path = path.canonicalize().unwrap();
 	let mut module = llvm_ir::Module::from_bc_path(path).unwrap();
 
 	calls_terminate_blocks(&mut module);
 	calls_never_in_first_block(&mut module);
-
-	//ppmod(&module);
 
 	// stacks frames are laid out as:
 	// <main loop bit> | <func mask> | <block mask> | <registers> | <scratch>
@@ -1334,12 +197,27 @@ pub fn compile(path: &Path) -> String {
 
 	let mut out = String::from("");
 
-	write!(out, "{} first frame\n", ">".repeat(16));
+	let mut root: Vec<BfOp> = vec![];
+
+	let stack_width = 30;
+
+	root.push(BfOp::Right(stack_width));
+	root.push(BfOp::Comment("runtime init:".to_string()));
+	root.push(BfOp::Inc(1));
+	root.push(BfOp::Tag(0, "__FRAME__ENTRY__".to_string()));
+	write!(out, "{} first frame\n", ">".repeat(stack_width));
 	write!(out, "runtime init: \n");
 	write!(out, "+ #__FRAME__ENTRY__\n");
 	gotofunc(&mut out, 0, mainfid, || format!("+ call #main\n"));
 	gotoblock(&mut out, 0, funcns, 0, || format!("+ at #main/b0\n"));
+	root.push(BfOp::Tag(mainfid, "main".to_string()));
+	root.push(BfOp::AddI(mainfid, 1));
+	root.push(BfOp::Tag(funcns, "main/b0".to_string()));
+	root.push(BfOp::AddI(funcns, 1));
+	root.push(BfOp::Comment("".to_string()));
 	write!(out,"\n");
+
+	let mut mainloop: Vec<BfOp> = vec![];
 
 	write!(out,"[\n");
 
@@ -1348,6 +226,8 @@ pub fn compile(path: &Path) -> String {
 	}
 
 	for (fid, func) in module.functions.iter().enumerate() {
+		mainloop.push(BfOp::Tag(1+fid, func.name.clone()));
+		let mut funcloop: Vec<BfOp> = vec![];
 		gotofunc(&mut out, 0, fid, || format!("#{} [\n", func.name));
 
 		let mut regmap: Vec<Reg> = Default::default();
@@ -1356,6 +236,8 @@ pub fn compile(path: &Path) -> String {
 
 		for (bid, block) in func.basic_blocks.iter().enumerate() {
 			let blockn = n2usize(&block.name);
+			funcloop.push(BfOp::Tag(1+funcns+bid, format!("{}/{}", func.name, blockn)));
+			let mut blockloop: Vec<BfOp> = vec![];
 
 			gotoblock(&mut out, 1, funcns, bid, || {
 				format!("t#{}/{} [-\n", func.name, blockn)
@@ -1363,12 +245,14 @@ pub fn compile(path: &Path) -> String {
 
 			let mut handle_call = false;
 
-			let scratch = 10;
+			let scratch = 30;
 
 			for (iid, instr) in block.instrs.iter().enumerate() {
+				blockloop.push(BfOp::Comment(instr.to_string()));
 				write!(out,"\t\t{}\n", bfsan(instr.to_string()));
+
 				match instr {
-					llvm_ir::Instruction::Call(c) => {
+					llvm_ir::Instruction::Call(c) => { // yep
 						handle_call = true;
 						let br = match &block.term {
 							llvm_ir::Terminator::Br(br) => n2usize(&br.dest),
@@ -1383,11 +267,18 @@ pub fn compile(path: &Path) -> String {
 							_ => unimplemented!("ohnoes"),
 						};
 
+						// TODO(turbio): even an instric call will end in a branch lol
+						// that needs to be handled
+
 						let brto = func2id[func.name.as_str()].blks[&br];
 
 						gotoblock(&mut out, 2, funcns, brto, || {
 							format!("\t\t+ enable next #{}/{}\n", func.name, br)
 						});
+
+						blockloop.push(BfOp::Comment("enable next".to_string()));
+						blockloop.push(BfOp::Tag(1+funcns+brto, format!("{}/{}", func.name, br)));
+						blockloop.push(BfOp::AddI(1+funcns+brto, 1));
 
 						// intrinsics lol
 						if fnn == "putchar" {
@@ -1396,14 +287,45 @@ pub fn compile(path: &Path) -> String {
 
 							write!(out,"\t\tputchar intrinsic\n");
 
-							let val = uncop(&c.arguments[0].0);
+							//let val = uncop(&c.arguments[0].0);
 
-							let temp0 = scratch + 0;
-							gotoreg(&mut out, 2, temp0, funcns, blockns, || {
-								format!("\t\t{} .[-]\n", "+".repeat(val as usize))
+							blockloop.push(BfOp::Comment("putchar intrinsic".to_string()));
+
+							let reg = match &c.arguments[0].0 {
+								llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
+								llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
+									llvm_ir::constant::Constant::Int { value, .. } => {
+										let temp0 = scratch + 0;
+										gotoreg(&mut out, 2, temp0, funcns, blockns, || {
+											format!("\t\t{}\n", "+".repeat(*value as usize))
+										});
+										blockloop.push(BfOp::AddI(1+funcns+blockns+temp0, *value as u8));
+										temp0
+									},
+									_ => unimplemented!("how tf we gonna store that"),
+								},
+
+								_ => unimplemented!("ignoring meta?"),
+							};
+
+							blockloop.push(BfOp::Putch(1+funcns+blockns+reg));
+							blockloop.push(BfOp::Zero(1+funcns+blockns+reg));
+
+							gotoreg(&mut out, 2, reg, funcns, blockns, || {
+								format!("\t\t.[-]\n")
 							});
 						} else {
-							write!(out,"\t\t{} next frame\n", ">".repeat(16));
+							blockloop.push(BfOp::Comment("next frame".to_string()));
+							blockloop.push(BfOp::Goto(0));
+							blockloop.push(BfOp::Right(stack_width));
+							blockloop.push(BfOp::Tag(0, format!("__FRAME_{}__", fnn)));
+							blockloop.push(BfOp::AddI(0, 1));
+							blockloop.push(BfOp::Tag(1+func2id[fnn.as_str()].fid, format!("{}", fnn)));
+							blockloop.push(BfOp::AddI(1+func2id[fnn.as_str()].fid, 1));
+							blockloop.push(BfOp::Tag(1+funcns+0, format!("{}/b0", fnn)));
+							blockloop.push(BfOp::AddI(1+funcns+0, 1));
+
+							write!(out,"\t\t{} next frame\n", ">".repeat(stack_width));
 							write!(out,"\t\t+ #__FRAME_{}__\n", fnn);
 							gotofunc(&mut out, 2, func2id[fnn.as_str()].fid, || {
 								format!("\t\t+ call func #{}\n", fnn)
@@ -1411,9 +333,11 @@ pub fn compile(path: &Path) -> String {
 							gotoblock(&mut out, 2, funcns, 0, || format!("\t\t+ #{}/b0\n", fnn));
 						}
 					}
-					llvm_ir::Instruction::Alloca(c) => {
+					llvm_ir::Instruction::Alloca(c) => { // yep
 						match c.allocated_type.deref() {
 							llvm_ir::Type::IntegerType { .. } => {
+								blockloop.push(BfOp::Tag(1 + n2usize(&c.dest), format!("alloca_{}", c.dest)));
+
 								gotoreg(&mut out, 2, n2usize(&c.dest), funcns, blockns, || {
 									format!("\t\t#alloca_{}\n", c.dest)
 								});
@@ -1427,7 +351,7 @@ pub fn compile(path: &Path) -> String {
 						//	  llvm_id: n2usize(&c.dest),
 						//})
 					}
-					llvm_ir::Instruction::Store(s) => {
+					llvm_ir::Instruction::Store(s) => { // yep
 						let addr = unlop(&s.address);
 
 						match &s.value {
@@ -1437,6 +361,12 @@ pub fn compile(path: &Path) -> String {
 								// zero %addr (probably alloca)
 								gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t[-]\n"));
 
+								blockloop.push(BfOp::Zero(1 + funcns + blockns + addr));
+								blockloop.push(BfOp::Mov(
+										1 + funcns + blockns + name,
+										1 + funcns + blockns + addr,
+								));
+
 								// move name to %addr
 								gotoreg(&mut out, 2, name, funcns, blockns, || format!("\t\t[-\n"));
 								gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t+\n"));
@@ -1445,6 +375,9 @@ pub fn compile(path: &Path) -> String {
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
 									let val = *value;
+
+									blockloop.push(BfOp::Zero(1 + funcns + blockns + addr));
+									blockloop.push(BfOp::AddI(1 + funcns + blockns + addr, val as u8));
 
 									gotoreg(&mut out, 2, addr, funcns, blockns, || {
 										format!("\t\t[-]{}\n", "+".repeat(val as usize))
@@ -1456,7 +389,7 @@ pub fn compile(path: &Path) -> String {
 							_ => unimplemented!("how tf we gonna store that"),
 						};
 					}
-					llvm_ir::Instruction::Load(l) => {
+					llvm_ir::Instruction::Load(l) => { // yep
 						let addr = unlop(&l.address);
 						let dest = n2usize(&l.dest);
 
@@ -1464,8 +397,29 @@ pub fn compile(path: &Path) -> String {
 							format!("\t\t #load_%{}_to_%{}\n", addr, dest)
 						});
 
+						blockloop.push(BfOp::Tag(
+							1 + funcns + blockns + dest,
+							format!("load_%{}_to_%{}", addr, dest),
+						));
+
 						let temp0 = scratch + 0;
 						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t #load_temp0\n"));
+
+						blockloop.push(BfOp::Tag(
+							1 + funcns + blockns + temp0,
+							format!("tmp0_for_load"),
+						));
+
+						blockloop.push(BfOp::Dup(
+							1 + funcns + blockns + addr,
+							1 + funcns + blockns + temp0,
+							1 + funcns + blockns + dest,
+						));
+
+						blockloop.push(BfOp::Mov(
+							1 + funcns + blockns + temp0,
+							1 + funcns + blockns + addr,
+						));
 
 						// dup addr -> temp0 + dest
 						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t[-\n"));
@@ -1481,7 +435,7 @@ pub fn compile(path: &Path) -> String {
 						//println!("\t\tload {} to {}", addr, dest);
 						//println!("\t\tload {:?} ", l);
 					}
-					llvm_ir::Instruction::ICmp(i) => {
+					llvm_ir::Instruction::ICmp(i) => { // nope
 						let pred = i.predicate;
 						let op0 = unlop(&i.operand0);
 						let op1 = uncop(&i.operand1);
@@ -1501,6 +455,35 @@ pub fn compile(path: &Path) -> String {
 						gotoreg(&mut out, 2, dest, funcns, blockns, || {
 							format!("\t\t #%{}_icmp_%{}_lt_{}\n", dest, op0, op1)
 						});
+
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+op0,
+							format!("op0"),
+						));
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+(scratch+0),
+							format!("op1"),
+						));
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+temp0,
+							format!("temp0"),
+						));
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+temp1,
+							format!("temp1_a"),
+						));
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+temp1+1,
+							format!("temp1_b"),
+						));
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+temp1+2,
+							format!("temp1_c"),
+						));
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+dest,
+							format!("%{}_icmp_%{}_lt_{}", dest, op0, op1)
+						));
 
 						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[\n"));
 						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t+\n"));
@@ -1534,8 +517,6 @@ pub fn compile(path: &Path) -> String {
 
 								//	   temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
 								// ";
-
-								//let stolen = stolen.replace("temp0", ">")
 
 								gotoreg(&mut out, 2, temp1, funcns, blockns, || {
 									format!("\t\ttemp1 >+ > <<\n")
@@ -1572,28 +553,44 @@ pub fn compile(path: &Path) -> String {
 								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t-]\n"));
 
 								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t[-]\n"));
+								gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[-]\n"));
 								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]\n"));
 								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t[-]\n"));
 								gotoreg(&mut out, 2, temp1 + 1, funcns, blockns, || format!("\t\t[-]\n"));
 								gotoreg(&mut out, 2, temp1 + 2, funcns, blockns, || format!("\t\t[-]\n"));
 							}
-							_ => unimplemented!("ohlort"),
+							_ => unimplemented!("ohlort predicate {}", pred),
 						}
 					}
-					llvm_ir::Instruction::Add(a) => {
+					llvm_ir::Instruction::Add(a) => { // yep
 						let op0 = unlop(&a.operand0);
 						let op1 = uncop(&a.operand1);
 						let dest = n2usize(&a.dest);
 
 						gotoreg(&mut out, 2, dest, funcns, blockns, || {
-							format!("\t\t#add_%{}_c{}\n", op0, op1)
+							format!("\t\t#%{}_add_%{}_c{}\n", dest, op0, op1)
 						});
+
+						blockloop.push(BfOp::Tag(
+							1+funcns+blockns+dest,
+							format!("%{}_add_%{}_c{}", dest, op0, op1),
+						));
 
 						// assume op1 is always constant lol
 						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || {
 							format!("\t\t{}\n", "+".repeat(op1 as usize))
 						});
+						blockloop.push(BfOp::AddI(1+funcns+blockns+(scratch+0), op1 as u8));
 						let op1 = scratch + 0;
+
+						blockloop.push(BfOp::Mov(
+							1+funcns+blockns+op0,
+							1+funcns+blockns+dest,
+						));
+						blockloop.push(BfOp::Mov(
+							1+funcns+blockns+op1,
+							1+funcns+blockns+dest,
+						));
 
 						// move op0 to dest
 						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[-\n"));
@@ -1605,8 +602,48 @@ pub fn compile(path: &Path) -> String {
 						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
 						gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t]\n"));
 					}
+					llvm_ir::Instruction::ZExt(i) => { // yep
+						// big lies! it's actually a nop
+						let src = unlop(&i.operand);
+						let dest = n2usize(&i.dest);
+
+						gotoreg(&mut out, 2, dest, funcns, blockns, || {
+							format!("\t\t#%{}_zext_{}\n", dest, src)
+						});
+
+						blockloop.push(BfOp::Tag(1+funcns+blockns+dest, format!("%{}_zext_{}", dest, src)));
+						blockloop.push(BfOp::Mov(
+							1+funcns+blockns+src,
+							1+funcns+blockns+dest,
+						));
+
+						// move src -> dest
+						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t]\n"));
+					}
+					llvm_ir::Instruction::Trunc(i) => { // yep
+						// big lies! it's actually a nop
+						let src = unlop(&i.operand);
+						let dest = n2usize(&i.dest);
+
+						gotoreg(&mut out, 2, dest, funcns, blockns, || {
+							format!("\t\t#%{}_trunc_{}\n", dest, src)
+						});
+
+						blockloop.push(BfOp::Tag(1+funcns+blockns+dest, format!("%{}_trunc_{}", dest, src)));
+						blockloop.push(BfOp::Mov(
+							1+funcns+blockns+src,
+							1+funcns+blockns+dest,
+						));
+
+						// move src -> dest
+						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t[-\n"));
+						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
+						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t]\n"));
+					}
 					_ => {
-						unimplemented!("\t\tunimpl");
+						unimplemented!("instruction? {}", instr);
 					}
 				}
 			}
@@ -1616,6 +653,8 @@ pub fn compile(path: &Path) -> String {
 			// rolled into the call instruction generator.
 			if !handle_call {
 				write!(out,"\t\tE {}\n", bfsan(block.term.to_string()));
+				blockloop.push(BfOp::Comment(block.term.to_string()));
+
 				match &block.term {
 					llvm_ir::Terminator::Br(br) => {
 						let to = n2usize(&br.dest);
@@ -1624,6 +663,8 @@ pub fn compile(path: &Path) -> String {
 						gotoblock(&mut out, 2, funcns, toblock, || {
 							format!("\t\t+ #{}/{}\n", func.name, to)
 						});
+						
+						blockloop.push(BfOp::AddI(1+funcns+toblock, 1));
 					}
 
 					llvm_ir::Terminator::CondBr(cbr) => {
@@ -1639,44 +680,197 @@ pub fn compile(path: &Path) -> String {
 
 						let temp0 = scratch + 0;
 						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
+						blockloop.push(BfOp::AddI(1+funcns+blockns+temp0, 1));
 
 						gotoreg(&mut out, 2, cond, funcns, blockns, || format!("\t\t[-\n"));
 						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t-\n"));
+
+						blockloop.push(BfOp::Goto(1+funcns+blockns+cond));
+						blockloop.push(BfOp::Literal("[-".to_string()));
+						blockloop.push(BfOp::Goto(1+funcns+blockns+temp0));
+						blockloop.push(BfOp::Literal("-".to_string()));
+
 						gotoblock(&mut out, 2, funcns, tru, || {
 							format!("\t\t+ #{}/{}\n", func.name, n2usize(&cbr.true_dest))
 						});
+						blockloop.push(BfOp::AddI(1+funcns+tru, 1));
+						blockloop.push(BfOp::Tag(1+funcns+tru, format!("{}/{}", func.name, n2usize(&cbr.true_dest))));
+
 						gotoreg(&mut out, 2, cond, funcns, blockns, || format!("\t\t]\n"));
+						blockloop.push(BfOp::Goto(1+funcns+blockns+cond));
+						blockloop.push(BfOp::Literal("]".to_string()));
 
 						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-\n"));
+						blockloop.push(BfOp::Goto(1+funcns+blockns+temp0));
+						blockloop.push(BfOp::Literal("[-".to_string()));
+
 						gotoblock(&mut out, 2, funcns, fals, || {
 							format!("\t\t+ #{}/{}\n", func.name, n2usize(&cbr.false_dest))
 						});
+						blockloop.push(BfOp::AddI(1+funcns+fals, 1));
+						blockloop.push(BfOp::Tag(1+funcns+tru, format!("{}/{}", func.name, n2usize(&cbr.false_dest))));
+
 						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t]\n"));
+						blockloop.push(BfOp::Goto(1+funcns+blockns+temp0));
+						blockloop.push(BfOp::Literal("]".to_string()));
 					}
 
 					llvm_ir::Terminator::Ret(_) => {
+						blockloop.push(BfOp::SubI(0, 1));
+						blockloop.push(BfOp::Tag(0, "dead_frame".to_string()));
 						write!(out,"\t\t- #ded_func_{}\n", func.name);
 						gotofunc(&mut out, 2, func2id[func.name.as_str()].fid, || {
 							format!("\t\t- uncall func {}\n", func.name)
 						});
+						blockloop.push(BfOp::SubI(1+func2id[func.name.as_str()].fid, 1));
 
-						write!(out,"\t\t{} prev frame\n", "<".repeat(16));
+						write!(out,"\t\t{} prev frame\n", "<".repeat(stack_width));
+						blockloop.push(BfOp::Goto(0));
+						blockloop.push(BfOp::Left(stack_width));
 					}
 					_ => unimplemented!("soon? {:?}", block.term),
 				};
 			}
 
 			gotoblock(&mut out, 1, funcns, bid, || format!("\t] b{}\n", blockn));
+
+			funcloop.push(BfOp::Loop(1+funcns+bid, blockloop))
 		}
 
 		gotofunc(&mut out, 0, fid, || format!("] {}\n", func.name));
+
+		mainloop.push(BfOp::Loop(1+fid, funcloop))
 	}
 
 	write!(out,"]\n");
 
+	root.push(BfOp::Loop(0, mainloop));
+
+	printast(root);
+
 	out
 }
 
+fn printast(ast: Vec<BfOp>) {
+	printasti(ast, 0, 0);
+}
+
+fn printasti(ast: Vec<BfOp>, cstart: usize, i: usize) -> usize{
+	let mut cursor = cstart;
+	for ins in ast {
+		cursor = printinstri(ins, cursor, i);
+	}
+
+	cursor
+}
+
+fn printinstri(ins: BfOp, cstart: usize, i: usize) -> usize {
+	let mut cursor = cstart;
+
+	let ind = "\t".repeat(i);
+
+	let cmov = |from: usize, to: usize| {
+		if to > from {
+			">".repeat(to-from)
+		} else {
+			"<".repeat(from-to)
+		}
+	};
+
+	print!("{}", ind);
+
+	match ins {
+		BfOp::Inc(n) => println!("{}", "+".repeat(n as usize)),
+		BfOp::Dec(n) => println!("{}", "-".repeat(n as usize)),
+		BfOp::Right(n) => println!("{}", ">".repeat(n)),
+		BfOp::Left(n) => println!("{}", "<".repeat(n)),
+
+		BfOp::Zero(a) => {
+			println!("{}[-]", cmov(cursor, a));
+			cursor = a;
+		},
+
+		BfOp::Putch(a) => {
+			println!("{}.", cmov(cursor, a));
+			cursor = a;
+		},
+
+		BfOp::AddI(a, n) => {
+			println!("{}{}", cmov(cursor, a), "+".repeat(n as usize));
+			cursor = a;
+		},
+		BfOp::SubI(a, n) => {
+			println!("{}{}", cmov(cursor, a), "-".repeat(n as usize));
+			cursor = a;
+		},
+
+		BfOp::Tag(a, s) => {
+			println!("{}#{}", cmov(cursor, a), s);
+			cursor = a;
+		},
+		BfOp::Mov(from_a, to_a) => {
+			println!(
+				"{}[-{}+{}]",
+				cmov(cursor, from_a),
+				cmov(from_a, to_a),
+				cmov(to_a, from_a),
+			);
+			cursor = from_a;
+		}
+		BfOp::Goto(a) => {
+			println!("{}", cmov(cursor, a));
+			cursor = a;
+		}
+		BfOp::Literal(s) => println!("{}", s),
+		BfOp::Dup(from_a, to_a1, to_a2) => {
+			// TODO(turbio): should probably order to_a1 and to_a2 for lower travel
+			println!(
+				"{}[-{}+{}+{}]",
+				cmov(cursor, from_a),
+				cmov(from_a, to_a1),
+				cmov(to_a1, to_a2),
+				cmov(to_a2, from_a),
+			);
+			cursor = from_a;
+		}
+		BfOp::Comment(s) => println!("{}", bfsan(s)),
+
+		BfOp::Loop(a, ops) => {
+			let m = cmov(cursor, a);
+			cursor = a;
+
+			println!("{}[", m);
+			cursor = printasti(ops, cursor, i+1);
+
+			let m = cmov(cursor, a);
+			cursor = a;
+
+			println!("{}{}]", ind, m);
+		},
+
+		_ => unimplemented!("poggers {:?}", ins),
+	}
+
+	cursor
+}
+
+fn pptree(ast: Vec<BfOp>) {
+	pptreei(ast, 0);
+}
+
+fn pptreei(ast: Vec<BfOp>, i: usize) {
+	for n in ast {
+		match n {
+			BfOp::Loop(a, ch) => {
+				println!("{}Loop({})", "\t".repeat(i), a);
+				pptreei(ch, i+1);
+			},
+			_ => println!("{}{:?}", "\t".repeat(i), n),
+		}
+	}
+}
+
+// un local operand
 fn unlop(op: &llvm_ir::Operand) -> usize {
 	match op {
 		llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
@@ -1684,6 +878,7 @@ fn unlop(op: &llvm_ir::Operand) -> usize {
 	}
 }
 
+// un constant operand
 fn uncop(op: &llvm_ir::Operand) -> u64 {
 	match op {
 		llvm_ir::Operand::ConstantOperand(c) => match c.deref() {

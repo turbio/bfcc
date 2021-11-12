@@ -27,6 +27,16 @@ So like in theory any c code can be compiled to brainfuck.
 - pack register order to optimize travel distance
 - register packing for order dependant operations
 - `verifier` for some of these properties
+- should be able to use control flow mask registers as scratch space while
+  they're not being used
+- "# of functions" + "max # of blocks" as the mask space is gonna get seeky
+  - could encode the mask as a tree-y thing
+  - or just like some kind of scheme with uint8s as function/block addresses but
+    that sounds expensive but 
+- variable stack size: so like what if there's a fixed width jump frame in
+  between each actual frame owned by the caller. This way the jump frame handles
+  the ret while the callee only needs to seek to the jump frame.
+- non dependant op re-ordering for reduced travel time
 
 ## coverage
 
