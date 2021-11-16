@@ -129,8 +129,6 @@ fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 #[derive(Debug)]
 enum BfOp {
 	// actual brainfuck
-	Inc(u8),
-	Dec(u8),
 	Right(usize),
 	Left(usize),
 
@@ -195,7 +193,7 @@ pub fn compile(path: &Path) -> String {
 
 	let mainfid = func2id["main"].fid;
 
-	let mut out = String::from("");
+	let mut out2 = String::from("");
 
 	let mut root: Vec<BfOp> = vec![];
 
@@ -203,45 +201,34 @@ pub fn compile(path: &Path) -> String {
 
 	root.push(BfOp::Right(stack_width));
 	root.push(BfOp::Comment("runtime init:".to_string()));
-	root.push(BfOp::Inc(1));
 	root.push(BfOp::Tag(0, "__FRAME__ENTRY__".to_string()));
-	write!(out, "{} first frame\n", ">".repeat(stack_width));
-	write!(out, "runtime init: \n");
-	write!(out, "+ #__FRAME__ENTRY__\n");
-	gotofunc(&mut out, 0, mainfid, || format!("+ call #main\n"));
-	gotoblock(&mut out, 0, funcns, 0, || format!("+ at #main/b0\n"));
-	root.push(BfOp::Tag(mainfid, "main".to_string()));
-	root.push(BfOp::AddI(mainfid, 1));
-	root.push(BfOp::Tag(funcns, "main/b0".to_string()));
-	root.push(BfOp::AddI(funcns, 1));
+	root.push(BfOp::AddI(0, 1));
+
+
+	root.push(BfOp::Tag(1+mainfid, "main".to_string()));
+	root.push(BfOp::AddI(1+mainfid, 1));
+	root.push(BfOp::Tag(1+funcns, "main/b0".to_string()));
+	root.push(BfOp::AddI(1+funcns, 1));
 	root.push(BfOp::Comment("".to_string()));
-	write!(out,"\n");
 
 	let mut mainloop: Vec<BfOp> = vec![];
-
-	write!(out,"[\n");
-
-	struct Reg {
-		llvm_id: usize,
-	}
 
 	for (fid, func) in module.functions.iter().enumerate() {
 		mainloop.push(BfOp::Tag(1+fid, func.name.clone()));
 		let mut funcloop: Vec<BfOp> = vec![];
-		gotofunc(&mut out, 0, fid, || format!("#{} [\n", func.name));
-
-		let mut regmap: Vec<Reg> = Default::default();
 
 		let blockns = func.basic_blocks.len();
 
+		let fntop = 1+funcns;
+		let ftop = 1+funcns+blockns;
+
 		for (bid, block) in func.basic_blocks.iter().enumerate() {
 			let blockn = n2usize(&block.name);
-			funcloop.push(BfOp::Tag(1+funcns+bid, format!("{}/{}", func.name, blockn)));
+			funcloop.push(BfOp::Tag(fntop+bid, format!("{}/{}", func.name, blockn)));
 			let mut blockloop: Vec<BfOp> = vec![];
 
-			gotoblock(&mut out, 1, funcns, bid, || {
-				format!("t#{}/{} [-\n", func.name, blockn)
-			});
+			blockloop.push(BfOp::SubI(fntop+bid, 1));
+
 
 			let mut handle_call = false;
 
@@ -249,7 +236,6 @@ pub fn compile(path: &Path) -> String {
 
 			for (iid, instr) in block.instrs.iter().enumerate() {
 				blockloop.push(BfOp::Comment(instr.to_string()));
-				write!(out,"\t\t{}\n", bfsan(instr.to_string()));
 
 				match instr {
 					llvm_ir::Instruction::Call(c) => { // yep
@@ -264,7 +250,7 @@ pub fn compile(path: &Path) -> String {
 						let fnn = match c.function.as_ref().unwrap_right().as_constant().unwrap() {
 							llvm_ir::Constant::GlobalReference { name, .. } => n2nam(&name),
 
-							_ => unimplemented!("ohnoes"),
+							_ => unimplemented!("ohnoes wtf?? {:?}", c.function.as_ref().unwrap_right().as_constant().unwrap()),
 						};
 
 						// TODO(turbio): even an instric call will end in a branch lol
@@ -272,20 +258,16 @@ pub fn compile(path: &Path) -> String {
 
 						let brto = func2id[func.name.as_str()].blks[&br];
 
-						gotoblock(&mut out, 2, funcns, brto, || {
-							format!("\t\t+ enable next #{}/{}\n", func.name, br)
-						});
 
 						blockloop.push(BfOp::Comment("enable next".to_string()));
-						blockloop.push(BfOp::Tag(1+funcns+brto, format!("{}/{}", func.name, br)));
-						blockloop.push(BfOp::AddI(1+funcns+brto, 1));
+						blockloop.push(BfOp::Tag(fntop+brto, format!("{}/{}", func.name, br)));
+						blockloop.push(BfOp::AddI(fntop+brto, 1));
 
 						// intrinsics lol
 						if fnn == "putchar" {
 							assert!(c.dest.is_none(), "putchar returns nothing");
 							assert!(c.arguments.len() == 1, "putchar expects one argument");
 
-							write!(out,"\t\tputchar intrinsic\n");
 
 							//let val = uncop(&c.arguments[0].0);
 
@@ -296,10 +278,7 @@ pub fn compile(path: &Path) -> String {
 								llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 									llvm_ir::constant::Constant::Int { value, .. } => {
 										let temp0 = scratch + 0;
-										gotoreg(&mut out, 2, temp0, funcns, blockns, || {
-											format!("\t\t{}\n", "+".repeat(*value as usize))
-										});
-										blockloop.push(BfOp::AddI(1+funcns+blockns+temp0, *value as u8));
+										blockloop.push(BfOp::AddI(ftop+temp0, *value as u8));
 										temp0
 									},
 									_ => unimplemented!("how tf we gonna store that"),
@@ -308,12 +287,9 @@ pub fn compile(path: &Path) -> String {
 								_ => unimplemented!("ignoring meta?"),
 							};
 
-							blockloop.push(BfOp::Putch(1+funcns+blockns+reg));
-							blockloop.push(BfOp::Zero(1+funcns+blockns+reg));
+							blockloop.push(BfOp::Putch(ftop+reg));
+							blockloop.push(BfOp::Zero(ftop+reg));
 
-							gotoreg(&mut out, 2, reg, funcns, blockns, || {
-								format!("\t\t.[-]\n")
-							});
 						} else {
 							blockloop.push(BfOp::Comment("next frame".to_string()));
 							blockloop.push(BfOp::Goto(0));
@@ -322,66 +298,45 @@ pub fn compile(path: &Path) -> String {
 							blockloop.push(BfOp::AddI(0, 1));
 							blockloop.push(BfOp::Tag(1+func2id[fnn.as_str()].fid, format!("{}", fnn)));
 							blockloop.push(BfOp::AddI(1+func2id[fnn.as_str()].fid, 1));
-							blockloop.push(BfOp::Tag(1+funcns+0, format!("{}/b0", fnn)));
-							blockloop.push(BfOp::AddI(1+funcns+0, 1));
+							blockloop.push(BfOp::Tag(fntop+0, format!("{}/b0", fnn)));
+							blockloop.push(BfOp::AddI(fntop+0, 1));
 
-							write!(out,"\t\t{} next frame\n", ">".repeat(stack_width));
-							write!(out,"\t\t+ #__FRAME_{}__\n", fnn);
-							gotofunc(&mut out, 2, func2id[fnn.as_str()].fid, || {
-								format!("\t\t+ call func #{}\n", fnn)
-							});
-							gotoblock(&mut out, 2, funcns, 0, || format!("\t\t+ #{}/b0\n", fnn));
 						}
 					}
 					llvm_ir::Instruction::Alloca(c) => { // yep
 						match c.allocated_type.deref() {
 							llvm_ir::Type::IntegerType { .. } => {
-								blockloop.push(BfOp::Tag(1 + n2usize(&c.dest), format!("alloca_{}", c.dest)));
+								blockloop.push(BfOp::Tag(ftop+n2usize(&c.dest), format!("alloca_{}", c.dest)));
 
-								gotoreg(&mut out, 2, n2usize(&c.dest), funcns, blockns, || {
-									format!("\t\t#alloca_{}\n", c.dest)
-								});
 
 								//assert!(*bits == 8, "ohno {} bits", bits) lolz
 							}
 							_ => unimplemented!("those types arent welcome here"),
 						};
-
-						//regmap.push(Reg {
-						//	  llvm_id: n2usize(&c.dest),
-						//})
 					}
 					llvm_ir::Instruction::Store(s) => { // yep
-						let addr = unlop(&s.address);
+						let dest = unlop(&s.address);
 
 						match &s.value {
-							llvm_ir::Operand::LocalOperand { name, ty } => {
+							llvm_ir::Operand::LocalOperand { name, ty: _ } => {
 								let name = n2usize(name);
 
-								// zero %addr (probably alloca)
-								gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t[-]\n"));
+								// zero %dest (probably alloca)
+								blockloop.push(BfOp::Zero(ftop+ dest));
 
-								blockloop.push(BfOp::Zero(1 + funcns + blockns + addr));
+								// move name to %dest
 								blockloop.push(BfOp::Mov(
-										1 + funcns + blockns + name,
-										1 + funcns + blockns + addr,
+										ftop+ name,
+										ftop+ dest,
 								));
 
-								// move name to %addr
-								gotoreg(&mut out, 2, name, funcns, blockns, || format!("\t\t[-\n"));
-								gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t+\n"));
-								gotoreg(&mut out, 2, name, funcns, blockns, || format!("\t\t]\n"));
 							}
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
 									let val = *value;
 
-									blockloop.push(BfOp::Zero(1 + funcns + blockns + addr));
-									blockloop.push(BfOp::AddI(1 + funcns + blockns + addr, val as u8));
-
-									gotoreg(&mut out, 2, addr, funcns, blockns, || {
-										format!("\t\t[-]{}\n", "+".repeat(val as usize))
-									});
+									blockloop.push(BfOp::Zero(ftop+ dest));
+									blockloop.push(BfOp::AddI(ftop+ dest, val as u8));
 								}
 								_ => unimplemented!("how tf we gonna store that"),
 							},
@@ -393,49 +348,26 @@ pub fn compile(path: &Path) -> String {
 						let addr = unlop(&l.address);
 						let dest = n2usize(&l.dest);
 
-						gotoreg(&mut out, 2, dest, funcns, blockns, || {
-							format!("\t\t #load_%{}_to_%{}\n", addr, dest)
-						});
 
 						blockloop.push(BfOp::Tag(
-							1 + funcns + blockns + dest,
+							ftop+ dest,
 							format!("load_%{}_to_%{}", addr, dest),
 						));
 
 						let temp0 = scratch + 0;
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t #load_temp0\n"));
 
-						blockloop.push(BfOp::Tag(
-							1 + funcns + blockns + temp0,
-							format!("tmp0_for_load"),
-						));
-
-						blockloop.push(BfOp::Dup(
-							1 + funcns + blockns + addr,
-							1 + funcns + blockns + temp0,
-							1 + funcns + blockns + dest,
-						));
-
-						blockloop.push(BfOp::Mov(
-							1 + funcns + blockns + temp0,
-							1 + funcns + blockns + addr,
-						));
+						blockloop.push(BfOp::Tag( ftop+ temp0, format!("tmp0_for_load"),));
+						blockloop.push(BfOp::Dup( ftop+ addr, ftop+ temp0, ftop+ dest,));
+						blockloop.push(BfOp::Mov( ftop+ temp0, ftop+ addr,));
 
 						// dup addr -> temp0 + dest
-						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t]\n"));
 
 						// move temp0 -> addr
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, addr, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t]\n"));
 
 						//println!("\t\tload {} to {}", addr, dest);
 						//println!("\t\tload {:?} ", l);
 					}
-					llvm_ir::Instruction::ICmp(i) => { // nope
+					llvm_ir::Instruction::ICmp(i) => { // nopalmost
 						let pred = i.predicate;
 						let op0 = unlop(&i.operand0);
 						let op1 = uncop(&i.operand1);
@@ -444,64 +376,43 @@ pub fn compile(path: &Path) -> String {
 						let temp0 = scratch + 1;
 						let temp1 = scratch + 2; // and scratch + 3, scratch + 4
 
-						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t#op0\n"));
-						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t#op1\n"));
-
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t#temp0\n"));
-						gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t#temp1_a\n"));
-						gotoreg(&mut out, 2, temp1 + 1, funcns, blockns, || format!("\t\t#temp1_b\n"));
-						gotoreg(&mut out, 2, temp1 + 2, funcns, blockns, || format!("\t\t#temp1_c\n"));
-
-						gotoreg(&mut out, 2, dest, funcns, blockns, || {
-							format!("\t\t #%{}_icmp_%{}_lt_{}\n", dest, op0, op1)
-						});
 
 						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+op0,
-							format!("op0"),
-						));
-						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+(scratch+0),
-							format!("op1"),
-						));
-						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+temp0,
+							ftop+temp0,
 							format!("temp0"),
 						));
 						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+temp1,
+							ftop+temp1,
 							format!("temp1_a"),
 						));
 						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+temp1+1,
+							ftop+temp1+1,
 							format!("temp1_b"),
 						));
 						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+temp1+2,
+							ftop+temp1+2,
 							format!("temp1_c"),
 						));
 						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+dest,
+							ftop+dest,
 							format!("%{}_icmp_%{}_lt_{}", dest, op0, op1)
 						));
 
-						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[\n"));
-						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t-]\n"));
+						blockloop.push(BfOp::Goto(ftop+op0)); blockloop.push(BfOp::Literal("[".to_string()));
+						blockloop.push(BfOp::Goto(ftop+(scratch+0))); blockloop.push(BfOp::Literal("+".to_string()));
+						blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("+".to_string()));
+						blockloop.push(BfOp::Goto(ftop+op0)); blockloop.push(BfOp::Literal("-]".to_string()));
+						blockloop.push(BfOp::Goto(ftop+(scratch+0))); blockloop.push(BfOp::Literal("[".to_string()));
+						blockloop.push(BfOp::Goto(ftop+op0)); blockloop.push(BfOp::Literal("+".to_string()));
+						blockloop.push(BfOp::Goto(ftop+(scratch+0))); blockloop.push(BfOp::Literal("-]".to_string()));
+						blockloop.push(BfOp::AddI(ftop+(scratch+0), op1 as u8));
 
-						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t[\n"));
-						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || format!("\t\t-]\n"));
-
-						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || {
-							format!("\t\t{}\n", "+".repeat(op1 as usize))
-						});
 						let op1 = scratch + 0;
 
 						match pred {
 							llvm_ir::IntPredicate::SLT => {
 								format!("\t\ticmp: %{} {} {}\n", op0, pred, op1);
+								blockloop.push(BfOp::Comment(format!("icmp: %{} {} {}", op0, pred, op1)));
 
 								// x and y are unsigned. temp1 is the first of
 								// three consecutive temporary cells. The
@@ -518,129 +429,97 @@ pub fn compile(path: &Path) -> String {
 								//	   temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
 								// ";
 
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || {
-									format!("\t\ttemp1 >+ > <<\n")
-								});
+								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal(">+ > <<".to_string()));
 
 								// y[temp0+ temp1+ y-]
-								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\ty[\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t+\n"));
-								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t-]\n"));
+								blockloop.push(BfOp::Goto(ftop+op1)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("+".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal("+".to_string()));
+								blockloop.push(BfOp::Goto(ftop+op1)); blockloop.push(BfOp::Literal("-]".to_string()));
 
 								// temp0[y+ temp0-]
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\ttemp0[\n"));
-								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\ty+\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\ttemp0-]\n"));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(ftop+op1)); blockloop.push(BfOp::Literal("+".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
 
 								// x[temp0+ x-]+
-								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t[\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\ttemp0+\n"));
-								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\tx-]+\n"));
+								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("+".to_string()));
+								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("-]+".to_string()));
 
 								// temp1[>-]> [< x- temp0[-] temp1>->]<+<
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t[>-]> [<\n"));
-								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t-\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]\n"));
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t>->]<+<\n"));
+								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal("[>-]> [<".to_string()));
+								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("-".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[-]".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
 
 								// temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[\n"));
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t- [>-]> [<\n"));
-								gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t-\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]+\n"));
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t>->]<+<\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t-]\n"));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal("- [>-]> [<".to_string()));
+								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("-".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[-]+".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
+								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
 
-								gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t[-]\n"));
-								gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[-]\n"));
-								gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-]\n"));
-								gotoreg(&mut out, 2, temp1, funcns, blockns, || format!("\t\t[-]\n"));
-								gotoreg(&mut out, 2, temp1 + 1, funcns, blockns, || format!("\t\t[-]\n"));
-								gotoreg(&mut out, 2, temp1 + 2, funcns, blockns, || format!("\t\t[-]\n"));
+								blockloop.push(BfOp::Zero(ftop+op1));
+								blockloop.push(BfOp::Zero(ftop+op0));
+								blockloop.push(BfOp::Zero(ftop+temp0));
+								blockloop.push(BfOp::Zero(ftop+temp1));
+								blockloop.push(BfOp::Zero(ftop+temp1+1));
+								blockloop.push(BfOp::Zero(ftop+temp1+2));
 							}
 							_ => unimplemented!("ohlort predicate {}", pred),
 						}
 					}
 					llvm_ir::Instruction::Add(a) => { // yep
+						let op1_tmp = scratch+0;
 						let op0 = unlop(&a.operand0);
-						let op1 = uncop(&a.operand1);
+						let op1 = match &a.operand1 {
+							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
+								llvm_ir::constant::Constant::Int { value, .. } => {
+									blockloop.push(BfOp::AddI(ftop+op1_tmp, *value as u8));
+									op1_tmp
+								},
+								_ => unimplemented!("eek"),
+							},
+							llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
+							_ => unimplemented!("nani?"),
+						};
+
 						let dest = n2usize(&a.dest);
 
-						gotoreg(&mut out, 2, dest, funcns, blockns, || {
-							format!("\t\t#%{}_add_%{}_c{}\n", dest, op0, op1)
-						});
-
 						blockloop.push(BfOp::Tag(
-							1+funcns+blockns+dest,
+							ftop+dest,
 							format!("%{}_add_%{}_c{}", dest, op0, op1),
 						));
 
-						// assume op1 is always constant lol
-						gotoreg(&mut out, 2, scratch + 0, funcns, blockns, || {
-							format!("\t\t{}\n", "+".repeat(op1 as usize))
-						});
-						blockloop.push(BfOp::AddI(1+funcns+blockns+(scratch+0), op1 as u8));
-						let op1 = scratch + 0;
-
-						blockloop.push(BfOp::Mov(
-							1+funcns+blockns+op0,
-							1+funcns+blockns+dest,
-						));
-						blockloop.push(BfOp::Mov(
-							1+funcns+blockns+op1,
-							1+funcns+blockns+dest,
-						));
-
-						// move op0 to dest
-						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, op0, funcns, blockns, || format!("\t\t]\n"));
-
-						// move op1 to dest
-						gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, op1, funcns, blockns, || format!("\t\t]\n"));
+						blockloop.push(BfOp::Mov(ftop+op0, ftop+dest));
+						blockloop.push(BfOp::Mov(ftop+op1, ftop+dest));
 					}
 					llvm_ir::Instruction::ZExt(i) => { // yep
 						// big lies! it's actually a nop
 						let src = unlop(&i.operand);
 						let dest = n2usize(&i.dest);
 
-						gotoreg(&mut out, 2, dest, funcns, blockns, || {
-							format!("\t\t#%{}_zext_{}\n", dest, src)
-						});
 
-						blockloop.push(BfOp::Tag(1+funcns+blockns+dest, format!("%{}_zext_{}", dest, src)));
-						blockloop.push(BfOp::Mov(
-							1+funcns+blockns+src,
-							1+funcns+blockns+dest,
-						));
-
+						blockloop.push(BfOp::Tag(ftop+dest, format!("%{}_zext_%{}", dest, src)));
 						// move src -> dest
-						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t]\n"));
+						blockloop.push(BfOp::Mov(ftop+src, ftop+dest));
+
 					}
 					llvm_ir::Instruction::Trunc(i) => { // yep
 						// big lies! it's actually a nop
 						let src = unlop(&i.operand);
 						let dest = n2usize(&i.dest);
 
-						gotoreg(&mut out, 2, dest, funcns, blockns, || {
-							format!("\t\t#%{}_trunc_{}\n", dest, src)
-						});
 
-						blockloop.push(BfOp::Tag(1+funcns+blockns+dest, format!("%{}_trunc_{}", dest, src)));
+						blockloop.push(BfOp::Tag(ftop+dest, format!("%{}_trunc_%{}", dest, src)));
 						blockloop.push(BfOp::Mov(
-							1+funcns+blockns+src,
-							1+funcns+blockns+dest,
+							ftop+src,
+							ftop+dest,
 						));
 
 						// move src -> dest
-						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, dest, funcns, blockns, || format!("\t\t+\n"));
-						gotoreg(&mut out, 2, src, funcns, blockns, || format!("\t\t]\n"));
 					}
 					_ => {
 						unimplemented!("instruction? {}", instr);
@@ -652,7 +531,6 @@ pub fn compile(path: &Path) -> String {
 			// the terminator was a unconditional branch. These are both
 			// rolled into the call instruction generator.
 			if !handle_call {
-				write!(out,"\t\tE {}\n", bfsan(block.term.to_string()));
 				blockloop.push(BfOp::Comment(block.term.to_string()));
 
 				match &block.term {
@@ -660,17 +538,14 @@ pub fn compile(path: &Path) -> String {
 						let to = n2usize(&br.dest);
 						let toblock = func2id[func.name.as_str()].blks[&to];
 
-						gotoblock(&mut out, 2, funcns, toblock, || {
-							format!("\t\t+ #{}/{}\n", func.name, to)
-						});
 						
-						blockloop.push(BfOp::AddI(1+funcns+toblock, 1));
+						blockloop.push(BfOp::Tag(fntop+toblock, format!("{}/{}", func.name, to)));
+						blockloop.push(BfOp::AddI(fntop+toblock, 1));
 					}
 
 					llvm_ir::Terminator::CondBr(cbr) => {
 						let cond = unlop(&cbr.condition);
 
-						//gotoreg(&mut out, 2, cond, funcns, blockns, || write!(out,"\t\t#cond\n"));
 
 						let tru = n2usize(&cbr.true_dest);
 						let tru = func2id[func.name.as_str()].blks[&tru];
@@ -679,52 +554,35 @@ pub fn compile(path: &Path) -> String {
 						let fals = func2id[func.name.as_str()].blks[&fals];
 
 						let temp0 = scratch + 0;
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t+\n"));
-						blockloop.push(BfOp::AddI(1+funcns+blockns+temp0, 1));
+						blockloop.push(BfOp::AddI(ftop+temp0, 1));
 
-						gotoreg(&mut out, 2, cond, funcns, blockns, || format!("\t\t[-\n"));
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t-\n"));
 
-						blockloop.push(BfOp::Goto(1+funcns+blockns+cond));
+						blockloop.push(BfOp::Goto(ftop+cond));
 						blockloop.push(BfOp::Literal("[-".to_string()));
-						blockloop.push(BfOp::Goto(1+funcns+blockns+temp0));
+						blockloop.push(BfOp::Goto(ftop+temp0));
 						blockloop.push(BfOp::Literal("-".to_string()));
 
-						gotoblock(&mut out, 2, funcns, tru, || {
-							format!("\t\t+ #{}/{}\n", func.name, n2usize(&cbr.true_dest))
-						});
-						blockloop.push(BfOp::AddI(1+funcns+tru, 1));
-						blockloop.push(BfOp::Tag(1+funcns+tru, format!("{}/{}", func.name, n2usize(&cbr.true_dest))));
+						blockloop.push(BfOp::AddI(fntop+tru, 1));
+						blockloop.push(BfOp::Tag(fntop+tru, format!("{}/{}_true", func.name, n2usize(&cbr.true_dest))));
 
-						gotoreg(&mut out, 2, cond, funcns, blockns, || format!("\t\t]\n"));
-						blockloop.push(BfOp::Goto(1+funcns+blockns+cond));
+						blockloop.push(BfOp::Goto(ftop+cond));
 						blockloop.push(BfOp::Literal("]".to_string()));
 
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t[-\n"));
-						blockloop.push(BfOp::Goto(1+funcns+blockns+temp0));
+						blockloop.push(BfOp::Goto(ftop+temp0));
 						blockloop.push(BfOp::Literal("[-".to_string()));
 
-						gotoblock(&mut out, 2, funcns, fals, || {
-							format!("\t\t+ #{}/{}\n", func.name, n2usize(&cbr.false_dest))
-						});
-						blockloop.push(BfOp::AddI(1+funcns+fals, 1));
-						blockloop.push(BfOp::Tag(1+funcns+tru, format!("{}/{}", func.name, n2usize(&cbr.false_dest))));
+						blockloop.push(BfOp::AddI(fntop+fals, 1));
+						blockloop.push(BfOp::Tag(fntop+fals, format!("{}/{}_false", func.name, n2usize(&cbr.false_dest))));
 
-						gotoreg(&mut out, 2, temp0, funcns, blockns, || format!("\t\t]\n"));
-						blockloop.push(BfOp::Goto(1+funcns+blockns+temp0));
+						blockloop.push(BfOp::Goto(ftop+temp0));
 						blockloop.push(BfOp::Literal("]".to_string()));
 					}
 
 					llvm_ir::Terminator::Ret(_) => {
 						blockloop.push(BfOp::SubI(0, 1));
 						blockloop.push(BfOp::Tag(0, "dead_frame".to_string()));
-						write!(out,"\t\t- #ded_func_{}\n", func.name);
-						gotofunc(&mut out, 2, func2id[func.name.as_str()].fid, || {
-							format!("\t\t- uncall func {}\n", func.name)
-						});
 						blockloop.push(BfOp::SubI(1+func2id[func.name.as_str()].fid, 1));
 
-						write!(out,"\t\t{} prev frame\n", "<".repeat(stack_width));
 						blockloop.push(BfOp::Goto(0));
 						blockloop.push(BfOp::Left(stack_width));
 					}
@@ -732,39 +590,33 @@ pub fn compile(path: &Path) -> String {
 				};
 			}
 
-			gotoblock(&mut out, 1, funcns, bid, || format!("\t] b{}\n", blockn));
-
-			funcloop.push(BfOp::Loop(1+funcns+bid, blockloop))
+			funcloop.push(BfOp::Loop(fntop+bid, blockloop))
 		}
-
-		gotofunc(&mut out, 0, fid, || format!("] {}\n", func.name));
 
 		mainloop.push(BfOp::Loop(1+fid, funcloop))
 	}
 
-	write!(out,"]\n");
-
 	root.push(BfOp::Loop(0, mainloop));
 
-	printast(root);
+	printast(&mut out2, root);
 
-	out
+	out2
 }
 
-fn printast(ast: Vec<BfOp>) {
-	printasti(ast, 0, 0);
+fn printast(out: &mut String, ast: Vec<BfOp>) {
+	printasti(out, ast, 0, 0);
 }
 
-fn printasti(ast: Vec<BfOp>, cstart: usize, i: usize) -> usize{
+fn printasti(out: &mut String, ast: Vec<BfOp>, cstart: usize, i: usize) -> usize{
 	let mut cursor = cstart;
 	for ins in ast {
-		cursor = printinstri(ins, cursor, i);
+		cursor = printinstri(out, ins, cursor, i);
 	}
 
 	cursor
 }
 
-fn printinstri(ins: BfOp, cstart: usize, i: usize) -> usize {
+fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 	let mut cursor = cstart;
 
 	let ind = "\t".repeat(i);
@@ -777,79 +629,86 @@ fn printinstri(ins: BfOp, cstart: usize, i: usize) -> usize {
 		}
 	};
 
-	print!("{}", ind);
+	write!(out, "{}", ind);
 
 	match ins {
-		BfOp::Inc(n) => println!("{}", "+".repeat(n as usize)),
-		BfOp::Dec(n) => println!("{}", "-".repeat(n as usize)),
-		BfOp::Right(n) => println!("{}", ">".repeat(n)),
-		BfOp::Left(n) => println!("{}", "<".repeat(n)),
+		BfOp::Right(n) => {
+			write!(out, "{}", ">".repeat(n)).unwrap();
+		},
+
+		BfOp::Left(n) => {
+			write!(out, "{}", "<".repeat(n)).unwrap();
+		},
 
 		BfOp::Zero(a) => {
-			println!("{}[-]", cmov(cursor, a));
+			write!(out, "{}[-]", cmov(cursor, a)).unwrap();
 			cursor = a;
 		},
 
 		BfOp::Putch(a) => {
-			println!("{}.", cmov(cursor, a));
+			write!(out, "{}.", cmov(cursor, a)).unwrap();
 			cursor = a;
 		},
 
 		BfOp::AddI(a, n) => {
-			println!("{}{}", cmov(cursor, a), "+".repeat(n as usize));
+			write!(out, "{}{}", cmov(cursor, a), "+".repeat(n as usize)).unwrap();
 			cursor = a;
 		},
 		BfOp::SubI(a, n) => {
-			println!("{}{}", cmov(cursor, a), "-".repeat(n as usize));
+			write!(out, "{}{}", cmov(cursor, a), "-".repeat(n as usize)).unwrap();
 			cursor = a;
 		},
 
 		BfOp::Tag(a, s) => {
-			println!("{}#{}", cmov(cursor, a), s);
+			write!(out, "{}#{}", cmov(cursor, a), s).unwrap();
 			cursor = a;
 		},
 		BfOp::Mov(from_a, to_a) => {
-			println!(
-				"{}[-{}+{}]",
+			write!(
+				out,"{}[-{}+{}]",
 				cmov(cursor, from_a),
 				cmov(from_a, to_a),
 				cmov(to_a, from_a),
-			);
+			).unwrap();
 			cursor = from_a;
 		}
 		BfOp::Goto(a) => {
-			println!("{}", cmov(cursor, a));
+			write!(out,"{}", cmov(cursor, a)).unwrap();
 			cursor = a;
 		}
-		BfOp::Literal(s) => println!("{}", s),
+		BfOp::Literal(s) => {
+			write!(out,"{}", s).unwrap();
+		},
 		BfOp::Dup(from_a, to_a1, to_a2) => {
 			// TODO(turbio): should probably order to_a1 and to_a2 for lower travel
-			println!(
+			write!(out,
 				"{}[-{}+{}+{}]",
 				cmov(cursor, from_a),
 				cmov(from_a, to_a1),
 				cmov(to_a1, to_a2),
 				cmov(to_a2, from_a),
-			);
+			).unwrap();
 			cursor = from_a;
 		}
-		BfOp::Comment(s) => println!("{}", bfsan(s)),
+		BfOp::Comment(s) => {
+			write!(out,"{}", bfsan(s)).unwrap();
+		},
 
 		BfOp::Loop(a, ops) => {
 			let m = cmov(cursor, a);
 			cursor = a;
 
-			println!("{}[", m);
-			cursor = printasti(ops, cursor, i+1);
+			write!(out,"{}[\n", m).unwrap();
+			cursor = printasti(out, ops, cursor, i+1);
 
 			let m = cmov(cursor, a);
 			cursor = a;
 
-			println!("{}{}]", ind, m);
+			write!(out,"{}{}]", ind, m).unwrap();
 		},
-
-		_ => unimplemented!("poggers {:?}", ins),
 	}
+
+	write!(out, "\n");
 
 	cursor
 }
@@ -889,41 +748,6 @@ fn uncop(op: &llvm_ir::Operand) -> u64 {
 			unimplemented!("owo what's this")
 		}
 	}
-}
-
-fn gotoreg<F>(out: &mut String, i: usize, reg: usize, funcns: usize, blockns: usize, f: F)
-where
-	F: FnOnce() -> String,
-{
-	write!(out,
-		"{}{}\n",
-		"\t".repeat(i),
-		">".repeat(1 + funcns + blockns + reg)
-	);
-	write!(out, "{}", f());
-	write!(out,
-		"{}{}\n",
-		"\t".repeat(i),
-		"<".repeat(1 + funcns + blockns + reg)
-	);
-}
-
-fn gotoblock<F>(out: &mut String, i: usize, bid: usize, funcns: usize, f: F)
-where
-	F: FnOnce() -> String,
-{
-	write!(out,"{}{}\n", "\t".repeat(i), ">".repeat(1 + bid + funcns));
-	write!(out, "{}", f());
-	write!(out,"{}{}\n", "\t".repeat(i), "<".repeat(1 + bid + funcns));
-}
-
-fn gotofunc<F>(out: &mut String, i: usize, fid: usize, f: F)
-where
-	F: FnOnce() -> String,
-{
-	write!(out,"{}{}\n", "\t".repeat(i), ">".repeat(1 + fid));
-	write!(out, "{}", f());
-	write!(out,"{}{}\n", "\t".repeat(i), "<".repeat(1 + fid));
 }
 
 fn n2nam(n: &llvm_ir::Name) -> String {

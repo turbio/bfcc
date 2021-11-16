@@ -2,14 +2,13 @@ use std::process::Command;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io;
 use std::path::Path;
 use std::collections::HashMap;
 
 extern crate serde_json;
 
 extern crate serde;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 
 mod bfcc;
 
@@ -66,8 +65,12 @@ fn main() {
 		let result = exec(&bf_code, "").unwrap();
 		if result.output != info.output {
 			println!("OUTPUT MISMATCH");
+			println!("---");
 			println!("expected: {}", info.output);
 			println!("  actual: {}", result.output);
+			println!("---");
+			println!("source: {}", source);
+			println!("target: {}", bfout);
 			panic!("output mismatch")
 		}
 
