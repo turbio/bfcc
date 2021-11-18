@@ -1,5 +1,6 @@
 use std::process::Command;
 use std::fs;
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -52,6 +53,10 @@ fn main() {
 		let to = content[from..].find("\n").unwrap()+from;
 		let info: TestCase = serde_json::from_str(&content[from..to]).unwrap();
 
+		if env::args().len() > 1 && env::args().find(|x| x == &info.name).is_none() {
+			continue;
+		}
+
 		println!("TEST {}", info.name);
 
 		let source = format!("{}", case.path().as_path().to_str().unwrap());
@@ -74,7 +79,40 @@ fn main() {
 			panic!("output mismatch")
 		}
 
-		println!("PASS {} in {} steps", info.name, result.steps);
+		//let max_cov = *result.coverage.iter().map(|(k, v)| v).max().unwrap();
+		//let min_cov = *result.coverage.iter().map(|(k, v)| v).min().unwrap();
+
+		//let cmap : String= bf_code
+		//	.chars()
+		//	.enumerate()
+		//	.map(|(i, c)| {
+		//		match c {
+		//			'+' | '-' | '<' | '>' | '.' | ',' | '[' | ']' => {
+		//				let cov = result.coverage.get(&i);
+		//				if cov.is_none() {
+		//					return 'F';
+		//				}
+		//				let cov = *cov.unwrap();
+
+		//				let v = r#".'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"#;
+		//				let i = ((cov as f64 - min_cov as f64) / (max_cov as f64 - min_cov as f64) as f64) * (v.len() - 1) as f64;
+		//				v.chars().nth(i as usize).unwrap()
+		//			}
+		//			'\n' | '\t' => c,
+		//			_ => ' ',
+		//		}
+		//	})
+		//	.collect();
+
+		let mut stats = File::create(Path::new(
+				&format!(
+					"./tests/stats/{}.txt",
+					case.file_name().into_string().unwrap(),
+				)
+		)).unwrap();
+		stats.write_all(format!("steps: {}\n", result.steps).as_bytes());
+
+		println!("PASS {}", info.name);
 	}
 }
 
@@ -111,7 +149,7 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 	let mut output: Vec<char> = vec![];
 
 	while pc < code.len() {
-		//coverage.insert(pc, coverage.get(&pc).unwrap_or(&0)+1);
+		coverage.insert(pc, coverage.get(&pc).unwrap_or(&0)+1);
 
 		match code[pc] {
 			',' => {

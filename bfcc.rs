@@ -135,6 +135,8 @@ enum BfOp {
 	AddI(usize, u8), // *a + n -> *a : a must be less than 255
 	SubI(usize, u8), // *a - n -> *a : a msut be greater than 0
 	Dup(usize, usize, usize), // *a -> *b, *c : a will be zeroed, b and c must be zero
+
+	// the only architecture with a real mov instruction
 	Mov(usize, usize), // *a -> *b : a will be zeroed, b must be zero
 
 	Putch(usize),
@@ -222,6 +224,69 @@ pub fn compile(path: &Path) -> String {
 		let fntop = 1+funcns;
 		let ftop = 1+funcns+blockns;
 
+		// live for the lifetime of the function
+		let mut allocs: Vec<usize> = vec![];
+
+		for block in func.basic_blocks.iter() {
+			for instr in block.instrs.iter() {
+				match instr {
+					llvm_ir::Instruction::Alloca(a) => {
+						allocs.push(n2usize(&a.dest));
+					},
+					_ => {},
+				}
+			}
+		}
+
+		let allocs = allocs; // un-mut
+
+		// live registers available on the stack produced by an instruction and
+		// yet to be consumed by a following instruction. Used as a map for
+		// allocations where each cell holds a llvm register name.
+		//
+		// TODO(turbio): for now onstack registers only live between the
+		// instruction producing them and the instruction consuming them.
+		// Multiple uses is unimplemented.
+		let mut onstack = Vec::<Option<usize>>::new();
+
+		// available names is a combination of all the living registers:
+		// onstack + allocs
+		let take_reg = |st: &mut Vec::<Option<usize>>, name: &llvm_ir::Name| -> usize {
+			//println!("take {}: {:?}", name, st);
+			let at = st
+				.iter()
+				.position(|&n| n.is_some() && n.unwrap() == n2usize(name))
+				.unwrap();
+			st[at] = None;
+			at + ftop + allocs.len()
+		};
+
+		let give_reg = |st: &mut Vec::<Option<usize>>, name: &llvm_ir::Name| -> usize {
+			//println!("give {}: {:?}", name, st);
+			let slot = st.iter().position(|&n| n.is_none());
+			ftop +  allocs.len() + if slot.is_some() {
+				let slot = slot.unwrap();
+				st[slot] = Some(n2usize(name));
+				slot
+			} else {
+				st.push(Some(n2usize(name)));
+				st.len() - 1
+			}
+		};
+
+		// TODO(turbio): not optimal to double copy the args. The calling
+		// function puts them right before our stack then we copy them right
+		// into our stack registers.
+		for (i, p) in func.parameters.iter().enumerate() {
+			let pdest = give_reg(&mut onstack, &p.name);
+			funcloop.push(BfOp::Tag(pdest, format!("arg_{}", p.name)));
+
+			// so basically spooky ops to reach before the stack top
+			funcloop.push(BfOp::Left(i+1));
+			funcloop.push(BfOp::Mov(0, pdest+i+1));
+			funcloop.push(BfOp::Right(i+1));
+		}
+
 		for (bid, block) in func.basic_blocks.iter().enumerate() {
 			let blockn = n2usize(&block.name);
 			funcloop.push(BfOp::Tag(fntop+bid, format!("{}/{}", func.name, blockn)));
@@ -274,12 +339,12 @@ pub fn compile(path: &Path) -> String {
 							blockloop.push(BfOp::Comment("putchar intrinsic".to_string()));
 
 							let reg = match &c.arguments[0].0 {
-								llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
+								llvm_ir::Operand::LocalOperand { name, .. } => take_reg(&mut onstack, &name),
 								llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 									llvm_ir::constant::Constant::Int { value, .. } => {
 										let temp0 = scratch + 0;
 										blockloop.push(BfOp::AddI(ftop+temp0, *value as u8));
-										temp0
+										temp0+ftop
 									},
 									_ => unimplemented!("how tf we gonna store that"),
 								},
@@ -287,10 +352,28 @@ pub fn compile(path: &Path) -> String {
 								_ => unimplemented!("ignoring meta?"),
 							};
 
-							blockloop.push(BfOp::Putch(ftop+reg));
-							blockloop.push(BfOp::Zero(ftop+reg));
+							blockloop.push(BfOp::Putch(reg));
+							blockloop.push(BfOp::Zero(reg));
 
 						} else {
+							for (i, ar) in c.arguments.iter().enumerate() {
+								// copy up those args
+								// TODO(turbio): only constants lol
+
+								match &ar.0 {
+									llvm_ir::Operand::LocalOperand { name, .. } => {
+										let src = take_reg(&mut onstack, &name);
+										blockloop.push(BfOp::Mov(src, stack_width-1-i));
+									}
+									llvm_ir::Operand::ConstantOperand(c) => {
+										let v = uncop(&ar.0);
+										blockloop.push(BfOp::AddI(stack_width-1-i, v as u8));
+									},
+
+									_ => unimplemented!("ignoring meta?"),
+								}
+							}
+
 							blockloop.push(BfOp::Comment("next frame".to_string()));
 							blockloop.push(BfOp::Goto(0));
 							blockloop.push(BfOp::Right(stack_width));
@@ -300,13 +383,18 @@ pub fn compile(path: &Path) -> String {
 							blockloop.push(BfOp::AddI(1+func2id[fnn.as_str()].fid, 1));
 							blockloop.push(BfOp::Tag(fntop+0, format!("{}/b0", fnn)));
 							blockloop.push(BfOp::AddI(fntop+0, 1));
-
 						}
+
 					}
 					llvm_ir::Instruction::Alloca(c) => { // yep
+						let dest = ftop+allocs
+							.iter()
+							.position(|x| *x == n2usize(&c.dest))
+							.unwrap();
+
 						match c.allocated_type.deref() {
 							llvm_ir::Type::IntegerType { .. } => {
-								blockloop.push(BfOp::Tag(ftop+n2usize(&c.dest), format!("alloca_{}", c.dest)));
+								blockloop.push(BfOp::Tag(dest, format!("alloca_{}", c.dest)));
 
 
 								//assert!(*bits == 8, "ohno {} bits", bits) lolz
@@ -315,28 +403,27 @@ pub fn compile(path: &Path) -> String {
 						};
 					}
 					llvm_ir::Instruction::Store(s) => { // yep
-						let dest = unlop(&s.address);
+						let dest = ftop+allocs
+							.iter()
+							.position(|x| *x == n2usize(&unlop(&s.address)))
+							.unwrap();
 
 						match &s.value {
 							llvm_ir::Operand::LocalOperand { name, ty: _ } => {
-								let name = n2usize(name);
 
-								// zero %dest (probably alloca)
-								blockloop.push(BfOp::Zero(ftop+ dest));
+								// zero %dest (even tho probably just alloca)
+								blockloop.push(BfOp::Zero(dest));
 
 								// move name to %dest
-								blockloop.push(BfOp::Mov(
-										ftop+ name,
-										ftop+ dest,
-								));
+								blockloop.push(BfOp::Mov(take_reg(&mut onstack, name), dest));
 
 							}
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
 									let val = *value;
 
-									blockloop.push(BfOp::Zero(ftop+ dest));
-									blockloop.push(BfOp::AddI(ftop+ dest, val as u8));
+									blockloop.push(BfOp::Zero(dest));
+									blockloop.push(BfOp::AddI(dest, val as u8));
 								}
 								_ => unimplemented!("how tf we gonna store that"),
 							},
@@ -345,20 +432,20 @@ pub fn compile(path: &Path) -> String {
 						};
 					}
 					llvm_ir::Instruction::Load(l) => { // yep
-						let addr = unlop(&l.address);
-						let dest = n2usize(&l.dest);
+						let dest = give_reg(&mut onstack, &l.dest);
+						let addr = ftop+allocs
+							.iter()
+							.position(|x| *x == n2usize(&unlop(&l.address)))
+							.unwrap();
 
 
-						blockloop.push(BfOp::Tag(
-							ftop+ dest,
-							format!("load_%{}_to_%{}", addr, dest),
-						));
+						blockloop.push(BfOp::Tag(dest, format!("load_%{}_to_%{}", n2usize(unlop(&l.address)), n2usize(&l.dest))));
 
 						let temp0 = scratch + 0;
 
 						blockloop.push(BfOp::Tag( ftop+ temp0, format!("tmp0_for_load"),));
-						blockloop.push(BfOp::Dup( ftop+ addr, ftop+ temp0, ftop+ dest,));
-						blockloop.push(BfOp::Mov( ftop+ temp0, ftop+ addr,));
+						blockloop.push(BfOp::Dup(addr, ftop+ temp0, dest));
+						blockloop.push(BfOp::Mov( ftop+ temp0, addr));
 
 						// dup addr -> temp0 + dest
 
@@ -368,10 +455,21 @@ pub fn compile(path: &Path) -> String {
 						//println!("\t\tload {:?} ", l);
 					}
 					llvm_ir::Instruction::ICmp(i) => { // nopalmost
-						let pred = i.predicate;
-						let op0 = unlop(&i.operand0);
-						let op1 = uncop(&i.operand1);
-						let dest = n2usize(&i.dest);
+						let dest = give_reg(&mut onstack, &i.dest);
+						let op0 = take_reg(&mut onstack, &unlop(&i.operand0));
+
+						let op1 = match &i.operand1 {
+							llvm_ir::Operand::LocalOperand { name, .. } => {
+								take_reg(&mut onstack, &name)
+							}
+							llvm_ir::Operand::ConstantOperand(c) => {
+								let v = uncop(&i.operand1);
+								blockloop.push(BfOp::AddI(ftop+(scratch+0), v as u8));
+								ftop+(scratch+0)
+							},
+
+							_ => unimplemented!("ignoring meta?"),
+						};
 
 						let temp0 = scratch + 1;
 						let temp1 = scratch + 2; // and scratch + 3, scratch + 4
@@ -393,27 +491,15 @@ pub fn compile(path: &Path) -> String {
 							ftop+temp1+2,
 							format!("temp1_c"),
 						));
-						blockloop.push(BfOp::Tag(
-							ftop+dest,
-							format!("%{}_icmp_%{}_lt_{}", dest, op0, op1)
-						));
+						blockloop.push(BfOp::Tag(dest, format!("%{}_icmp_%{}_lt_{}", n2usize(&i.dest), i.operand0, i.operand1)));
 
-						blockloop.push(BfOp::Goto(ftop+op0)); blockloop.push(BfOp::Literal("[".to_string()));
-						blockloop.push(BfOp::Goto(ftop+(scratch+0))); blockloop.push(BfOp::Literal("+".to_string()));
-						blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("+".to_string()));
-						blockloop.push(BfOp::Goto(ftop+op0)); blockloop.push(BfOp::Literal("-]".to_string()));
-						blockloop.push(BfOp::Goto(ftop+(scratch+0))); blockloop.push(BfOp::Literal("[".to_string()));
-						blockloop.push(BfOp::Goto(ftop+op0)); blockloop.push(BfOp::Literal("+".to_string()));
-						blockloop.push(BfOp::Goto(ftop+(scratch+0))); blockloop.push(BfOp::Literal("-]".to_string()));
-						blockloop.push(BfOp::AddI(ftop+(scratch+0), op1 as u8));
 
-						let op1 = scratch + 0;
+						blockloop.push(BfOp::Dup(op0, ftop+(scratch+3), dest));
+						blockloop.push(BfOp::Mov(ftop+(scratch+3), op0));
 
-						match pred {
+
+						match i.predicate {
 							llvm_ir::IntPredicate::SLT => {
-								format!("\t\ticmp: %{} {} {}\n", op0, pred, op1);
-								blockloop.push(BfOp::Comment(format!("icmp: %{} {} {}", op0, pred, op1)));
-
 								// x and y are unsigned. temp1 is the first of
 								// three consecutive temporary cells. The
 								// algorithm returns either 0 (false) or 1
@@ -432,92 +518,86 @@ pub fn compile(path: &Path) -> String {
 								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal(">+ > <<".to_string()));
 
 								// y[temp0+ temp1+ y-]
-								blockloop.push(BfOp::Goto(ftop+op1)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(op1)); blockloop.push(BfOp::Literal("[".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("+".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal("+".to_string()));
-								blockloop.push(BfOp::Goto(ftop+op1)); blockloop.push(BfOp::Literal("-]".to_string()));
+								blockloop.push(BfOp::Goto(op1)); blockloop.push(BfOp::Literal("-]".to_string()));
 
 								// temp0[y+ temp0-]
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[".to_string()));
-								blockloop.push(BfOp::Goto(ftop+op1)); blockloop.push(BfOp::Literal("+".to_string()));
+								blockloop.push(BfOp::Goto(op1)); blockloop.push(BfOp::Literal("+".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
 
 								// x[temp0+ x-]+
-								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(dest)); blockloop.push(BfOp::Literal("[".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("+".to_string()));
-								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("-]+".to_string()));
+								blockloop.push(BfOp::Goto(dest)); blockloop.push(BfOp::Literal("-]+".to_string()));
 
 								// temp1[>-]> [< x- temp0[-] temp1>->]<+<
 								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal("[>-]> [<".to_string()));
-								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("-".to_string()));
+								blockloop.push(BfOp::Goto(dest)); blockloop.push(BfOp::Literal("-".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[-]".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
 
 								// temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal("- [>-]> [<".to_string()));
-								blockloop.push(BfOp::Goto(ftop+dest)); blockloop.push(BfOp::Literal("-".to_string()));
+								blockloop.push(BfOp::Goto(dest)); blockloop.push(BfOp::Literal("-".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[-]+".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp1)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
 								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
 
-								blockloop.push(BfOp::Zero(ftop+op1));
-								blockloop.push(BfOp::Zero(ftop+op0));
+								blockloop.push(BfOp::Zero(op1));
+								blockloop.push(BfOp::Zero(op0));
 								blockloop.push(BfOp::Zero(ftop+temp0));
 								blockloop.push(BfOp::Zero(ftop+temp1));
 								blockloop.push(BfOp::Zero(ftop+temp1+1));
 								blockloop.push(BfOp::Zero(ftop+temp1+2));
 							}
-							_ => unimplemented!("ohlort predicate {}", pred),
+							_ => unimplemented!("ohlort predicate {}", i.predicate),
 						}
 					}
 					llvm_ir::Instruction::Add(a) => { // yep
-						let op1_tmp = scratch+0;
-						let op0 = unlop(&a.operand0);
+						let dest = give_reg(&mut onstack, &a.dest);
+
+						let op0 = take_reg(&mut onstack, &unlop(&a.operand0));
 						let op1 = match &a.operand1 {
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
+									let op1_tmp = scratch+0;
 									blockloop.push(BfOp::AddI(ftop+op1_tmp, *value as u8));
-									op1_tmp
+									ftop+op1_tmp
 								},
 								_ => unimplemented!("eek"),
 							},
-							llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
+							llvm_ir::Operand::LocalOperand { name, .. } => take_reg(&mut onstack, &name),
 							_ => unimplemented!("nani?"),
 						};
 
-						let dest = n2usize(&a.dest);
+						blockloop.push(BfOp::Tag(dest, format!("%{}_add_%{}_c{}", a.dest, a.operand0, a.operand1)));
 
-						blockloop.push(BfOp::Tag(
-							ftop+dest,
-							format!("%{}_add_%{}_c{}", dest, op0, op1),
-						));
-
-						blockloop.push(BfOp::Mov(ftop+op0, ftop+dest));
-						blockloop.push(BfOp::Mov(ftop+op1, ftop+dest));
+						blockloop.push(BfOp::Mov(op0, dest));
+						blockloop.push(BfOp::Mov(op1, dest));
 					}
 					llvm_ir::Instruction::ZExt(i) => { // yep
 						// big lies! it's actually a nop
-						let src = unlop(&i.operand);
-						let dest = n2usize(&i.dest);
+						let dest = give_reg(&mut onstack, &i.dest);
+						let src = take_reg(&mut onstack, &unlop(&i.operand));
 
 
-						blockloop.push(BfOp::Tag(ftop+dest, format!("%{}_zext_%{}", dest, src)));
+						blockloop.push(BfOp::Tag(dest, format!("%{}_zext_%{}", i.dest, i.operand)));
 						// move src -> dest
-						blockloop.push(BfOp::Mov(ftop+src, ftop+dest));
+						blockloop.push(BfOp::Mov(src, dest));
 
 					}
 					llvm_ir::Instruction::Trunc(i) => { // yep
 						// big lies! it's actually a nop
-						let src = unlop(&i.operand);
-						let dest = n2usize(&i.dest);
+						let dest = give_reg(&mut onstack, &i.dest);
+						let src = take_reg(&mut onstack, &unlop(&i.operand));
 
 
-						blockloop.push(BfOp::Tag(ftop+dest, format!("%{}_trunc_%{}", dest, src)));
-						blockloop.push(BfOp::Mov(
-							ftop+src,
-							ftop+dest,
-						));
+						blockloop.push(BfOp::Tag(dest, format!("%{}_trunc_%{}", i.dest, i.operand)));
+						blockloop.push(BfOp::Mov(src, dest));
 
 						// move src -> dest
 					}
@@ -544,7 +624,7 @@ pub fn compile(path: &Path) -> String {
 					}
 
 					llvm_ir::Terminator::CondBr(cbr) => {
-						let cond = unlop(&cbr.condition);
+						let cond = take_reg(&mut onstack, &unlop(&cbr.condition));
 
 
 						let tru = n2usize(&cbr.true_dest);
@@ -557,7 +637,7 @@ pub fn compile(path: &Path) -> String {
 						blockloop.push(BfOp::AddI(ftop+temp0, 1));
 
 
-						blockloop.push(BfOp::Goto(ftop+cond));
+						blockloop.push(BfOp::Goto(cond));
 						blockloop.push(BfOp::Literal("[-".to_string()));
 						blockloop.push(BfOp::Goto(ftop+temp0));
 						blockloop.push(BfOp::Literal("-".to_string()));
@@ -565,7 +645,7 @@ pub fn compile(path: &Path) -> String {
 						blockloop.push(BfOp::AddI(fntop+tru, 1));
 						blockloop.push(BfOp::Tag(fntop+tru, format!("{}/{}_true", func.name, n2usize(&cbr.true_dest))));
 
-						blockloop.push(BfOp::Goto(ftop+cond));
+						blockloop.push(BfOp::Goto(cond));
 						blockloop.push(BfOp::Literal("]".to_string()));
 
 						blockloop.push(BfOp::Goto(ftop+temp0));
@@ -660,8 +740,14 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 		},
 
 		BfOp::Tag(a, s) => {
+			let s: String = s
+				.chars()
+				.map(|x| match x {
+					'+' | '-' | '<' | '>' | '.' | ',' | '[' | ']' | ' ' => '_',
+					_ => x,
+				}).collect();
 			write!(out, "{}#{}", cmov(cursor, a), s).unwrap();
-			cursor = a;
+			cursor = a;	
 		},
 		BfOp::Mov(from_a, to_a) => {
 			write!(
@@ -730,9 +816,9 @@ fn pptreei(ast: Vec<BfOp>, i: usize) {
 }
 
 // un local operand
-fn unlop(op: &llvm_ir::Operand) -> usize {
+fn unlop(op: &llvm_ir::Operand) -> &llvm_ir::Name {
 	match op {
-		llvm_ir::Operand::LocalOperand { name, .. } => n2usize(&name),
+		llvm_ir::Operand::LocalOperand { name, .. } => name,
 		_ => unimplemented!("uwu?"),
 	}
 }

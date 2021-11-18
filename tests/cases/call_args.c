@@ -1,6 +1,6 @@
 #include "stdfuck.h"
 
-void a(int b, int c, int d) {
+void call_me(int b, int c, int d) {
   putchar(b);
   putchar(c);
   putchar(d);
@@ -8,5 +8,5 @@ void a(int b, int c, int d) {
 
 // TEST:{ "name": "call_args", "output": "123" }
 void main(void) {
-  a('1', '2', '3');
+  call_me('1', '2', '3');
 };
