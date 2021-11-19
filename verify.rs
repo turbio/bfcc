@@ -76,7 +76,8 @@ fn main() {
 			println!("---");
 			println!("source: {}", source);
 			println!("target: {}", bfout);
-			panic!("output mismatch")
+			println!("FAIL {}", info.name);
+			continue;
 		}
 
 		//let max_cov = *result.coverage.iter().map(|(k, v)| v).max().unwrap();
