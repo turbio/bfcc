@@ -555,8 +555,8 @@ pub fn compile(path: &Path) -> String {
 								blockloop.push(BfOp::Goto(temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
 
 								blockloop.push(BfOp::Zero(op1));
-								blockloop.push(BfOp::Zero(op0));
-								blockloop.push(BfOp::Zero(temp0));
+								// blockloop.push(BfOp::Zero(op0)); // zeroed above
+								// blockloop.push(BfOp::Zero(temp0)); // zeroed above
 
 								blockloop.push(BfOp::Zero(temp1+0));
 								blockloop.push(BfOp::Zero(temp1+1));
