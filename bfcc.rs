@@ -296,7 +296,6 @@ pub fn compile(path: &Path) -> String {
 
 			blockloop.push(BfOp::SubI(fntop+bid, 1));
 
-
 			let mut handle_call = false;
 
 			let scratch = 30;
@@ -312,12 +311,23 @@ pub fn compile(path: &Path) -> String {
 				// this borrows control flow regs.
 				//
 				// TODO(turbio): also also this needs to be used after all gives/takes
-				let mut borrow_reg = |st: &mut Vec::<Option<usize>>| -> usize {
+				let mut borrow_reg = |st: &mut Vec::<Option<usize>>, contig: usize| -> usize {
 					for i in 0..func2id[func.name.as_str()].blks.len() {
-						let i = fntop+i;
-						if !borrowed_reg.contains(&i) {
-							borrowed_reg.push(i);
-							return i;
+						if borrowed_reg.contains(&(fntop+i)) {
+							continue;
+						}
+
+						for j in (i+1)..func2id[func.name.as_str()].blks.len() {
+							if borrowed_reg.contains(&(fntop+j)) {
+								break;
+							}
+
+							if j - i == contig {
+								for k in 0..contig {
+									borrowed_reg.push(fntop+i+k);
+								}
+								return fntop+i;
+							}
 						}
 					}
 
@@ -384,7 +394,7 @@ pub fn compile(path: &Path) -> String {
 								llvm_ir::Operand::LocalOperand { name, .. } => take_reg(&mut onstack, &name),
 								llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 									llvm_ir::constant::Constant::Int { value, .. } => {	
-										let temp0 = borrow_reg(&mut onstack);
+										let temp0 = borrow_reg(&mut onstack, 1);
 										blockloop.push(BfOp::AddI(temp0, *value as u8));
 										temp0
 									},
@@ -473,7 +483,7 @@ pub fn compile(path: &Path) -> String {
 					}
 					llvm_ir::Instruction::Load(l) => { // yep
 						let dest = give_reg(&mut onstack, &l.dest);
-						let addr = ftop+allocs
+						let addr = ftop + allocs
 							.iter()
 							.position(|x| *x == n2usize(&unlop(&l.address)))
 							.unwrap();
@@ -481,18 +491,11 @@ pub fn compile(path: &Path) -> String {
 
 						blockloop.push(BfOp::Tag(dest, format!("load_%{}_to_%{}", n2usize(unlop(&l.address)), n2usize(&l.dest))));
 
-						let temp0 = borrow_reg(&mut onstack);
+						let tmp = borrow_reg(&mut onstack, 1);
 
-						blockloop.push(BfOp::Tag(temp0, format!("tmp0_for_load"),));
-						blockloop.push(BfOp::Dup(addr, temp0, dest));
-						blockloop.push(BfOp::Mov(temp0, addr));
-
-						// dup addr -> temp0 + dest
-
-						// move temp0 -> addr
-
-						//println!("\t\tload {} to {}", addr, dest);
-						//println!("\t\tload {:?} ", l);
+						blockloop.push(BfOp::Tag(tmp, format!("tmp0_for_load"),));
+						blockloop.push(BfOp::Dup(addr, tmp, dest));
+						blockloop.push(BfOp::Mov(tmp, addr));
 					}
 					llvm_ir::Instruction::ICmp(i) => { // nopalmost
 						let dest = give_reg(&mut onstack, &i.dest);
@@ -503,7 +506,7 @@ pub fn compile(path: &Path) -> String {
 								take_reg(&mut onstack, &name)
 							}
 							llvm_ir::Operand::ConstantOperand(c) => {
-								let cto = borrow_reg(&mut onstack);
+								let cto = borrow_reg(&mut onstack, 1);
 								let v = uncop(&i.operand1);
 								blockloop.push(BfOp::AddI(cto, v as u8));
 								cto
@@ -512,52 +515,52 @@ pub fn compile(path: &Path) -> String {
 							_ => unimplemented!("ignoring meta?"),
 						};
 
-						let temp0 = scratch + 1;
-						let temp1 = scratch + 2; // and scratch + 3, scratch + 4
+						let tmps = borrow_reg(&mut onstack, 4);
 
+						let temp0 = tmps;
+						let temp1 = tmps+1; // and scratch + 3, scratch + 4
 
-						blockloop.push(BfOp::Tag(ftop+temp0, format!("temp0")));
-						blockloop.push(BfOp::Tag(ftop+temp1, format!("temp1_a")));
-						blockloop.push(BfOp::Tag(ftop+temp1+1, format!("temp1_b")));
-						blockloop.push(BfOp::Tag(ftop+temp1+2, format!("temp1_c")));
+						blockloop.push(BfOp::Tag(temp0, format!("temp0")));
+						blockloop.push(BfOp::Tag(temp1, format!("temp1_a")));
+						blockloop.push(BfOp::Tag(temp1+1, format!("temp1_b")));
+						blockloop.push(BfOp::Tag(temp1+2, format!("temp1_c")));
 						blockloop.push(BfOp::Tag(dest, format!("%{}_icmp_%{}_lt_{}", n2usize(&i.dest), i.operand0, i.operand1)));
-
 
 						blockloop.push(BfOp::Mov(op0, dest));
 
 						match i.predicate {
 							llvm_ir::IntPredicate::SLT => {
-								blockloop.push(BfOp::AddI(ftop+temp1+1, 1));
+								blockloop.push(BfOp::AddI(temp1+1, 1));
 
 								// y[temp0+ temp1+ y-]
 								// x[temp0+ x-]+
-								blockloop.push(BfOp::Dup(op1, ftop+temp0, ftop+temp1+0));
-								blockloop.push(BfOp::Mov(ftop+temp0, op1));
+								blockloop.push(BfOp::Dup(op1, temp0, temp1+0));
+								blockloop.push(BfOp::Mov(temp0, op1));
 
-								blockloop.push(BfOp::Mov(dest, ftop+temp0));
+								blockloop.push(BfOp::Mov(dest, temp0));
 								blockloop.push(BfOp::AddI(dest, 1));
 
 								// temp1[>-]> [< x- temp0[-] temp1>->]<+<
-								blockloop.push(BfOp::Goto(ftop+temp1+0)); blockloop.push(BfOp::Literal("[>-]> [<".to_string()));
+								blockloop.push(BfOp::Goto(temp1+0)); blockloop.push(BfOp::Literal("[>-]> [<".to_string()));
 								blockloop.push(BfOp::Goto(dest)); blockloop.push(BfOp::Literal("-".to_string()));
-								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[-]".to_string()));
-								blockloop.push(BfOp::Goto(ftop+temp1+0)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
+								blockloop.push(BfOp::Goto(temp0)); blockloop.push(BfOp::Literal("[-]".to_string()));
+								blockloop.push(BfOp::Goto(temp1+0)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
 
 								// temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
-								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[".to_string()));
-								blockloop.push(BfOp::Goto(ftop+temp1+0)); blockloop.push(BfOp::Literal("- [>-]> [<".to_string()));
+								blockloop.push(BfOp::Goto(temp0)); blockloop.push(BfOp::Literal("[".to_string()));
+								blockloop.push(BfOp::Goto(temp1+0)); blockloop.push(BfOp::Literal("- [>-]> [<".to_string()));
 								blockloop.push(BfOp::Goto(dest)); blockloop.push(BfOp::Literal("-".to_string()));
-								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("[-]+".to_string()));
-								blockloop.push(BfOp::Goto(ftop+temp1+0)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
-								blockloop.push(BfOp::Goto(ftop+temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
+								blockloop.push(BfOp::Goto(temp0)); blockloop.push(BfOp::Literal("[-]+".to_string()));
+								blockloop.push(BfOp::Goto(temp1+0)); blockloop.push(BfOp::Literal(">->]<+<".to_string()));
+								blockloop.push(BfOp::Goto(temp0)); blockloop.push(BfOp::Literal("-]".to_string()));
 
 								blockloop.push(BfOp::Zero(op1));
 								blockloop.push(BfOp::Zero(op0));
-								blockloop.push(BfOp::Zero(ftop+temp0));
+								blockloop.push(BfOp::Zero(temp0));
 
-								blockloop.push(BfOp::Zero(ftop+temp1+0));
-								blockloop.push(BfOp::Zero(ftop+temp1+1));
-								blockloop.push(BfOp::Zero(ftop+temp1+2));
+								blockloop.push(BfOp::Zero(temp1+0));
+								blockloop.push(BfOp::Zero(temp1+1));
+								blockloop.push(BfOp::Zero(temp1+2));
 							}
 							_ => unimplemented!("ohlort predicate {}", i.predicate),
 						}
@@ -569,7 +572,7 @@ pub fn compile(path: &Path) -> String {
 						let op1 = match &a.operand1 {
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
-									let op1_tmp = borrow_reg(&mut onstack);
+									let op1_tmp = borrow_reg(&mut onstack, 1);
 									blockloop.push(BfOp::AddI(op1_tmp, *value as u8));
 									op1_tmp
 								},
