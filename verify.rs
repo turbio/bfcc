@@ -1,18 +1,17 @@
-use std::process::Command;
-use std::fs;
+use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use std::collections::HashMap;
+use std::process::Command;
 
 extern crate serde_json;
 
 extern crate serde;
-use serde::{Deserialize};
+use serde::Deserialize;
 
 mod bfcc;
-
 
 #[derive(Deserialize)]
 struct TestCase {
@@ -24,16 +23,16 @@ fn compile_ir(from: &str, to: &str) -> Result<(), String> {
 	Command::new("clang")
 		.args(["-O0", "-emit-llvm", "-I", ".", "-c", from, "-o", to])
 		.output()
-		.map_err(|e|e.to_string())
-		.and_then(|o|
-			match o.status.success() {
-				true => Ok(()),
-				false => Err(std::str::from_utf8(o.stderr.as_slice()).unwrap().to_string())
-			}
-		)
+		.map_err(|e| e.to_string())
+		.and_then(|o| match o.status.success() {
+			true => Ok(()),
+			false => Err(std::str::from_utf8(o.stderr.as_slice())
+				.unwrap()
+				.to_string()),
+		})
 }
 
-fn compile_bf(path: &Path, target: &Path) -> String{
+fn compile_bf(path: &Path, target: &Path) -> String {
 	let code_out = bfcc::compile(path);
 
 	let mut file = File::create(target).unwrap();
@@ -49,22 +48,30 @@ fn main() {
 
 		let content = fs::read_to_string(case.path()).unwrap();
 
-		let from = content.find("TEST:").unwrap()+5;
-		let to = content[from..].find("\n").unwrap()+from;
+		let from = content.find("TEST:").unwrap() + 5;
+		let to = content[from..].find("\n").unwrap() + from;
 		let info: TestCase = serde_json::from_str(&content[from..to]).unwrap();
 
-		if env::args().len() > 1 && env::args().find(|x| x == &info.name).is_none() {
+		if env::args().len() > 1
+			&& env::args().find(|x| x == &info.name).is_none()
+		{
 			continue;
 		}
 
 		println!("TEST {}", info.name);
 
 		let source = format!("{}", case.path().as_path().to_str().unwrap());
-		let target = format!("./tests/ir/{}.bc", case.file_name().into_string().unwrap());
+		let target = format!(
+			"./tests/ir/{}.bc",
+			case.file_name().into_string().unwrap()
+		);
 
 		compile_ir(&source, &target).unwrap();
 
-		let bfout = format!("./tests/bf/{}.bf", case.file_name().into_string().unwrap());
+		let bfout = format!(
+			"./tests/bf/{}.bf",
+			case.file_name().into_string().unwrap()
+		);
 		let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
 
 		let result = exec(&bf_code, "").unwrap();
@@ -105,12 +112,11 @@ fn main() {
 		//	})
 		//	.collect();
 
-		let mut stats = File::create(Path::new(
-				&format!(
-					"./tests/stats/{}.txt",
-					case.file_name().into_string().unwrap(),
-				)
-		)).unwrap();
+		let mut stats = File::create(Path::new(&format!(
+			"./tests/stats/{}.txt",
+			case.file_name().into_string().unwrap(),
+		)))
+		.unwrap();
 		stats.write_all(format!("steps: {}\n", result.steps).as_bytes());
 
 		println!("PASS {}", info.name);
@@ -143,14 +149,14 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 
 	let mut coverage: HashMap<usize, usize> = HashMap::new();
 
-	let mut mem: [u8;1000] = [0;1000];
+	let mut mem: [u8; 10000] = [0; 10000];
 
 	let code = code.chars().collect::<Vec<char>>();
 	let input: Vec<u8> = input.into();
 	let mut output: Vec<char> = vec![];
 
 	while pc < code.len() {
-		coverage.insert(pc, coverage.get(&pc).unwrap_or(&0)+1);
+		coverage.insert(pc, coverage.get(&pc).unwrap_or(&0) + 1);
 
 		match code[pc] {
 			',' => {
