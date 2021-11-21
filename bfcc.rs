@@ -302,6 +302,109 @@ fn build_icmp(
 			icmp_out.push(BfOp::Zero(tmp1));
 		}
 
+		llvm_ir::IntPredicate::EQ => {
+			let tmp0 = borrow_reg(onstack, 1);
+			let tmp1 = borrow_reg(onstack, 1);
+
+			// sub no underflow:
+			// a | ... | u flag | ... | b | 0 | 1
+			//
+			// a[- b [->]  |   >   |  [<]  | <  | a]
+			//             |       |       |    |
+			//          b or 0     |       0    b
+			//                  0 or 1
+
+			let tmps = borrow_reg(onstack, 3);
+			let tmpb = tmps;
+			let tmp0 = tmps + 1;
+			let tmp1 = tmps + 2;
+
+			let underflow = borrow_reg(onstack, 1);
+
+			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
+			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
+			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
+			icmp_out.push(BfOp::Tag(underflow, format!("icmp_under")));
+
+			icmp_out.push(BfOp::Mov(op1, tmpb));
+			icmp_out.push(BfOp::AddI(tmp1, 1));
+
+			icmp_out.push(BfOp::Loop(
+				op0,
+				vec![
+					BfOp::SubI(op0, 1),
+					BfOp::AddI(underflow, 1),
+					BfOp::Loop(
+						tmpb,
+						vec![
+							BfOp::SubI(tmpb, 1),
+							BfOp::SubI(underflow, 1),
+							BfOp::Right(1),
+						],
+					),
+					BfOp::Right(1),
+					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
+					BfOp::Left(1),
+				],
+			));
+
+			icmp_out.push(BfOp::AddI(dest, 1));
+
+			icmp_out.push(BfOp::Loop(tmpb, vec![BfOp::Zero(tmpb), BfOp::Zero(dest)]));
+			icmp_out.push(BfOp::Loop(
+				underflow,
+				vec![BfOp::Zero(underflow), BfOp::Zero(dest)],
+			));
+
+			icmp_out.push(BfOp::Zero(tmp1));
+		}
+
+		llvm_ir::IntPredicate::SGT => {
+			let tmp0 = borrow_reg(onstack, 1);
+			let tmp1 = borrow_reg(onstack, 1);
+
+			// sub no underflow:
+			// a | ... | u flag | ... | b | 0 | 1
+			//
+			// a[- b [->]  |   >   |  [<]  | <  | a]
+			//             |       |       |    |
+			//          b or 0     |       0    b
+			//                  0 or 1
+
+			let tmps = borrow_reg(onstack, 3);
+			let tmpb = tmps;
+			let tmp0 = tmps + 1;
+			let tmp1 = tmps + 2;
+
+			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
+			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
+			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
+
+			icmp_out.push(BfOp::Mov(op0, tmpb));
+			icmp_out.push(BfOp::AddI(tmp1, 1));
+
+			icmp_out.push(BfOp::Loop(
+				op1,
+				vec![
+					BfOp::SubI(op1, 1),
+					BfOp::Loop(
+						tmpb,
+						vec![
+							BfOp::SubI(tmpb, 1),
+							BfOp::Right(1),
+						],
+					),
+					BfOp::Right(1),
+					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
+					BfOp::Left(1),
+				],
+			));
+
+			icmp_out.push(BfOp::Loop(tmpb, vec![BfOp::Zero(tmpb), BfOp::AddI(dest, 1)]));
+
+			icmp_out.push(BfOp::Zero(tmp1));
+		}
+
 		_ => unimplemented!("ohlort predicate {}", pred),
 	}
 
