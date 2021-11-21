@@ -1,4 +1,3 @@
 /target/
-**/*.rs.bk
-/tests/*.bc
-/tests/*.ll
+*.ll
+*.bc
