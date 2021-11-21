@@ -14,5 +14,6 @@ pkgs.mkShell {
 
   shellHook = ''
     export LLVM_SYS_120_PREFIX=${pkgs.llvm_12.dev}
+    export RUST_BACKTRACE=1
   '';
 }

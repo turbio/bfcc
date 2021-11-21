@@ -1,6 +1,6 @@
 #include "stdfuck.h"
 
-// TEST:{ "skip": true, "name": "if elif else", "output": "y" }
+// TEST:{ "name": "if elif else", "output": "y" }
 int main() {
   uint8_t a = 'b';
   if (a == 'a') {

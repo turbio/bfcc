@@ -1,15 +1,15 @@
 #include "stdfuck.h"
 
-// TEST:{ "skip": true, "name": "print fib loop", "output": "1 1 2 3 5 8" }
+// TEST:{ "name": "print fib loop", "output": "1 1 2 3 5 8" }
 int main() {
   uint8_t at = 1;
   uint8_t last = 0;
 
   for (uint8_t i = 6; i; i -= 1) {
-    putc('0' + at);
+    putchar('0' + at);
 
     if (i != 1) {
-      putc(' ');
+      putchar(' ');
     }
 
     uint8_t tmp = last;

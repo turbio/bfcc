@@ -1,6 +1,6 @@
 #include "stdfuck.h"
 
-// TEST:{ "skip": true, "name": "hello world", "output": "hello world" }
+// TEST:{ "name": "hello world", "output": "hello world" }
 int main() {
   putchar('h');
   putchar('e');

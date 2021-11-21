@@ -571,7 +571,7 @@ fn build_func(
 
 				// THIS IS ACTUALLY INVALID SINCE WE COULD ACCIDENTALLY LEND A
 				// SLOT WE JUST HANDED TO THE FUNCTION.
-				if (false) {
+				if false {
 					for i in 0..st.len() {
 						if st[i].is_some() || borrowed_reg.contains(&(ftop + i + allocs.len())) {
 							continue;
@@ -830,7 +830,21 @@ fn build_func(
 					// yep
 					let dest = give_reg(&mut onstack, &a.dest);
 
-					let op0 = take_reg(&mut onstack, &unlop(&a.operand0));
+					let op0 = match &a.operand0 {
+						llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
+							llvm_ir::constant::Constant::Int { value, .. } => {
+								let op1_tmp = borrow_reg(&mut onstack, 1);
+								blockloop.push(BfOp::AddI(op1_tmp, *value as u8));
+								op1_tmp
+							}
+							_ => unimplemented!("eek"),
+						},
+						llvm_ir::Operand::LocalOperand { name, .. } => {
+							take_reg(&mut onstack, &name)
+						}
+						_ => unimplemented!("nani?"),
+					};
+
 					let op1 = match &a.operand1 {
 						llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 							llvm_ir::constant::Constant::Int { value, .. } => {
@@ -973,7 +987,22 @@ fn build_func(
 					blockloop.push(BfOp::Literal("]".to_string()));
 				}
 
-				llvm_ir::Terminator::Ret(_) => {
+				llvm_ir::Terminator::Ret(r) => {
+					if r.return_operand.is_some() {
+						// TODO(turbio): figure out where to put ret args
+						match &r.return_operand.as_ref().unwrap() {
+							llvm_ir::Operand::LocalOperand { name, .. } => {
+								take_reg(&mut onstack, &name);
+								// blockloop.push(BfOp::Mov(0, 0));
+							}
+							llvm_ir::Operand::ConstantOperand(_) => {
+								// blockloop.push(BfOp::AddI(0, v as u8));
+							}
+
+							_ => unimplemented!("ignoring meta?"),
+						};
+					}
+
 					for al in 0..allocs.len() {
 						blockloop.push(BfOp::Zero(ftop + al));
 					}

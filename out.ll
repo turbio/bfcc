@@ -1,30 +1,51 @@
-; ModuleID = 'tests/cases/while.c'
-source_filename = "tests/cases/while.c"
+; ModuleID = 'tests/cases/count_from_9.c'
+source_filename = "tests/cases/count_from_9.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: noinline nounwind optnone sspstrong uwtable
-define void @main() #0 {
-  %1 = alloca i8, align 1
-  store i8 3, i8* %1, align 1
-  br label %2
+define i32 @main() #0 {
+  %1 = alloca i32, align 4
+  %2 = alloca i8, align 1
+  store i32 0, i32* %1, align 4
+  store i8 9, i8* %2, align 1
+  br label %3
 
-2:                                                ; preds = %5, %0
-  %3 = load i8, i8* %1, align 1
-  %4 = icmp ne i8 %3, 0
-  br i1 %4, label %5, label %10
+3:                                                ; preds = %16, %0
+  %4 = load i8, i8* %2, align 1
+  %5 = icmp ne i8 %4, 0
+  br i1 %5, label %6, label %21
 
-5:                                                ; preds = %2
-  call void @putchar(i8 zeroext 97)
-  %6 = load i8, i8* %1, align 1
-  %7 = zext i8 %6 to i32
-  %8 = sub i32 %7, 1
-  %9 = trunc i32 %8 to i8
-  store i8 %9, i8* %1, align 1
-  br label %2, !llvm.loop !3
+6:                                                ; preds = %3
+  %7 = load i8, i8* %2, align 1
+  %8 = zext i8 %7 to i32
+  %9 = add i32 48, %8
+  %10 = trunc i32 %9 to i8
+  call void @putchar(i8 zeroext %10)
+  %11 = load i8, i8* %2, align 1
+  %12 = zext i8 %11 to i32
+  %13 = icmp ne i32 %12, 1
+  br i1 %13, label %14, label %15
 
-10:                                               ; preds = %2
-  ret void
+14:                                               ; preds = %6
+  call void @putchar(i8 zeroext 44)
+  call void @putchar(i8 zeroext 32)
+  br label %15
+
+15:                                               ; preds = %14, %6
+  br label %16
+
+16:                                               ; preds = %15
+  %17 = load i8, i8* %2, align 1
+  %18 = zext i8 %17 to i32
+  %19 = sub i32 %18, 1
+  %20 = trunc i32 %19 to i8
+  store i8 %20, i8* %2, align 1
+  br label %3, !llvm.loop !3
+
+21:                                               ; preds = %3
+  %22 = load i32, i32* %1, align 4
+  ret i32 %22
 }
 
 declare void @putchar(i8 zeroext) #1
