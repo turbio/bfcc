@@ -387,20 +387,17 @@ fn build_icmp(
 				op1,
 				vec![
 					BfOp::SubI(op1, 1),
-					BfOp::Loop(
-						tmpb,
-						vec![
-							BfOp::SubI(tmpb, 1),
-							BfOp::Right(1),
-						],
-					),
+					BfOp::Loop(tmpb, vec![BfOp::SubI(tmpb, 1), BfOp::Right(1)]),
 					BfOp::Right(1),
 					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
 					BfOp::Left(1),
 				],
 			));
 
-			icmp_out.push(BfOp::Loop(tmpb, vec![BfOp::Zero(tmpb), BfOp::AddI(dest, 1)]));
+			icmp_out.push(BfOp::Loop(
+				tmpb,
+				vec![BfOp::Zero(tmpb), BfOp::AddI(dest, 1)],
+			));
 
 			icmp_out.push(BfOp::Zero(tmp1));
 		}
@@ -544,22 +541,26 @@ fn build_func(
 			//
 			// TODO(turbio): also also this needs to be used after all gives/takes
 			let mut borrow_reg = |st: &mut Vec<Option<usize>>, contig: usize| -> usize {
-				for i in 0..func2id[func.name.as_str()].blks.len() {
-					if borrowed_reg.contains(&(fntop + i)) {
-						continue;
-					}
-
-					for j in (i + 1)..func2id[func.name.as_str()].blks.len() {
-						if borrowed_reg.contains(&(fntop + j)) {
-							break;
+				// go through all the ctrl flow masks we cans steal.
+				// so uh benchmarks say this is slower interestingly enough
+				if false {
+					for i in (0..func2id[func.name.as_str()].blks.len()).rev() {
+						if borrowed_reg.contains(&(fntop + i)) {
+							continue;
 						}
 
-						if j - i == contig {
-							for k in 0..contig {
-								borrowed_reg.push(fntop + i + k);
+						for j in (i + 1)..func2id[func.name.as_str()].blks.len() {
+							if borrowed_reg.contains(&(fntop + j)) {
+								break;
 							}
 
-							return fntop + i;
+							if j - i == contig {
+								for k in 0..contig {
+									borrowed_reg.push(fntop + i + k);
+								}
+
+								return fntop + i;
+							}
 						}
 					}
 				}
@@ -568,27 +569,31 @@ fn build_func(
 				// to living values but starting from the and searching
 				// backwards is way easier.
 
-				for i in 0..st.len() {
-					if borrowed_reg.contains(&(ftop + i)) {
-						continue;
-					}
-
-					for j in (i + 1)..st.len() {
-						if borrowed_reg.contains(&(ftop + j)) {
-							break;
+				// THIS IS ACTUALLY INVALID SINCE WE COULD ACCIDENTALLY LEND A
+				// SLOT WE JUST HANDED TO THE FUNCTION.
+				if (false) {
+					for i in 0..st.len() {
+						if st[i].is_some() || borrowed_reg.contains(&(ftop + i + allocs.len())) {
+							continue;
 						}
 
-						if j - i == contig {
-							for k in 0..contig {
-								borrowed_reg.push(ftop + i + k);
+						for j in (i + 1)..st.len() {
+							if borrowed_reg.contains(&(ftop + j + allocs.len())) {
+								break;
 							}
 
-							return ftop + i;
+							if j - i == contig {
+								for k in 0..contig {
+									borrowed_reg.push(ftop + i + k + allocs.len());
+								}
+
+								return ftop + i;
+							}
 						}
 					}
 				}
 
-				let mut i = allocs.len() + st.len() + ftop;
+				let mut i = ftop + allocs.len() + st.len();
 				while borrowed_reg.contains(&i) {
 					i += 1;
 				}
