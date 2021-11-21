@@ -8,6 +8,7 @@ llvm-ir = { version = "0.8.0", features = ["llvm-12"] }
 ncurses = "5.99.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+termion = "1.5.6"
 
 [[bin]]
 name = "verify"

@@ -1,13 +1,16 @@
 use std::env;
 use std::fs;
 use std::fs::File;
+use std::io;
 use std::io::prelude::*;
 use std::path::Path;
 use std::process::Command;
 
-extern crate serde_json;
+extern crate termion;
+use termion::{color, style};
 
 extern crate serde;
+extern crate serde_json;
 use serde::Deserialize;
 
 mod bfcc;
@@ -16,6 +19,8 @@ mod bfcc;
 struct TestCase {
 	name: String,
 	output: String,
+	input: Option<String>,
+	skip: Option<bool>,
 }
 
 fn compile_ir(from: &str, to: &str) -> Result<(), String> {
@@ -55,7 +60,18 @@ fn main() {
 			continue;
 		}
 
-		println!("TEST {}", info.name);
+		if info.skip.unwrap_or(false) {
+			println!(
+				"{}SKIP{} {}",
+				color::Fg(color::Yellow),
+				style::Reset,
+				info.name
+			);
+			continue;
+		}
+
+		print!("TEST {}", info.name);
+		io::stdout().flush();
 
 		let source = format!("{}", case.path().as_path().to_str().unwrap());
 		let target = format!("./tests/ir/{}.bc", case.file_name().into_string().unwrap());
@@ -67,6 +83,7 @@ fn main() {
 
 		let result = exec(&bf_code, "").unwrap();
 		if result.output != info.output {
+			print!("\n");
 			println!("OUTPUT MISMATCH");
 			println!("---");
 			println!("expected: {}", info.output);
@@ -74,7 +91,12 @@ fn main() {
 			println!("---");
 			println!("source: {}", source);
 			println!("target: {}", bfout);
-			println!("FAIL {}", info.name);
+			println!(
+				"{}FAIL{} {}",
+				color::Fg(color::Red),
+				style::Reset,
+				info.name,
+			);
 			continue;
 		}
 
@@ -87,7 +109,12 @@ fn main() {
 			.write_all(format!("steps: {}\n", result.steps).as_bytes())
 			.unwrap();
 
-		println!("PASS {}", info.name);
+		println!(
+			"\r{}PASS{} {}",
+			color::Fg(color::Green),
+			style::Reset,
+			info.name,
+		);
 	}
 }
 

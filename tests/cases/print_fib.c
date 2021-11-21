@@ -1,6 +1,6 @@
 #include "stdfuck.h"
 
-// TEST:{ "func": "main", "output": "1 1 2 3 5 8" }
+// TEST:{ "skip": true, "name": "print fib loop", "output": "1 1 2 3 5 8" }
 int main() {
   uint8_t at = 1;
   uint8_t last = 0;

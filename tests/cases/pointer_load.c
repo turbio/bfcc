@@ -1,6 +1,6 @@
 #include "stdfuck.h"
 
-// TEST:{ "func": "main", "output": "pppp" }
+// TEST:{ "skip": true, "name": "pointer load", "output": "pppp" }
 int main() {
   int a = 'p';
   int *b = &a;

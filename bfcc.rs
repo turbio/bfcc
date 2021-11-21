@@ -153,6 +153,161 @@ enum BfOp {
 	Comment(String),    // if you see something say something
 }
 
+fn build_icmp(
+	borrow_reg: &mut dyn FnMut(&mut Vec<Option<usize>>, usize) -> usize,
+	onstack: &mut Vec<Option<usize>>,
+	pred: llvm_ir::IntPredicate,
+	op0: usize,
+	op1: usize,
+	dest: usize,
+) -> Vec<BfOp> {
+	let mut icmp_out = Vec::<BfOp>::new();
+
+	match pred {
+		llvm_ir::IntPredicate::SLT => {
+			let tmps = borrow_reg(onstack, 4);
+
+			let temp0 = tmps;
+			let temp1 = tmps + 1; // and scratch + 3, scratch + 4
+
+			icmp_out.push(BfOp::Tag(temp0, format!("temp0")));
+			icmp_out.push(BfOp::Tag(temp1, format!("temp1_a")));
+			icmp_out.push(BfOp::Tag(temp1 + 1, format!("temp1_b")));
+			icmp_out.push(BfOp::Tag(temp1 + 2, format!("temp1_c")));
+
+			icmp_out.push(BfOp::Mov(op0, dest));
+
+			// ---
+
+			icmp_out.push(BfOp::AddI(temp1 + 1, 1));
+
+			icmp_out.push(BfOp::Dup(op1, temp0, temp1 + 0));
+			icmp_out.push(BfOp::Mov(temp0, op1));
+
+			icmp_out.push(BfOp::Mov(dest, temp0));
+			icmp_out.push(BfOp::AddI(dest, 1));
+
+			// temp1[>-]
+			// >
+			// [
+			//     <
+			//     x-
+			//     temp0[-]
+			//     temp1>->
+			// ]
+			// <+<
+			icmp_out.push(BfOp::Goto(temp1 + 0));
+			icmp_out.push(BfOp::Literal("[>-]> [<".to_string()));
+
+			icmp_out.push(BfOp::Goto(dest));
+			icmp_out.push(BfOp::Literal("-".to_string()));
+
+			icmp_out.push(BfOp::Goto(temp0));
+			icmp_out.push(BfOp::Literal("[-]".to_string()));
+
+			icmp_out.push(BfOp::Goto(temp1 + 0));
+			icmp_out.push(BfOp::Literal(">->]<+<".to_string()));
+
+			// temp0[
+			//     temp1- [>-]
+			//     >
+			//     [< x- temp0[-]+ temp1>->]
+			//     <+<
+			//     temp0-
+			// ]
+			icmp_out.push(BfOp::Goto(temp0));
+			icmp_out.push(BfOp::Literal("[".to_string()));
+
+			icmp_out.push(BfOp::Goto(temp1 + 0));
+			icmp_out.push(BfOp::Literal("- [>-]> [<".to_string()));
+
+			icmp_out.push(BfOp::Goto(dest));
+			icmp_out.push(BfOp::Literal("-".to_string()));
+
+			icmp_out.push(BfOp::Goto(temp0));
+			icmp_out.push(BfOp::Literal("[-]+".to_string()));
+
+			icmp_out.push(BfOp::Goto(temp1 + 0));
+			icmp_out.push(BfOp::Literal(">->]<+<".to_string()));
+
+			icmp_out.push(BfOp::Goto(temp0));
+			icmp_out.push(BfOp::Literal("-]".to_string()));
+
+			icmp_out.push(BfOp::Zero(op1));
+			// icmp_out.push(BfOp::Zero(op0)); // zeroed above
+			// icmp_out.push(BfOp::Zero(temp0)); // zeroed above
+
+			icmp_out.push(BfOp::Zero(temp1 + 0));
+			icmp_out.push(BfOp::Zero(temp1 + 1));
+			icmp_out.push(BfOp::Zero(temp1 + 2));
+		}
+
+		llvm_ir::IntPredicate::NE => {
+			let tmp0 = borrow_reg(onstack, 1);
+			let tmp1 = borrow_reg(onstack, 1);
+
+			// sub no underflow:
+			// a | ... | u flag | ... | b | 0 | 1
+			//
+			// a[- b [->]  |   >   |  [<]  | <  | a]
+			//             |       |       |    |
+			//          b or 0     |       0    b
+			//                  0 or 1
+
+			let tmps = borrow_reg(onstack, 3);
+			let tmpb = tmps;
+			let tmp0 = tmps + 1;
+			let tmp1 = tmps + 2;
+
+			let underflow = borrow_reg(onstack, 1);
+
+			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
+			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
+			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
+			icmp_out.push(BfOp::Tag(underflow, format!("icmp_under")));
+
+			icmp_out.push(BfOp::Mov(op1, tmpb));
+			icmp_out.push(BfOp::AddI(tmp1, 1));
+
+			icmp_out.push(BfOp::Loop(
+				op0,
+				vec![
+					BfOp::SubI(op0, 1),
+					BfOp::AddI(underflow, 1),
+					BfOp::Loop(
+						tmpb,
+						vec![
+							BfOp::SubI(tmpb, 1),
+							BfOp::SubI(underflow, 1),
+							BfOp::Right(1),
+						],
+					),
+					BfOp::Right(1),
+					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
+					BfOp::Left(1),
+				],
+			));
+
+			// don't need to worry about casting to i1 since it'll either
+			// underflow xor have a remainter in tmpb
+			icmp_out.push(BfOp::Loop(
+				tmpb,
+				vec![BfOp::Zero(tmpb), BfOp::AddI(dest, 1)],
+			));
+			icmp_out.push(BfOp::Loop(
+				underflow,
+				vec![BfOp::Zero(underflow), BfOp::AddI(dest, 1)],
+			));
+
+			icmp_out.push(BfOp::Zero(tmp1));
+		}
+
+		_ => unimplemented!("ohlort predicate {}", pred),
+	}
+
+	icmp_out
+}
+
 fn build_func(
 	funcns: usize,
 	st_width: usize,
@@ -285,7 +440,7 @@ fn build_func(
 			// this borrows control flow regs.
 			//
 			// TODO(turbio): also also this needs to be used after all gives/takes
-			let mut borrow_reg = |_st: &mut Vec<Option<usize>>, contig: usize| -> usize {
+			let mut borrow_reg = |st: &mut Vec<Option<usize>>, contig: usize| -> usize {
 				for i in 0..func2id[func.name.as_str()].blks.len() {
 					if borrowed_reg.contains(&(fntop + i)) {
 						continue;
@@ -300,28 +455,47 @@ fn build_func(
 							for k in 0..contig {
 								borrowed_reg.push(fntop + i + k);
 							}
+
 							return fntop + i;
 						}
 					}
 				}
 
-				panic!("ee");
+				// TODO(turbio): it's be nice to use parts of the stack bewteen
+				// to living values but starting from the and searching
+				// backwards is way easier.
 
-				// for (i, v) in st.iter().enumerate() {
-				// 	let i = allocs.len() + ftop + i;
-				// 	if v.is_none() && !borrowed_reg.contains(&i) {
-				// 		borrowed_reg.push(i);
-				// 		return i;
-				// 	}
-				// }
+				for i in 0..st.len() {
+					if borrowed_reg.contains(&(ftop + i)) {
+						continue;
+					}
 
-				// let mut i = allocs.len() + st.len() + ftop;
-				// while borrowed_reg.contains(&i) {
-				// 	i += 1;
-				// }
+					for j in (i + 1)..st.len() {
+						if borrowed_reg.contains(&(ftop + j)) {
+							break;
+						}
 
-				// borrowed_reg.push(i);
-				// i
+						if j - i == contig {
+							for k in 0..contig {
+								borrowed_reg.push(ftop + i + k);
+							}
+
+							return ftop + i;
+						}
+					}
+				}
+
+				let mut i = allocs.len() + st.len() + ftop;
+				while borrowed_reg.contains(&i) {
+					i += 1;
+				}
+
+				for ch in 0..contig {
+					assert!(!borrowed_reg.contains(&(i + ch))); // todo this can fail
+					borrowed_reg.push(i + ch);
+				}
+
+				i
 			};
 
 			let _release_reg = |_st: &mut Vec<Option<usize>>, _r: usize| {
@@ -504,8 +678,8 @@ fn build_func(
 					blockloop.push(BfOp::Dup(addr, tmp, dest));
 					blockloop.push(BfOp::Mov(tmp, addr));
 				}
+
 				llvm_ir::Instruction::ICmp(i) => {
-					// nopalmost
 					let dest = give_reg(&mut onstack, &i.dest);
 					let op0 = take_reg(&mut onstack, &unlop(&i.operand0));
 
@@ -523,74 +697,27 @@ fn build_func(
 						_ => unimplemented!("ignoring meta?"),
 					};
 
-					let tmps = borrow_reg(&mut onstack, 4);
-
-					let temp0 = tmps;
-					let temp1 = tmps + 1; // and scratch + 3, scratch + 4
-
-					blockloop.push(BfOp::Tag(temp0, format!("temp0")));
-					blockloop.push(BfOp::Tag(temp1, format!("temp1_a")));
-					blockloop.push(BfOp::Tag(temp1 + 1, format!("temp1_b")));
-					blockloop.push(BfOp::Tag(temp1 + 2, format!("temp1_c")));
 					blockloop.push(BfOp::Tag(
 						dest,
 						format!(
-							"%{}_icmp_%{}_lt_{}",
+							"%{}_icmp_%{}_{}_{}",
 							n2usize(&i.dest),
 							i.operand0,
+							i.predicate,
 							i.operand1
 						),
 					));
 
-					blockloop.push(BfOp::Mov(op0, dest));
-
-					match i.predicate {
-						llvm_ir::IntPredicate::SLT => {
-							blockloop.push(BfOp::AddI(temp1 + 1, 1));
-
-							// y[temp0+ temp1+ y-]
-							// x[temp0+ x-]+
-							blockloop.push(BfOp::Dup(op1, temp0, temp1 + 0));
-							blockloop.push(BfOp::Mov(temp0, op1));
-
-							blockloop.push(BfOp::Mov(dest, temp0));
-							blockloop.push(BfOp::AddI(dest, 1));
-
-							// temp1[>-]> [< x- temp0[-] temp1>->]<+<
-							blockloop.push(BfOp::Goto(temp1 + 0));
-							blockloop.push(BfOp::Literal("[>-]> [<".to_string()));
-							blockloop.push(BfOp::Goto(dest));
-							blockloop.push(BfOp::Literal("-".to_string()));
-							blockloop.push(BfOp::Goto(temp0));
-							blockloop.push(BfOp::Literal("[-]".to_string()));
-							blockloop.push(BfOp::Goto(temp1 + 0));
-							blockloop.push(BfOp::Literal(">->]<+<".to_string()));
-
-							// temp0[temp1- [>-]> [< x- temp0[-]+ temp1>->]<+< temp0-]
-							blockloop.push(BfOp::Goto(temp0));
-							blockloop.push(BfOp::Literal("[".to_string()));
-							blockloop.push(BfOp::Goto(temp1 + 0));
-							blockloop.push(BfOp::Literal("- [>-]> [<".to_string()));
-							blockloop.push(BfOp::Goto(dest));
-							blockloop.push(BfOp::Literal("-".to_string()));
-							blockloop.push(BfOp::Goto(temp0));
-							blockloop.push(BfOp::Literal("[-]+".to_string()));
-							blockloop.push(BfOp::Goto(temp1 + 0));
-							blockloop.push(BfOp::Literal(">->]<+<".to_string()));
-							blockloop.push(BfOp::Goto(temp0));
-							blockloop.push(BfOp::Literal("-]".to_string()));
-
-							blockloop.push(BfOp::Zero(op1));
-							// blockloop.push(BfOp::Zero(op0)); // zeroed above
-							// blockloop.push(BfOp::Zero(temp0)); // zeroed above
-
-							blockloop.push(BfOp::Zero(temp1 + 0));
-							blockloop.push(BfOp::Zero(temp1 + 1));
-							blockloop.push(BfOp::Zero(temp1 + 2));
-						}
-						_ => unimplemented!("ohlort predicate {}", i.predicate),
-					}
+					blockloop.append(&mut build_icmp(
+						&mut borrow_reg,
+						&mut onstack,
+						i.predicate,
+						op0,
+						op1,
+						dest,
+					));
 				}
+
 				llvm_ir::Instruction::Add(a) => {
 					// yep
 					let dest = give_reg(&mut onstack, &a.dest);
@@ -619,6 +746,42 @@ fn build_func(
 					blockloop.push(BfOp::Mov(op0, dest));
 					blockloop.push(BfOp::Mov(op1, dest));
 				}
+
+				llvm_ir::Instruction::Sub(a) => {
+					// yep
+					let dest = give_reg(&mut onstack, &a.dest);
+
+					let op0 = take_reg(&mut onstack, &unlop(&a.operand0));
+					let op1 = match &a.operand1 {
+						llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
+							llvm_ir::constant::Constant::Int { value, .. } => {
+								let op1_tmp = borrow_reg(&mut onstack, 1);
+								blockloop.push(BfOp::AddI(op1_tmp, *value as u8));
+								op1_tmp
+							}
+							_ => unimplemented!("eek"),
+						},
+						llvm_ir::Operand::LocalOperand { name, .. } => {
+							take_reg(&mut onstack, &name)
+						}
+						_ => unimplemented!("nani?"),
+					};
+
+					blockloop.push(BfOp::Tag(
+						dest,
+						format!("%{}_sub_%{}_c{}", a.dest, a.operand0, a.operand1),
+					));
+
+					blockloop.push(BfOp::Mov(op0, dest));
+
+					blockloop.push(BfOp::Goto(op1));
+					blockloop.push(BfOp::Literal(format!("[-")));
+					blockloop.push(BfOp::Goto(dest));
+					blockloop.push(BfOp::Literal(format!("-")));
+					blockloop.push(BfOp::Goto(op1));
+					blockloop.push(BfOp::Literal(format!("]")));
+				}
+
 				llvm_ir::Instruction::ZExt(i) => {
 					// yep
 					// big lies! it's actually a nop
@@ -793,7 +956,7 @@ pub fn compile(path: &Path) -> String {
 
 	let ret_pad_width = 1 + funcns + RET_LANDING_PAD;
 
-	root.push(BfOp::Right(ret_pad_width+1));
+	root.push(BfOp::Right(ret_pad_width + 1));
 	root.push(BfOp::Comment("runtime init:".to_string()));
 	root.push(BfOp::Tag(0, "__FRAME__ENTRY__".to_string()));
 	root.push(BfOp::AddI(0, 1));
