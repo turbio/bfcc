@@ -1,4 +1,4 @@
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+>>>>
 runtime init:
 #__FRAME__ENTRY__
 +
@@ -6,11 +6,10 @@ runtime init:
 +
 >#main/b0
 +
-
 <<[
 	>#main
 	[
-		>>#main/ret_landing_pad
+		>>#main/RET_LANDING_PAD
 		[
 			<<<-
 			#dead_frame
@@ -18,7 +17,7 @@ runtime init:
 			<#dead_fn_pad/main
 			>>>-
 			<<<
-			<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+			<<<<<<
 		>>>]
 		<#main/11100
 		[

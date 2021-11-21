@@ -7,6 +7,4 @@ void call_me(int b, int c, int d) {
 }
 
 // TEST:{ "name": "call_args", "output": "123" }
-void main(void) {
-  call_me('1', '2', '3');
-};
+void main(void) { call_me('1', '2', '3'); };

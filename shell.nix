@@ -3,7 +3,9 @@ pkgs.mkShell {
   buildInputs = with pkgs;[
     clang_12
     cargo
+    rls
     rustc
+    rustfmt
     ncurses
     libffi
     libxml2

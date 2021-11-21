@@ -4,9 +4,7 @@ void a(void);
 void b(void);
 void c(void);
 
-void c(void) {
-  putchar('.');
-}
+void c(void) { putchar('.'); }
 
 void b(void) {
   for (int i = 0; i < 2; i++) {
@@ -21,6 +19,4 @@ void a(void) {
 }
 
 // TEST:{ "name": "calls", "output": "...." }
-void main(void) {
-  a();
-};
+void main(void) { a(); };
