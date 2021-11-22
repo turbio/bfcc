@@ -24,7 +24,7 @@ struct TestCase {
 }
 
 fn compile_ir(from: &str, to: &str) -> Result<(), String> {
-	Command::new("clang")
+	let res = Command::new("clang")
 		.args(["-O0", "-emit-llvm", "-I", ".", "-c", from, "-o", to])
 		.output()
 		.map_err(|e| e.to_string())
@@ -33,7 +33,15 @@ fn compile_ir(from: &str, to: &str) -> Result<(), String> {
 			false => Err(std::str::from_utf8(o.stderr.as_slice())
 				.unwrap()
 				.to_string()),
-		})
+		});
+
+	// be nice and write out the human readable ir too
+	Command::new("llvm-dis")
+		.args([from, "-o", &format!("{}.ll", to)])
+		.output()
+		.unwrap();
+
+	res
 }
 
 fn compile_bf(path: &Path, target: &Path) -> String {

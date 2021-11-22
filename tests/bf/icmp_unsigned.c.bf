@@ -41,9 +41,9 @@ runtime init:
 			>#tmp0_for_load
 			<<<[->>>+<+<<]
 			>>>[-<<<+>>>]
-			%5 = icmp slt i32 %4_ i32 20
+			%5 = icmp ult i32 %4_ i32 20
 			>++++++++++++++++++++
-			<#%5_icmp_%i32_%4_slt_i32_20
+			<#%5_icmp_%i32_%4_ult_i32_20
 			>>#temp0
 			>#temp1_a
 			>#temp1_b
@@ -113,9 +113,9 @@ runtime init:
 			>>#tmp0_for_load
 			<<<[->>>+<<+<]
 			>>>[-<<<+>>>]
-			%9 = icmp slt i32 %8_ i32 20
+			%9 = icmp ult i32 %8_ i32 20
 			++++++++++++++++++++
-			<#%9_icmp_%i32_%8_slt_i32_20
+			<#%9_icmp_%i32_%8_ult_i32_20
 			>>#temp0
 			>#temp1_a
 			>#temp1_b
@@ -180,8 +180,8 @@ runtime init:
 			>#tmp0_for_load
 			<<<[->>>+<+<<]
 			>>>[-<<<+>>>]
-			%13 = icmp slt i32 %11_ i32 %12
-			#%13_icmp_%i32_%11_slt_i32_%12
+			%13 = icmp ult i32 %11_ i32 %12
+			#%13_icmp_%i32_%11_ult_i32_%12
 			>#temp0
 			>#temp1_a
 			>#temp1_b
@@ -426,8 +426,8 @@ runtime init:
 			>>#tmp0_for_load
 			<<<<[->>>>+<<+<<]
 			>>>>[-<<<<+>>>>]
-			%28 = icmp sgt i32 %26_ i32 %27
-			<#%28_icmp_%i32_%26_sgt_i32_%27
+			%28 = icmp ugt i32 %26_ i32 %27
+			<#%28_icmp_%i32_%26_ugt_i32_%27
 			>>>#icmp_tmpb
 			>#icmp_tmp0
 			>#icmp_tmp1
@@ -499,8 +499,8 @@ runtime init:
 			>>#tmp0_for_load
 			<<<<[->>>>+<<+<<]
 			>>>>[-<<<<+>>>>]
-			%33 = icmp sle i32 %31_ i32 %32
-			<#%33_icmp_%i32_%31_sle_i32_%32
+			%33 = icmp ule i32 %31_ i32 %32
+			<#%33_icmp_%i32_%31_ule_i32_%32
 			>>>#icmp_tmpb
 			>#icmp_tmp0
 			>#icmp_tmp1
@@ -573,8 +573,8 @@ runtime init:
 			>>#tmp0_for_load
 			<<<<[->>>>+<<+<<]
 			>>>>[-<<<<+>>>>]
-			%38 = icmp sge i32 %36_ i32 %37
-			<#%38_icmp_%i32_%36_sge_i32_%37
+			%38 = icmp uge i32 %36_ i32 %37
+			<#%38_icmp_%i32_%36_uge_i32_%37
 			>>>#icmp_tmpb
 			>#icmp_tmp0
 			>#icmp_tmp1

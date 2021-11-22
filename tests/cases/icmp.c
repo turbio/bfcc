@@ -1,6 +1,6 @@
 #include "stdfuck.h"
 
-// TEST:{ "name": "icmp_lt_eq_gt_ne", "output": "e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e,ln,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,ng,e," }
+// TEST:{ "name": "icmp_lt_eq_gt_ne", "output": "eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG,lnL,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,ngG,eLG," }
 void main(void) {
   for (int i = 0; i < 20; i++) {
     for (int j = 0; j < 20; j++) {
@@ -18,6 +18,14 @@ void main(void) {
 
       if (i > j) {
         putchar('g');
+      }
+
+      if (i <= j) {
+        putchar('L');
+      }
+
+      if (i >= j) {
+        putchar('G');
       }
 
       putchar(',');
