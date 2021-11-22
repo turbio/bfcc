@@ -36,10 +36,7 @@ fn compile_ir(from: &str, to: &str) -> Result<(), String> {
 		});
 
 	// be nice and write out the human readable ir too
-	Command::new("llvm-dis")
-		.args([from, "-o", &format!("{}.ll", to)])
-		.output()
-		.unwrap();
+	Command::new("llvm-dis").args([to]).output().unwrap();
 
 	res
 }
