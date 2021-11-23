@@ -151,6 +151,8 @@ enum BfOp {
 	// debug
 	Tag(usize, String), // tag address with name in debugger
 	Comment(String),    // if you see something say something
+
+	Nop,
 }
 
 fn build_icmp(
@@ -163,299 +165,133 @@ fn build_icmp(
 ) -> Vec<BfOp> {
 	let mut icmp_out = Vec::<BfOp>::new();
 
+	let tmps = borrow_reg(onstack, 3);
+
+	icmp_out.push(BfOp::Tag(tmps, format!("icmp_tmpb")));
+	icmp_out.push(BfOp::Tag(tmps + 1, format!("icmp_tmp0")));
+	icmp_out.push(BfOp::Tag(tmps + 2, format!("icmp_tmp1")));
+
+	// these are all based around sub w/o underflow:
+	// a | ... | u flag | ... | b | 0 | 1
+	//
+	// a[- b [->]  |   >   |  [<]  | <  | a]
+	//             |       |       |    |
+	//          b or 0     |       0    b
+	//                  0 or 1
+	//
+	// Both minuend and subtrahend will be zeroed by this algorithm. The
+	// returned usize will be the difference.
+	//
+	// theres an optinal underflow flag if a subtraction to the minuend would
+	// cause the cell to go negative then this address will be >= 1.
+	let subnu = |minuend: usize, subtractend: usize, underflow: Option<usize>| {
+		let tmpb = tmps;
+		// let tmp0 = tmps + 1;
+		let tmp1 = tmps + 2;
+
+		(
+			vec![
+				BfOp::Mov(minuend, tmpb),
+				BfOp::AddI(tmp1, 1),
+				BfOp::Loop(
+					subtractend,
+					vec![
+						BfOp::SubI(subtractend, 1),
+						if underflow.is_some() {
+							BfOp::AddI(underflow.unwrap(), 1)
+						} else {
+							BfOp::Nop
+						},
+						BfOp::Loop(
+							tmpb,
+							vec![
+								BfOp::SubI(tmpb, 1),
+								if underflow.is_some() {
+									BfOp::SubI(underflow.unwrap(), 1)
+								} else {
+									BfOp::Nop
+								},
+								BfOp::Right(1),
+							],
+						),
+						BfOp::Right(1),
+						BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
+						BfOp::Left(1),
+					],
+				),
+				BfOp::Zero(tmp1),
+			],
+			tmpb,
+		)
+	};
+
 	match pred {
-		// most of the comparison stuff is based around sub w/ no underflow:
-		// a | ... | u flag | ... | b | 0 | 1
-		//
-		// a[- b [->]  |   >   |  [<]  | <  | a]
-		//             |       |       |    |
-		//          b or 0     |       0    b
-		//                  0 or 1
 		llvm_ir::IntPredicate::SLT | llvm_ir::IntPredicate::ULT => {
-			let tmps = borrow_reg(onstack, 4);
-
-			let temp0 = tmps;
-			let temp1 = tmps + 1; // and scratch + 3, scratch + 4
-
-			icmp_out.push(BfOp::Tag(temp0, format!("temp0")));
-			icmp_out.push(BfOp::Tag(temp1, format!("temp1_a")));
-			icmp_out.push(BfOp::Tag(temp1 + 1, format!("temp1_b")));
-			icmp_out.push(BfOp::Tag(temp1 + 2, format!("temp1_c")));
-
-			icmp_out.push(BfOp::Mov(op0, dest));
-
-			// ---
-
-			icmp_out.push(BfOp::AddI(temp1 + 1, 1));
-
-			icmp_out.push(BfOp::Dup(op1, temp0, temp1 + 0));
-			icmp_out.push(BfOp::Mov(temp0, op1));
-
-			icmp_out.push(BfOp::Mov(dest, temp0));
-			icmp_out.push(BfOp::AddI(dest, 1));
-
-			// temp1[>-]
-			// >
-			// [
-			//     <
-			//     x-
-			//     temp0[-]
-			//     temp1>->
-			// ]
-			// <+<
-			icmp_out.push(BfOp::Goto(temp1 + 0));
-			icmp_out.push(BfOp::Literal("[>-]> [<".to_string()));
-
-			icmp_out.push(BfOp::Goto(dest));
-			icmp_out.push(BfOp::Literal("-".to_string()));
-
-			icmp_out.push(BfOp::Goto(temp0));
-			icmp_out.push(BfOp::Literal("[-]".to_string()));
-
-			icmp_out.push(BfOp::Goto(temp1 + 0));
-			icmp_out.push(BfOp::Literal(">->]<+<".to_string()));
-
-			// temp0[
-			//     temp1- [>-]
-			//     >
-			//     [< x- temp0[-]+ temp1>->]
-			//     <+<
-			//     temp0-
-			// ]
-			icmp_out.push(BfOp::Goto(temp0));
-			icmp_out.push(BfOp::Literal("[".to_string()));
-
-			icmp_out.push(BfOp::Goto(temp1 + 0));
-			icmp_out.push(BfOp::Literal("- [>-]> [<".to_string()));
-
-			icmp_out.push(BfOp::Goto(dest));
-			icmp_out.push(BfOp::Literal("-".to_string()));
-
-			icmp_out.push(BfOp::Goto(temp0));
-			icmp_out.push(BfOp::Literal("[-]+".to_string()));
-
-			icmp_out.push(BfOp::Goto(temp1 + 0));
-			icmp_out.push(BfOp::Literal(">->]<+<".to_string()));
-
-			icmp_out.push(BfOp::Goto(temp0));
-			icmp_out.push(BfOp::Literal("-]".to_string()));
-
-			icmp_out.push(BfOp::Zero(op1));
-			// icmp_out.push(BfOp::Zero(op0)); // zeroed above
-			// icmp_out.push(BfOp::Zero(temp0)); // zeroed above
-
-			icmp_out.push(BfOp::Zero(temp1 + 0));
-			icmp_out.push(BfOp::Zero(temp1 + 1));
-			icmp_out.push(BfOp::Zero(temp1 + 2));
+			let (mut ops, diff) = subnu(op1, op0, None);
+			icmp_out.append(&mut ops);
+			icmp_out.push(BfOp::Loop(
+				diff,
+				vec![BfOp::Zero(diff), BfOp::AddI(dest, 1)],
+			));
 		}
 
 		llvm_ir::IntPredicate::NE => {
-			let tmp0 = borrow_reg(onstack, 1);
-			let tmp1 = borrow_reg(onstack, 1);
-
-			let tmps = borrow_reg(onstack, 3);
-			let tmpb = tmps;
-			let tmp0 = tmps + 1;
-			let tmp1 = tmps + 2;
-
 			let underflow = borrow_reg(onstack, 1);
 
-			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
-			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
-			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
-			icmp_out.push(BfOp::Tag(underflow, format!("icmp_under")));
+			let (mut ops, diff) = subnu(op0, op1, Some(underflow));
 
-			icmp_out.push(BfOp::Mov(op1, tmpb));
-			icmp_out.push(BfOp::AddI(tmp1, 1));
-
-			icmp_out.push(BfOp::Loop(
-				op0,
-				vec![
-					BfOp::SubI(op0, 1),
-					BfOp::AddI(underflow, 1),
-					BfOp::Loop(
-						tmpb,
-						vec![
-							BfOp::SubI(tmpb, 1),
-							BfOp::SubI(underflow, 1),
-							BfOp::Right(1),
-						],
-					),
-					BfOp::Right(1),
-					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
-					BfOp::Left(1),
-				],
-			));
+			icmp_out.append(&mut ops);
 
 			// don't need to worry about casting to i1 since it'll either
-			// underflow xor have a remainter in tmpb
+			// underflow xor have a remainter
 			icmp_out.push(BfOp::Loop(
-				tmpb,
-				vec![BfOp::Zero(tmpb), BfOp::AddI(dest, 1)],
+				diff,
+				vec![BfOp::Zero(diff), BfOp::AddI(dest, 1)],
 			));
 			icmp_out.push(BfOp::Loop(
 				underflow,
 				vec![BfOp::Zero(underflow), BfOp::AddI(dest, 1)],
 			));
-
-			icmp_out.push(BfOp::Zero(tmp1));
 		}
 
 		llvm_ir::IntPredicate::SLE | llvm_ir::IntPredicate::ULE => {
-			let tmp0 = borrow_reg(onstack, 1);
-			let tmp1 = borrow_reg(onstack, 1);
-
-			let tmps = borrow_reg(onstack, 3);
-			let tmpb = tmps;
-			let tmp0 = tmps + 1;
-			let tmp1 = tmps + 2;
-
-			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
-			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
-			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
-
-			icmp_out.push(BfOp::Mov(op0, tmpb));
-			icmp_out.push(BfOp::AddI(tmp1, 1));
-
-			icmp_out.push(BfOp::Loop(
-				op1,
-				vec![
-					BfOp::SubI(op1, 1),
-					BfOp::Loop(tmpb, vec![BfOp::SubI(tmpb, 1), BfOp::Right(1)]),
-					BfOp::Right(1),
-					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
-					BfOp::Left(1),
-				],
-			));
-
-			// basically if there's anything left in tmpb aka op0, it must have
-			// been greater than op1 and thus dest is 0.
+			let (mut ops, diff) = subnu(op0, op1, None);
+			icmp_out.append(&mut ops);
 			icmp_out.push(BfOp::AddI(dest, 1));
-			icmp_out.push(BfOp::Loop(tmpb, vec![BfOp::Zero(tmpb), BfOp::Zero(dest)]));
-
-			icmp_out.push(BfOp::Zero(tmp1));
+			icmp_out.push(BfOp::Loop(diff, vec![BfOp::Zero(diff), BfOp::Zero(dest)]));
 		}
 
 		llvm_ir::IntPredicate::SGE | llvm_ir::IntPredicate::UGE => {
-			let tmp0 = borrow_reg(onstack, 1);
-			let tmp1 = borrow_reg(onstack, 1);
-
-			let tmps = borrow_reg(onstack, 3);
-			let tmpb = tmps;
-			let tmp0 = tmps + 1;
-			let tmp1 = tmps + 2;
-
-			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
-			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
-			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
-
-			icmp_out.push(BfOp::Mov(op1, tmpb));
-			icmp_out.push(BfOp::AddI(tmp1, 1));
-
-			icmp_out.push(BfOp::Loop(
-				op0,
-				vec![
-					BfOp::SubI(op0, 1),
-					BfOp::Loop(tmpb, vec![BfOp::SubI(tmpb, 1), BfOp::Right(1)]),
-					BfOp::Right(1),
-					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
-					BfOp::Left(1),
-				],
-			));
-
-			// basically if there's anything left in tmpb aka op0, it must have
-			// been greater than op1 and thus dest is 0.
+			let (mut ops, diff) = subnu(op1, op0, None);
+			icmp_out.append(&mut ops);
 			icmp_out.push(BfOp::AddI(dest, 1));
-			icmp_out.push(BfOp::Loop(tmpb, vec![BfOp::Zero(tmpb), BfOp::Zero(dest)]));
-
-			icmp_out.push(BfOp::Zero(tmp1));
+			icmp_out.push(BfOp::Loop(diff, vec![BfOp::Zero(diff), BfOp::Zero(dest)]));
 		}
 
 		llvm_ir::IntPredicate::EQ => {
-			let tmp0 = borrow_reg(onstack, 1);
-			let tmp1 = borrow_reg(onstack, 1);
-
-			let tmps = borrow_reg(onstack, 3);
-			let tmpb = tmps;
-			let tmp0 = tmps + 1;
-			let tmp1 = tmps + 2;
-
 			let underflow = borrow_reg(onstack, 1);
 
-			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
-			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
-			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
-			icmp_out.push(BfOp::Tag(underflow, format!("icmp_under")));
-
-			icmp_out.push(BfOp::Mov(op1, tmpb));
-			icmp_out.push(BfOp::AddI(tmp1, 1));
-
-			icmp_out.push(BfOp::Loop(
-				op0,
-				vec![
-					BfOp::SubI(op0, 1),
-					BfOp::AddI(underflow, 1),
-					BfOp::Loop(
-						tmpb,
-						vec![
-							BfOp::SubI(tmpb, 1),
-							BfOp::SubI(underflow, 1),
-							BfOp::Right(1),
-						],
-					),
-					BfOp::Right(1),
-					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
-					BfOp::Left(1),
-				],
-			));
+			let (mut ops, diff) = subnu(op1, op0, Some(underflow));
+			icmp_out.append(&mut ops);
 
 			icmp_out.push(BfOp::AddI(dest, 1));
 
-			icmp_out.push(BfOp::Loop(tmpb, vec![BfOp::Zero(tmpb), BfOp::Zero(dest)]));
+			icmp_out.push(BfOp::Loop(diff, vec![BfOp::Zero(diff), BfOp::Zero(dest)]));
 			icmp_out.push(BfOp::Loop(
 				underflow,
 				vec![BfOp::Zero(underflow), BfOp::Zero(dest)],
 			));
-
-			icmp_out.push(BfOp::Zero(tmp1));
 		}
 
 		llvm_ir::IntPredicate::SGT | llvm_ir::IntPredicate::UGT => {
-			let tmp0 = borrow_reg(onstack, 1);
-			let tmp1 = borrow_reg(onstack, 1);
-
-			let tmps = borrow_reg(onstack, 3);
-			let tmpb = tmps;
-			let tmp0 = tmps + 1;
-			let tmp1 = tmps + 2;
-
-			icmp_out.push(BfOp::Tag(tmpb, format!("icmp_tmpb")));
-			icmp_out.push(BfOp::Tag(tmp0, format!("icmp_tmp0")));
-			icmp_out.push(BfOp::Tag(tmp1, format!("icmp_tmp1")));
-
-			icmp_out.push(BfOp::Mov(op0, tmpb));
-			icmp_out.push(BfOp::AddI(tmp1, 1));
+			let (mut ops, diff) = subnu(op0, op1, None);
+			icmp_out.append(&mut ops);
 
 			icmp_out.push(BfOp::Loop(
-				op1,
-				vec![
-					BfOp::SubI(op1, 1),
-					BfOp::Loop(tmpb, vec![BfOp::SubI(tmpb, 1), BfOp::Right(1)]),
-					BfOp::Right(1),
-					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
-					BfOp::Left(1),
-				],
+				diff,
+				vec![BfOp::Zero(diff), BfOp::AddI(dest, 1)],
 			));
-
-			icmp_out.push(BfOp::Loop(
-				tmpb,
-				vec![BfOp::Zero(tmpb), BfOp::AddI(dest, 1)],
-			));
-
-			icmp_out.push(BfOp::Zero(tmp1));
 		}
-
-		_ => unimplemented!("ohlort predicate {}", pred),
 	}
 
 	icmp_out
@@ -775,12 +611,20 @@ fn build_func(
 					match c.allocated_type.deref() {
 						llvm_ir::Type::IntegerType { .. } => {
 							blockloop.push(BfOp::Tag(dest, format!("alloca_{}", c.dest)));
-
-							//assert!(*bits == 8, "ohno {} bits", bits)
-							// lolz
 						}
+
+						llvm_ir::Type::PointerType {
+							pointee_type: _,
+							addr_space: _,
+						} => {
+							blockloop.push(BfOp::Tag(dest, format!("alloca_ptr_{}", c.dest)));
+						}
+
 						_ => {
-							unimplemented!("those types arent welcome here")
+							unimplemented!(
+								"those types arent welcome here {:?}",
+								c.allocated_type.deref()
+							)
 						}
 					};
 				}
@@ -957,26 +801,27 @@ fn build_func(
 					blockloop.push(BfOp::Literal(format!("]")));
 				}
 
+				// these are all lies and actually nops
 				llvm_ir::Instruction::ZExt(i) => {
-					// yep
-					// big lies! it's actually a nop
 					let dest = give_reg(&mut onstack, &i.dest);
 					let src = take_reg(&mut onstack, &unlop(&i.operand));
-
 					blockloop.push(BfOp::Tag(dest, format!("%{}_zext_%{}", i.dest, i.operand)));
-					// move src -> dest
 					blockloop.push(BfOp::Mov(src, dest));
 				}
 				llvm_ir::Instruction::Trunc(i) => {
-					// yep
-					// big lies! it's actually a nop
 					let dest = give_reg(&mut onstack, &i.dest);
 					let src = take_reg(&mut onstack, &unlop(&i.operand));
-
 					blockloop.push(BfOp::Tag(dest, format!("%{}_trunc_%{}", i.dest, i.operand)));
 					blockloop.push(BfOp::Mov(src, dest));
-
-					// move src -> dest
+				}
+				llvm_ir::Instruction::PtrToInt(i) => {
+					let dest = give_reg(&mut onstack, &i.dest);
+					let src = take_reg(&mut onstack, &unlop(&i.operand));
+					blockloop.push(BfOp::Tag(
+						dest,
+						format!("%{}_ptrtoi_%{}", i.dest, i.operand),
+					));
+					blockloop.push(BfOp::Mov(src, dest));
 				}
 				_ => {
 					unimplemented!("instruction? {}", instr);
@@ -1285,6 +1130,8 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 
 			write!(out, "{}{}]", ind, m).unwrap();
 		}
+
+		BfOp::Nop => {}
 	}
 
 	write!(out, "\n").unwrap();
