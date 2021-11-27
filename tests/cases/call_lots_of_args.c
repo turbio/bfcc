@@ -24,9 +24,11 @@ void twelve_args(int a, int b, int c, int d, int e, int f, int g, int h, int i,
   putchar(l);
 }
 
-// TEST:{ "name": "call_many_args", "output": "OwOdaddylmaomydude!?" }
+// TEST:{ "name": "call_many_args", "output": "OwO\nzaddy\nlmaomydude!?" }
 void main(void) {
   three_args('O', 'w', 'O');
-  five_args('d', 'a', 'd', 'd', 'y');
+  putchar('\n');
+  five_args('z', 'a', 'd', 'd', 'y');
+  putchar('\n');
   twelve_args('l', 'm', 'a', 'o', 'm', 'y', 'd', 'u', 'd', 'e', '!', '?');
 };

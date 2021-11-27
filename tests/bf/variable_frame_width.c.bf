@@ -1,4 +1,6 @@
 >>>>
+++++
+>
 runtime init:
 #__FRAME__ENTRY__
 +
@@ -46,7 +48,10 @@ runtime init:
 			#dead_frame
 			>-
 			<
-			<<<<
+			<
+			[-]
+			>
+			<<<<<
 		>>>>>]
 	<<<<]
 <]

@@ -1,4 +1,6 @@
 >>>>
+++++
+>
 runtime init:
 #__FRAME__ENTRY__
 +
@@ -45,7 +47,7 @@ runtime init:
 			<<<[->>>+<+<<]
 			>>>[-<<<+>>>]
 			%4 = zext i8 %3 to i32
-			#%%4_zext_%i8_%3
+			#%4_zext_i8_%3
 			<[->+<]
 			%5 = load i8* %2_ align 1
 			#load_%2_to_%5
@@ -53,7 +55,7 @@ runtime init:
 			<<<[->>>+<<+<]
 			>>>[-<<<+>>>]
 			%6 = zext i8 %5 to i32
-			#%%6_zext_%i8_%5
+			#%6_zext_i8_%5
 			<<[->>+<<]
 			%7 = sub i32 %4_ i32 %6
 			#%%7_sub_%i32_%4_ci32_%6
@@ -65,7 +67,7 @@ runtime init:
 			>>
 			]
 			%8 = trunc i32 %7 to i8
-			<#%%8_trunc_%i32_%7
+			<#%8_trunc_i32_%7
 			<[->+<]
 			call @putchar(i8 %8)
 			enable next
@@ -85,7 +87,10 @@ runtime init:
 			#dead_frame
 			>-
 			<
-			<<<<
+			<
+			[-]
+			>
+			<<<<<
 		>>>>>]
 	<<<<]
 <]

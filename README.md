@@ -76,6 +76,7 @@ Floating point, signed, and other fancy instructions are also ignored. For now t
   (sometimes?) mostly consume.
   - except for loads... cause that's memory dude
   - also mangling vs consumption semantics are unclear
+- hmm so like what's the smallest instruction set to bootstrap the rest in c
 - register reuse, right now we always create a new register even in the case of
   say `%a = zext i32 %b to i32`
 - scratch space zeroing. It's probably the garbage maker's job to clean up any
