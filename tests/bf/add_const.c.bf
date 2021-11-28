@@ -19,13 +19,13 @@ runtime init:
 			<#dead_fn_pad/main
 			>>>-
 			<<<
-			<<<<<<<<<
+			<<<<<<<<<<
 		>>>]
 		<#main/11100
 		[
 			-
 			br label %0
-			>>#main/0
+			>>#main/%0
 			+
 		<<]
 		>>#main/0
@@ -34,10 +34,12 @@ runtime init:
 			%1 = alloca i8_ align 1
 			>>#alloca_%1
 			store i8 72_ i8* %1_ align 1
-			[-]
+			>#tmp_constop_72
 			++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			<[-]
+			>[-<+>]
 			%2 = load i8* %1_ align 1
-			>#load_%1_to_%2
+			#load_%1_to_%2
 			>#tmp0_for_load
 			<<[->>+<+<]
 			>>[-<<+>>]
@@ -45,22 +47,22 @@ runtime init:
 			#%3_zext_i8_%2
 			<[->+<]
 			%4 = add i32 %3_ i32 32
-			>>#tmp_constop_32
+			#tmp_constop_32
 			++++++++++++++++++++++++++++++++
-			<<#%%4_add_%i32_%3_ci32_32
-			>[-<+>]
-			>[-<<+>>]
-			%5 = trunc i32 %4 to i8
-			<#%5_trunc_i32_%4
+			>>#%%4_add_%i32_%3_ci32_32
 			<[->+<]
+			<[->>+<<]
+			%5 = trunc i32 %4 to i8
+			#%5_trunc_i32_%4
+			>>[-<<+>>]
 			call @putchar(i8 %5)
 			enable next
-			<<#main/4200
+			<<<<#main/%4200
 			+
 			putchar intrinsic
-			>>>.
+			>>.
 			[-]
-		<<<<]
+		<<<]
 		>#main/4200
 		[
 			-

@@ -25,7 +25,7 @@ runtime init:
 		[
 			-
 			br label %0
-			>>#main/0
+			>>#main/%0
 			+
 		<<]
 		>>#main/0
@@ -36,13 +36,17 @@ runtime init:
 			%2 = alloca i8_ align 1
 			>#alloca_%2
 			store i8 65_ i8* %1_ align 1
-			<[-]
+			>#tmp_constop_65
 			+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			<<[-]
+			>>[-<<+>>]
 			store i8 32_ i8* %2_ align 1
-			>[-]
+			#tmp_constop_32
 			++++++++++++++++++++++++++++++++
+			<[-]
+			>[-<+>]
 			%3 = load i8* %1_ align 1
-			>#load_%1_to_%3
+			#load_%1_to_%3
 			>#tmp0_for_load
 			<<<[->>>+<+<<]
 			>>>[-<<<+>>>]
@@ -66,7 +70,7 @@ runtime init:
 			<[->+<]
 			call @putchar(i8 %8)
 			enable next
-			<<<#main/4200
+			<<<#main/%4200
 			+
 			putchar intrinsic
 			>>>>.

@@ -19,13 +19,13 @@ runtime init:
 			<#dead_fn_pad/main
 			>>>-
 			<<<
-			<<<<<<
+			<<<<<<<
 		>>>]
 		<#main/11100
 		[
 			-
 			br label %0
-			>>#main/0
+			>>#main/%0
 			+
 		<<]
 		>>#main/0
@@ -33,7 +33,7 @@ runtime init:
 			-
 			call @putchar(i8 46)
 			enable next
-			>#main/4200
+			>#main/%4200
 			+
 			putchar intrinsic
 			>++++++++++++++++++++++++++++++++++++++++++++++

@@ -81,7 +81,18 @@ fn main() {
 		let source = format!("{}", case.path().as_path().to_str().unwrap());
 		let target = format!("./tests/ir/{}.bc", case.file_name().into_string().unwrap());
 
-		compile_ir(&source, &target).unwrap();
+		let cc = compile_ir(&source, &target);
+		if cc.is_err() {
+			println!(
+				"\r{}FAIL{} {}",
+				color::Fg(color::Red),
+				style::Reset,
+				info.name
+			);
+			println!("{}", cc.unwrap_err());
+			continue;
+		}
+
 
 		let bfout = format!("./tests/bf/{}.bf", case.file_name().into_string().unwrap());
 		let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
@@ -244,6 +255,10 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 
 		pc += 1;
 		steps += 1;
+	}
+
+	for i in mem {
+		assert!(i == 0);
 	}
 
 	Ok(ExecResult {

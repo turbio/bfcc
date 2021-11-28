@@ -37,7 +37,7 @@ runtime init:
 			<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<]
 			>>>>
 			br label %3
-			>>>>>#call_me/3
+			>>>>>#call_me/%3
 			+
 		<<]
 		>>#call_me/3
@@ -60,15 +60,15 @@ runtime init:
 			>>>[-<<<+>>>]
 			%7 = load i32* %4_ align 4
 			<<#load_%4_to_%7
-			>>>#tmp0_for_load
-			<<<<<<[->>>>>>+<<<+<<<]
-			>>>>>>[-<<<<<<+>>>>>>]
+			>#tmp0_for_load
+			<<<<[->>>>+<+<<<]
+			>>>>[-<<<<+>>>>]
 			%8 = trunc i32 %7 to i8
-			<<#%8_trunc_i32_%7
+			#%8_trunc_i32_%7
 			<[->+<]
 			call @putchar(i8 %8)
 			enable next
-			<<<<<<#call_me/4203
+			<<<<<<#call_me/%4203
 			+
 			putchar intrinsic
 			>>>>>>>.
@@ -79,15 +79,15 @@ runtime init:
 			-
 			%9 = load i32* %5_ align 4
 			>>>>>>#load_%5_to_%9
-			>>>#tmp0_for_load
-			<<<<<[->>>>>+<<<+<<]
-			>>>>>[-<<<<<+>>>>>]
+			>#tmp0_for_load
+			<<<[->>>+<+<<]
+			>>>[-<<<+>>>]
 			%10 = trunc i32 %9 to i8
-			<<#%10_trunc_i32_%9
+			#%10_trunc_i32_%9
 			<[->+<]
 			call @putchar(i8 %10)
 			enable next
-			<<<<<#call_me/8403
+			<<<<<#call_me/%8403
 			+
 			putchar intrinsic
 			>>>>>>.
@@ -98,15 +98,15 @@ runtime init:
 			-
 			%11 = load i32* %6_ align 4
 			>>>>>#load_%6_to_%11
-			>>>#tmp0_for_load
-			<<<<[->>>>+<<<+<]
-			>>>>[-<<<<+>>>>]
+			>#tmp0_for_load
+			<<[->>+<+<]
+			>>[-<<+>>]
 			%12 = trunc i32 %11 to i8
-			<<#%12_trunc_i32_%11
+			#%12_trunc_i32_%11
 			<[->+<]
 			call @putchar(i8 %12)
 			enable next
-			<<<<#call_me/12603
+			<<<<#call_me/%12603
 			+
 			putchar intrinsic
 			>>>>>.
@@ -145,7 +145,7 @@ runtime init:
 		[
 			-
 			br label %0
-			>>#main/0
+			>>#main/%0
 			+
 		<<]
 		>>#main/0
@@ -153,7 +153,7 @@ runtime init:
 			-
 			call @call_me(i32 49_ i32 50_ i32 51)
 			enable next
-			>#main/4200
+			>#main/%4200
 			+
 			>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++
 			<++++++++++++++++++++++++++++++++++++++++++++++++++

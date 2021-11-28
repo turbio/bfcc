@@ -1,6 +1,5 @@
 extern crate llvm_ir;
 
-use std::collections::HashMap;
 use std::env;
 use std::fmt::Write;
 use std::ops::Deref;
@@ -145,9 +144,8 @@ enum BfOp {
 }
 
 fn build_icmp(
-	borrow_reg: &mut dyn FnMut(&mut Vec<Option<llvm_ir::Name>>, &mut Vec<Addr>, usize) -> Addr,
-	onstack: &mut Vec<Option<llvm_ir::Name>>,
-	just_taken: &mut Vec<Addr>,
+	borrow_reg: &mut dyn FnMut(&mut Layout, usize) -> Addr,
+	layout: &mut Layout,
 	pred: llvm_ir::IntPredicate,
 	op0: usize,
 	op1: usize,
@@ -155,7 +153,7 @@ fn build_icmp(
 ) -> Vec<BfOp> {
 	let mut icmp_out = Vec::<BfOp>::new();
 
-	let tmps = borrow_reg(onstack, just_taken, 3);
+	let tmps = borrow_reg(layout, 3);
 
 	icmp_out.push(BfOp::Tag(tmps, format!("icmp_tmpb")));
 	icmp_out.push(BfOp::Tag(tmps + 1, format!("icmp_tmp0")));
@@ -226,7 +224,7 @@ fn build_icmp(
 		}
 
 		llvm_ir::IntPredicate::NE => {
-			let underflow = borrow_reg(onstack, just_taken, 1);
+			let underflow = borrow_reg(layout, 1);
 
 			let (mut ops, diff) = subnu(op0, op1, Some(underflow));
 
@@ -259,7 +257,7 @@ fn build_icmp(
 		}
 
 		llvm_ir::IntPredicate::EQ => {
-			let underflow = borrow_reg(onstack, just_taken, 1);
+			let underflow = borrow_reg(layout, 1);
 
 			let (mut ops, diff) = subnu(op1, op0, Some(underflow));
 			icmp_out.append(&mut ops);
@@ -287,41 +285,63 @@ fn build_icmp(
 	icmp_out
 }
 
+#[derive(Debug, Clone)]
+enum Cell {
+	MainLoop,
+
+	FuncMask(String),
+	BlockMask(llvm_ir::Name),
+
+	Borrowed(Box<Cell>),
+	Taken(Box<Cell>),
+
+	Reg(llvm_ir::Name),
+	Alloc(llvm_ir::Name),
+	Ptr(llvm_ir::Name),
+
+	Free,
+}
+
+type Layout = Vec<Cell>;
+
 const STACK_PTR_W: usize = 1;
 
 fn build_func<'a>(
-	funcns: usize,
+	layout: &Layout,
+	ret_pad_width: usize,
 	st_width: usize,
 	func: &'a llvm_ir::Function,
-	func2id: &HashMap<&str, FnFlow>,
 ) -> (Vec<BfOp>, usize) {
-	let mut funcloop: Vec<BfOp> = vec![];
+	let ret_landing_pad = llvm_ir::Name::Number(69420);
 
-	let fntop = 1 + funcns; // rt loop + function ctrl masks
-	let ftop = 1 + funcns + func.basic_blocks.len() + 1; // rt loop + function masks + block masks + ret pad
+	let mut layout: Layout = layout.clone();
 
-	// ret pad is always the same width with: main loop + function masks +
-	// landing pad mask
-	let ret_pad_width = 1 + funcns + RET_LANDING_PAD;
-
-	// all the allocas live for the lifetime of the function. Sorta are actually
-	// memory addresses but like that's tricky.
-	let mut allocs: Vec<&llvm_ir::Name> = vec![];
+	for (i, block) in func.basic_blocks.iter().enumerate() {
+		if i == 1 {
+			// block at index 1 is always reserved for the ret landing pad
+			layout.push(Cell::BlockMask(ret_landing_pad.clone()));
+		}
+		layout.push(Cell::BlockMask(block.name.clone()));
+	}
 
 	for block in func.basic_blocks.iter() {
 		for instr in block.instrs.iter() {
 			match instr {
 				llvm_ir::Instruction::Alloca(a) => {
-					allocs.push(&a.dest);
+					layout.push(Cell::Alloc(a.dest.clone()));
 				}
 				_ => {}
 			}
 		}
 	}
 
-	let fid = func2id.get(func.name.as_str()).unwrap().fid;
-
-	let allocs = allocs; // un-mut
+	let fid = layout
+		.iter()
+		.position(|c| match c {
+			Cell::FuncMask(n) => n == &func.name,
+			_ => false,
+		})
+		.unwrap();
 
 	// so like we keep hold of pointers as either:
 	// resolved : we know the cell address
@@ -329,86 +349,62 @@ fn build_func<'a>(
 	#[derive(Copy, Clone)]
 	enum PtrSrc<'a> {
 		Int(&'a llvm_ir::Name),
-		Alloc(Addr),
+		Alloc(&'a llvm_ir::Name),
 	}
-
-	let mut live_ptrs: Vec<(&llvm_ir::Name, PtrSrc)> = vec![];
-
-	for (i, a) in allocs.iter().enumerate() {
-		live_ptrs.push((a, PtrSrc::Alloc(ftop + i)));
-	}
-
-	let addr_of = |lv: &Vec<(&llvm_ir::Name, PtrSrc<'a>)>, name: &llvm_ir::Name| -> PtrSrc {
-		lv.iter().find(|n| n.0 == name).unwrap().1.clone()
-	};
-
-	enum Cell {
-		MainLoop,
-		FuncMask(String),
-		BlockMask(llvm_ir::Name),
-	}
-
-	let mut layout: Vec<Cell> = vec![Cell::MainLoop];
-
-	let mut fids_sorted = func2id.iter().collect::<Vec<(&&str, &FnFlow)>>();
-	fids_sorted.sort_by(|l, r| l.1.fid.cmp(&r.1.fid));
-	for (name, flow) in fids_sorted.iter() {
-		layout.push(Cell::FuncMask(name.to_string()))
-	}
-
-	// live registers available on the stack produced by an instruction and
-	// yet to be consumed by a following instruction. Used as a map for
-	// allocations where each cell holds a llvm register name.
-	//
-	// TODO(turbio): for now onstack registers only live between the
-	// instruction producing them and the instruction consuming them.
-	// Multiple uses is unimplemented.
-	let mut onstack = Vec::<Option<llvm_ir::Name>>::new();
 
 	// available names is a combination of all the living registers:
 	// onstack + allocs
-	let take_reg = |onstack: &mut Vec<Option<llvm_ir::Name>>,
-	                just_taken: &mut Vec<Addr>,
-	                name: &llvm_ir::Name|
-	 -> Addr {
-		let at = onstack
-			.iter()
-			.position(|n| n.is_some() && n.clone().unwrap() == *name)
-			.unwrap();
-		onstack[at] = None;
-		let yep = ftop + allocs.len() + at;
-		just_taken.push(yep);
-		yep
+	let take_reg = |layout: &mut Layout, name: &llvm_ir::Name| -> Addr {
+		let found = layout.iter().position(|c| match c {
+			Cell::Reg(n) => n == name,
+			_ => false,
+		});
+
+		assert!(found.is_some(), "can't take a non existant register");
+
+		let found = found.unwrap();
+
+		// lmao rust
+		let prev = std::mem::replace(&mut layout[found], Cell::Free);
+		layout[found] = Cell::Taken(Box::new(prev));
+
+		found
 	};
 
 	// have to promise to give registers before you take them otherwise
 	// you could end up giving a register you've just taken.
-	let give_reg = |onstack: &mut Vec<Option<llvm_ir::Name>>,
-	                just_taken: &Vec<Addr>,
-	                name: &llvm_ir::Name|
-	 -> Addr {
-		let slot = onstack
-			.iter()
-			.enumerate()
-			.position(|(i, n)| n.is_none() && !just_taken.contains(&(ftop + allocs.len() + i)));
+	let give_reg = |layout: &mut Layout, name: &llvm_ir::Name| -> Addr {
+		let slot = layout.iter().position(|c| match c {
+			Cell::Free => true,
+			_ => false,
+		});
 
-		ftop + allocs.len()
-			+ if slot.is_some() {
-				let slot = slot.unwrap();
-				onstack[slot] = Some(name.clone());
-				slot
-			} else {
-				let mut slot = onstack.len();
+		if slot.is_some() {
+			let slot = slot.unwrap();
+			layout[slot] = Cell::Reg(name.clone());
+			slot
+		} else {
+			let slot = layout.len();
+			layout.push(Cell::Reg(name.clone()));
+			slot
+		}
+	};
 
-				while just_taken.contains(&(ftop + allocs.len() + slot)) {
-					onstack.push(None);
-					slot += 1;
-				}
+	let give_ptr = |layout: &mut Layout, name: &llvm_ir::Name| -> Addr {
+		let slot = layout.iter().position(|c| match c {
+			Cell::Free => true,
+			_ => false,
+		});
 
-				onstack.push(Some(name.clone()));
-
-				slot
-			}
+		if slot.is_some() {
+			let slot = slot.unwrap();
+			layout[slot] = Cell::Ptr(name.clone());
+			slot
+		} else {
+			let slot = layout.len();
+			layout.push(Cell::Ptr(name.clone()));
+			slot
+		}
 	};
 
 	let mut first_block_ops = Vec::<BfOp>::new();
@@ -417,7 +413,7 @@ fn build_func<'a>(
 	// function puts them right before our stack then we copy them right
 	// into our stack registers.
 	for (i, p) in func.parameters.iter().enumerate() {
-		let pdest = give_reg(&mut onstack, &vec![], &p.name);
+		let pdest = give_reg(&mut layout, &p.name);
 		first_block_ops.push(BfOp::Tag(pdest, format!("arg_{}", p.name)));
 
 		// so basically spooky ops to reach before the stack top
@@ -430,39 +426,72 @@ fn build_func<'a>(
 	// needed at the instant calls are made.
 	let stack_width = st_width;
 
+	// worth noting everone's ret pad and first block have the same address
+	let retpad_addr = layout
+		.iter()
+		.position(|c| match c {
+			Cell::BlockMask(n) => n == &ret_landing_pad,
+			_ => false,
+		})
+		.unwrap();
+	let entry_block_addr = layout
+		.iter()
+		.position(|c| match c {
+			Cell::BlockMask(n) => n == &func.basic_blocks[0].name,
+			_ => false,
+		})
+		.unwrap();
+
+	let mut funcloop: Vec<BfOp> = vec![];
+
 	// the ret landing pad needs to be before any ret instructions so we
 	// can't fall into our own landing pad.
-	{
-		funcloop.push(BfOp::Tag(
-			fntop + RET_LANDING_PAD,
-			format!("{}/RET_LANDING_PAD", func.name),
-		));
-		let mut retblock: Vec<BfOp> = vec![];
+	funcloop.push(BfOp::Tag(
+		retpad_addr,
+		format!("{}/RET_LANDING_PAD", func.name),
+	));
 
-		// just a lil block to move left. kill mainloop, func, block and
-		// then skedaddle.
-		retblock.push(BfOp::SubI(0, 1));
-		retblock.push(BfOp::Tag(0, "dead_frame".to_string()));
-		retblock.push(BfOp::SubI(1 + func2id[func.name.as_str()].fid, 1));
-		retblock.push(BfOp::Tag(0, format!("dead_fn_pad/{}", func.name)));
-		retblock.push(BfOp::SubI(fntop + RET_LANDING_PAD, 1));
-		retblock.push(BfOp::Goto(0));
-		retblock.push(BfOp::Left(stack_width)); // TODO actual stack width
+	// lil block to move left. kill mainloop, func, block and then skedaddle.
+	funcloop.push(BfOp::Loop(
+		retpad_addr,
+		vec![
+			BfOp::SubI(0, 1),
+			BfOp::Tag(0, "dead_frame".to_string()),
+			BfOp::SubI(
+				layout
+					.iter()
+					.position(|c| match c {
+						Cell::FuncMask(n) => n == &func.name,
+						_ => false,
+					})
+					.unwrap(),
+				1,
+			),
+			BfOp::Tag(0, format!("dead_fn_pad/{}", func.name)),
+			BfOp::SubI(retpad_addr, 1),
+			BfOp::Goto(0),
+			BfOp::Left(stack_width),
+		],
+	));
 
-		funcloop.push(BfOp::Loop(fntop + RET_LANDING_PAD, retblock))
-	}
-
-	for block in func.basic_blocks.iter() {
+	for (i, block) in func.basic_blocks.iter().enumerate() {
 		let blockn = n2usize(&block.name);
 
-		let bid = func2id[func.name.as_str()].blks[&blockn];
+		let bid = layout
+			.iter()
+			.position(|c| match c {
+				Cell::BlockMask(n) => n == &block.name,
+				_ => false,
+			})
+			.unwrap();
 
-		funcloop.push(BfOp::Tag(fntop + bid, format!("{}/{}", func.name, blockn)));
+		funcloop.push(BfOp::Tag(bid, format!("{}/{}", func.name, blockn)));
 		let mut blockloop: Vec<BfOp> = vec![];
 
-		blockloop.push(BfOp::SubI(fntop + bid, 1));
+		blockloop.push(BfOp::SubI(bid, 1));
 
-		if bid == 0 {
+		// first block gets prepended with some fancy stuff
+		if i == 0 {
 			blockloop.append(&mut first_block_ops);
 		}
 
@@ -471,7 +500,7 @@ fn build_func<'a>(
 		for (iid, instr) in block.instrs.iter().enumerate() {
 			blockloop.push(BfOp::Comment(instr.to_string()));
 
-			let mut borrowed_reg = Vec::<Addr>::new();
+			//println!("\n{}", instr);
 
 			// borrow a register for scratch space.you just have to reallyt
 			// really really promise to not leave any junk beyond the life
@@ -479,115 +508,93 @@ fn build_func<'a>(
 			// this borrows control flow regs.
 			//
 			// TODO(turbio): also also this needs to be used after all gives/takes
-			let mut borrow_reg = |onstack: &mut Vec<Option<llvm_ir::Name>>,
-			                      just_taken: &mut Vec<usize>,
-			                      contig: usize|
-			 -> Addr {
-				// go through all the ctrl flow masks we cans steal.
-				// so uh benchmarks say this is slower interestingly enough
-				// if false {
-				// 	for i in (0..func2id[func.name.as_str()].blks.len()).rev() {
-				// 		if borrowed_reg.contains(&(fntop + i)) {
-				// 			continue;
-				// 		}
-
-				// 		for j in (i + 1)..func2id[func.name.as_str()].blks.len() {
-				// 			if borrowed_reg.contains(&(fntop + j)) {
-				// 				break;
-				// 			}
-
-				// 			if j - i == contig {
-				// 				for k in 0..contig {
-				// 					borrowed_reg.push(fntop + i + k);
-				// 				}
-
-				// 				return fntop + i;
-				// 			}
-				// 		}
-				// 	}
-				// }
-
-				// TODO(turbio): it's be nice to use parts of the stack bewteen
-				// to living values but starting from the and searching
-				// backwards is way easier.
-
-				// THIS IS ACTUALLY INVALID SINCE WE COULD ACCIDENTALLY LEND A
-				// SLOT WE JUST HANDED TO THE FUNCTION.
-				// if false {
-				// 	for i in 0..onstack.len() {
-				// 		if onstack[i].is_some()
-				// 			|| borrowed_reg.contains(&(ftop + i + allocs.len()))
-				// 		{
-				// 			continue;
-				// 		}
-
-				// 		for j in (i + 1)..onstack.len() {
-				// 			if borrowed_reg.contains(&(ftop + j + allocs.len())) {
-				// 				break;
-				// 			}
-
-				// 			if j - i == contig {
-				// 				for k in 0..contig {
-				// 					borrowed_reg.push(ftop + i + k + allocs.len());
-				// 				}
-
-				// 				return ftop + i;
-				// 			}
-				// 		}
-				// 	}
-				// }
-
-				let mut i = ftop + allocs.len() + onstack.len();
-				while borrowed_reg.contains(&i) || just_taken.contains(&i) {
-					i += 1;
+			let mut borrow_reg = |layout: &mut Layout, contig: usize| -> Addr {
+				if contig == 1 {
+					for (i, c) in layout.iter().enumerate() {
+						if match c {
+							Cell::Free => true,
+							_ => false,
+						} {
+							let prev = std::mem::replace(&mut layout[i], Cell::Free);
+							layout[i] = Cell::Borrowed(Box::new(prev));
+							return i;
+						}
+					}
 				}
 
-				for ch in 0..contig {
-					assert!(!borrowed_reg.contains(&(i + ch))); // todo this can fail
-					borrowed_reg.push(i + ch);
-					just_taken.push(i + ch);
+				let slot = layout.len();
+				for _ in 0..contig {
+					layout.push(Cell::Borrowed(Box::new(Cell::Free)));
 				}
-
-				i
+				slot
 			};
 
 			let _release_reg = |_st: &mut Vec<Option<usize>>, _r: usize| {
 				// TODO allow reuse
 			};
 
-			let mut just_taken = Vec::<usize>::new();
-
 			// so like take an instruction operand and do the right thing
 			// - constants will reserve a temp register and store the value there
 			// - registers return said register
 			// - pointers will reserve a temp and store the pointer value
 			// the returned reg MUST be consumed
-			let mut op_to_reg = |onstack: &mut Vec<Option<llvm_ir::Name>>,
-			                     just_taken: &mut Vec<usize>,
-			                     op: &llvm_ir::Operand|
-			 -> Addr {
+			let mut op_to_reg = |layout: &mut Layout, op: &llvm_ir::Operand| -> Addr {
 				match op {
 					llvm_ir::Operand::LocalOperand { name, ty } => match ty.deref() {
-						llvm_ir::Type::IntegerType { .. } => take_reg(onstack, just_taken, name),
+						llvm_ir::Type::IntegerType { .. } => take_reg(layout, name),
 
 						llvm_ir::Type::PointerType {
 							pointee_type: _,
 							addr_space: _,
 						} => {
-							let name = match addr_of(&live_ptrs, name) {
-								PtrSrc::Alloc(addr) => addr,
-								PtrSrc::Int(name) => take_reg(onstack, just_taken, name),
-							};
-							let tmp = borrow_reg(onstack, just_taken, 1);
-							blockloop.push(BfOp::Tag(tmp, format!("tmp_constptr_{}", name)));
-							blockloop.push(BfOp::AddI(tmp, name as u8));
-							tmp
+							let from_alloc = layout.iter().position(|c| match c {
+								Cell::Alloc(n) => n == name,
+								_ => false,
+							});
+
+							if from_alloc.is_some() {
+								let from_alloc = from_alloc.unwrap();
+
+								let pasi = borrow_reg(layout, 1);
+
+								blockloop.push(BfOp::Tag(pasi, format!("tmp_allocptr_{}", name)));
+
+								let tmp = borrow_reg(layout, 1);
+
+								// basically reach back to the stack pointer and add it to
+								// our destination int. This way the initified pointer
+								// be basically be:
+								// the address of the stack register position
+								// +
+								// the current stack's position
+								blockloop.push(BfOp::Left(1));
+								blockloop.push(BfOp::Dup(0, pasi + 1, tmp + 1));
+								blockloop.push(BfOp::Mov(tmp + 1, 0));
+								blockloop.push(BfOp::Right(1));
+
+								blockloop.push(BfOp::AddI(pasi, from_alloc as u8 + 1));
+
+								pasi
+							} else {
+								let from_ptr = layout
+									.iter()
+									.position(|c| match c {
+										Cell::Ptr(n) => n == name,
+										_ => false,
+									})
+									.unwrap();
+
+								let prev = std::mem::replace(&mut layout[from_ptr], Cell::Free);
+								layout[from_ptr] = Cell::Taken(Box::new(prev));
+
+								from_ptr
+							}
 						}
 
 						_ => unimplemented!("meta?"),
 					},
 					llvm_ir::Operand::ConstantOperand(_) => {
-						let tmp = borrow_reg(onstack, just_taken, 1);
+						let tmp = borrow_reg(layout, 1);
 						let v = uncop(op);
 						blockloop.push(BfOp::Tag(tmp, format!("tmp_constop_{}", v)));
 						blockloop.push(BfOp::AddI(tmp, v as u8));
@@ -600,35 +607,44 @@ fn build_func<'a>(
 
 			match instr {
 				llvm_ir::Instruction::Call(c) => {
-					// yep
 					handle_call = true;
 					let br = match &block.term {
-						llvm_ir::Terminator::Br(br) => n2usize(&br.dest),
+						llvm_ir::Terminator::Br(br) => &br.dest,
 						_ => unreachable!("terminator of call block must be branch"),
 					};
 
 					assert!(block.instrs.len() - 1 == iid);
 
-					let fnn = match c.function.as_ref().unwrap_right().as_constant().unwrap() {
-						llvm_ir::Constant::GlobalReference { name, .. } => n2nam(&name),
+					let callee_name =
+						match c.function.as_ref().unwrap_right().as_constant().unwrap() {
+							llvm_ir::Constant::GlobalReference { name, .. } => n2nam(&name),
 
-						_ => unimplemented!(
-							"ohnoes wtf?? {:?}",
-							c.function.as_ref().unwrap_right().as_constant().unwrap()
-						),
-					};
+							_ => unimplemented!(
+								"ohnoes wtf?? {:?}",
+								c.function.as_ref().unwrap_right().as_constant().unwrap()
+							),
+						};
 
 					// TODO(turbio): even an instric call will end in a branch lol
 					// that could be a lil better
 
-					let brto = func2id[func.name.as_str()].blks[&br];
+					// after the call returns branch to this block. Earlier we
+					// made sure all calls are at the end of a block which
+					// always ends in an unconditional branch.
+					let brto = layout
+						.iter()
+						.position(|c| match c {
+							Cell::BlockMask(n) => n == br,
+							_ => false,
+						})
+						.unwrap();
 
 					blockloop.push(BfOp::Comment("enable next".to_string()));
-					blockloop.push(BfOp::Tag(fntop + brto, format!("{}/{}", func.name, br)));
-					blockloop.push(BfOp::AddI(fntop + brto, 1));
+					blockloop.push(BfOp::Tag(brto, format!("{}/{}", func.name, br)));
+					blockloop.push(BfOp::AddI(brto, 1));
 
 					// intrinsics lol
-					if fnn == "putchar" {
+					if callee_name == "putchar" {
 						assert!(c.dest.is_none(), "putchar returns nothing");
 						assert!(c.arguments.len() == 1, "putchar expects one argument");
 
@@ -638,11 +654,11 @@ fn build_func<'a>(
 
 						let reg = match &c.arguments[0].0 {
 							llvm_ir::Operand::LocalOperand { name, .. } => {
-								take_reg(&mut onstack, &mut just_taken, &name)
+								take_reg(&mut layout, &name)
 							}
 							llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 								llvm_ir::constant::Constant::Int { value, .. } => {
-									let temp0 = borrow_reg(&mut onstack, &mut just_taken, 1);
+									let temp0 = borrow_reg(&mut layout, 1);
 									blockloop.push(BfOp::AddI(temp0, *value as u8));
 									temp0
 								}
@@ -662,7 +678,7 @@ fn build_func<'a>(
 							// TODO(turbio): copy up those args yikers
 							match &ar.0 {
 								llvm_ir::Operand::LocalOperand { name, .. } => {
-									let src = take_reg(&mut onstack, &mut just_taken, &name);
+									let src = take_reg(&mut layout, &name);
 									blockloop.push(BfOp::Mov(src, arg_at));
 								}
 								llvm_ir::Operand::ConstantOperand(_) => {
@@ -695,16 +711,14 @@ fn build_func<'a>(
 						blockloop.push(BfOp::Tag(0, format!("JUMP_PAD")));
 						blockloop.push(BfOp::AddI(0, 1));
 
+						blockloop.push(BfOp::Tag(fid, format!("{}", func.name)));
+						blockloop.push(BfOp::AddI(fid, 1));
+
 						blockloop.push(BfOp::Tag(
-							1 + func2id[func.name.as_str()].fid,
-							format!("{}", func.name),
-						));
-						blockloop.push(BfOp::AddI(1 + func2id[func.name.as_str()].fid, 1));
-						blockloop.push(BfOp::Tag(
-							fntop + RET_LANDING_PAD,
+							retpad_addr,
 							format!("{}/jump_pad_blk", func.name),
 						));
-						blockloop.push(BfOp::AddI(fntop + RET_LANDING_PAD, 1));
+						blockloop.push(BfOp::AddI(retpad_addr, 1));
 
 						// move to callee's frame loc
 
@@ -714,105 +728,61 @@ fn build_func<'a>(
 
 						// setup the callee's frame
 
-						blockloop.push(BfOp::Tag(0, format!("__FRAME_{}__", fnn)));
+						blockloop.push(BfOp::Tag(0, format!("__FRAME_{}__", callee_name)));
 						blockloop.push(BfOp::AddI(0, 1));
-						blockloop
-							.push(BfOp::Tag(1 + func2id[fnn.as_str()].fid, format!("{}", fnn)));
-						blockloop.push(BfOp::AddI(1 + func2id[fnn.as_str()].fid, 1));
-						blockloop.push(BfOp::Tag(fntop + 0, format!("{}/b0", fnn)));
-						blockloop.push(BfOp::AddI(fntop + 0, 1));
+
+						let callee_fid = layout
+							.iter()
+							.position(|c| match c {
+								Cell::FuncMask(n) => n == &callee_name,
+								_ => false,
+							})
+							.unwrap();
+
+						blockloop.push(BfOp::Tag(callee_fid, format!("{}", callee_name)));
+						blockloop.push(BfOp::AddI(callee_fid, 1));
+						blockloop.push(BfOp::Tag(entry_block_addr, format!("{}/b0", callee_name)));
+						blockloop.push(BfOp::AddI(entry_block_addr, 1));
 					}
 				}
+
 				llvm_ir::Instruction::Alloca(c) => {
-					// yep
-					let dest = addr_of(&live_ptrs, &c.dest);
+					let dest = layout
+						.iter()
+						.position(|cell| match cell {
+							Cell::Alloc(n) => n == &c.dest,
+							_ => false,
+						})
+						.unwrap();
 
-					match dest {
-						PtrSrc::Alloc(addr) => {
-							match c.allocated_type.deref() {
-								llvm_ir::Type::IntegerType { .. } => {
-									blockloop.push(BfOp::Tag(addr, format!("alloca_{}", c.dest)));
-								}
-
-								llvm_ir::Type::PointerType {
-									pointee_type: _,
-									addr_space: _,
-								} => {
-									blockloop
-										.push(BfOp::Tag(addr, format!("alloca_ptr_{}", c.dest)));
-								}
-
-								_ => {
-									unimplemented!(
-										"those types arent welcome here {:?}",
-										c.allocated_type.deref()
-									)
-								}
-							};
-						}
-						_ => unimplemented!("lol cucked"),
-					}
+					blockloop.push(BfOp::Tag(dest, format!("alloca_{}", c.dest)));
 				}
+
 				llvm_ir::Instruction::Store(s) => {
-					// yep
+					let dest = layout
+						.iter()
+						.position(|cell| match cell {
+							Cell::Alloc(n) => n == unlop(&s.address),
+							_ => false,
+						})
+						.unwrap();
 
-					let dest = addr_of(&live_ptrs, &unlop(&s.address));
+					let value = op_to_reg(&mut layout, &s.value);
 
-					match dest {
-						PtrSrc::Alloc(dest) => {
-							blockloop.push(BfOp::Zero(dest));
-
-							match &s.value {
-								llvm_ir::Operand::LocalOperand { name, ty } => {
-									match ty.deref() {
-										llvm_ir::Type::IntegerType { .. } => {
-											blockloop.push(BfOp::Mov(
-												take_reg(&mut onstack, &mut just_taken, name),
-												dest,
-											));
-										}
-
-										llvm_ir::Type::PointerType {
-											pointee_type: _,
-											addr_space: _,
-										} => {
-											let name = match addr_of(&live_ptrs, name) {
-												PtrSrc::Alloc(n) => n,
-												_ => unimplemented!("lmao?"),
-											};
-
-											blockloop.push(BfOp::AddI(dest, name as u8));
-										}
-
-										_ => unimplemented!("meta?"),
-									};
-								}
-								llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
-									llvm_ir::constant::Constant::Int { value, .. } => {
-										let val = *value;
-
-										blockloop.push(BfOp::AddI(dest, val as u8));
-									}
-									_ => {
-										unimplemented!("how tf we gonna store that")
-									}
-								},
-
-								_ => unimplemented!("how tf we gonna store that"),
-							};
-						}
-						_ => unimplemented!("lol cucked"),
-					}
+					blockloop.push(BfOp::Zero(dest));
+					blockloop.push(BfOp::Mov(value, dest));
 				}
+
 				llvm_ir::Instruction::Load(l) => {
-					let addr = addr_of(&live_ptrs, &unlop(&l.address));
+					let dest = give_reg(&mut layout, &l.dest);
 
-					let dest = give_reg(&mut onstack, &just_taken, &l.dest);
-
-					let addr = match addr {
-						PtrSrc::Alloc(n) => n,
-						_ => unimplemented!("lmao?"),
-					};
+					let addr = layout
+						.iter()
+						.position(|c| match c {
+							Cell::Alloc(n) => n == unlop(&l.address),
+							_ => false,
+						})
+						.unwrap();
 
 					blockloop.push(BfOp::Tag(
 						dest,
@@ -823,7 +793,7 @@ fn build_func<'a>(
 						),
 					));
 
-					let tmp = borrow_reg(&mut onstack, &mut just_taken, 1);
+					let tmp = borrow_reg(&mut layout, 1);
 
 					blockloop.push(BfOp::Tag(tmp, format!("tmp0_for_load")));
 					blockloop.push(BfOp::Dup(addr, tmp, dest));
@@ -831,10 +801,10 @@ fn build_func<'a>(
 				}
 
 				llvm_ir::Instruction::ICmp(i) => {
-					let op0 = op_to_reg(&mut onstack, &mut just_taken, &i.operand0);
-					let op1 = op_to_reg(&mut onstack, &mut just_taken, &i.operand1);
+					let op0 = op_to_reg(&mut layout, &i.operand0);
+					let op1 = op_to_reg(&mut layout, &i.operand1);
 
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let dest = give_reg(&mut layout, &i.dest);
 
 					blockloop.push(BfOp::Tag(
 						dest,
@@ -849,8 +819,7 @@ fn build_func<'a>(
 
 					blockloop.append(&mut build_icmp(
 						&mut borrow_reg,
-						&mut onstack,
-						&mut just_taken,
+						&mut layout,
 						i.predicate,
 						op0,
 						op1,
@@ -859,10 +828,10 @@ fn build_func<'a>(
 				}
 
 				llvm_ir::Instruction::Add(i) => {
-					let op0 = op_to_reg(&mut onstack, &mut just_taken, &i.operand0);
-					let op1 = op_to_reg(&mut onstack, &mut just_taken, &i.operand1);
+					let op0 = op_to_reg(&mut layout, &i.operand0);
+					let op1 = op_to_reg(&mut layout, &i.operand1);
 
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let dest = give_reg(&mut layout, &i.dest);
 
 					blockloop.push(BfOp::Tag(
 						dest,
@@ -874,10 +843,10 @@ fn build_func<'a>(
 				}
 
 				llvm_ir::Instruction::Sub(i) => {
-					let op0 = op_to_reg(&mut onstack, &mut just_taken, &i.operand0);
-					let op1 = op_to_reg(&mut onstack, &mut just_taken, &i.operand1);
+					let op0 = op_to_reg(&mut layout, &i.operand0);
+					let op1 = op_to_reg(&mut layout, &i.operand1);
 
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let dest = give_reg(&mut layout, &i.dest);
 
 					blockloop.push(BfOp::Tag(
 						dest,
@@ -896,50 +865,64 @@ fn build_func<'a>(
 
 				// these are all lies and actually nops
 				llvm_ir::Instruction::ZExt(i) => {
-					let src = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let src = op_to_reg(&mut layout, &i.operand);
+					let dest = give_reg(&mut layout, &i.dest);
 					blockloop.push(BfOp::Tag(dest, format!("{}_zext_{}", i.dest, i.operand)));
 					blockloop.push(BfOp::Mov(src, dest));
 				}
 				llvm_ir::Instruction::Trunc(i) => {
-					let src = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let src = op_to_reg(&mut layout, &i.operand);
+					let dest = give_reg(&mut layout, &i.dest);
 					blockloop.push(BfOp::Tag(dest, format!("{}_trunc_{}", i.dest, i.operand)));
 					blockloop.push(BfOp::Mov(src, dest));
 				}
 				llvm_ir::Instruction::SExt(i) => {
-					let src = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let src = op_to_reg(&mut layout, &i.operand);
+					let dest = give_reg(&mut layout, &i.dest);
 					blockloop.push(BfOp::Tag(dest, format!("{}_sext_{}", i.dest, i.operand)));
 					blockloop.push(BfOp::Mov(src, dest));
 				}
 
 				llvm_ir::Instruction::PtrToInt(i) => {
-					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
+					let dest = give_reg(&mut layout, &i.dest);
 
-					let ptr = addr_of(&live_ptrs, &unlop(&i.operand));
 					blockloop.push(BfOp::Tag(
 						dest,
 						format!("%{}_ptrtoi_%{}", i.dest, i.operand),
 					));
 
-					let tmp = borrow_reg(&mut onstack, &mut just_taken, 1);
+					let ptr = layout
+						.iter()
+						.position(|c| match c {
+							Cell::Alloc(n) => n == unlop(&i.operand),
+							_ => false,
+						})
+						.unwrap();
 
+					let tmp = borrow_reg(&mut layout, 1);
+
+					// basically reach back to the stack pointer and add it to
+					// our destination int. This way the initified pointer
+					// be basically be:
+					// the address of the stack register position
+					// +
+					// the current stack's position
 					blockloop.push(BfOp::Left(1));
 					blockloop.push(BfOp::Dup(0, tmp + 1, dest + 1));
 					blockloop.push(BfOp::Mov(tmp + 1, 0));
 					blockloop.push(BfOp::Right(1));
 
-					let ptr = match ptr {
-						PtrSrc::Alloc(n) => n,
-						_ => unimplemented!("lmao?"),
-					};
-
-					blockloop.push(BfOp::AddI(dest, ptr as u8));
+					// plus 1 since the stack pointer is 1 before main loop
+					blockloop.push(BfOp::AddI(dest, ptr as u8 + 1));
 				}
 
 				llvm_ir::Instruction::IntToPtr(i) => {
-					live_ptrs.push((&i.dest, PtrSrc::Int(&unlop(&i.operand))));
+					let src = op_to_reg(&mut layout, &i.operand);
+					let dest = give_ptr(&mut layout, &i.dest);
+					blockloop.push(BfOp::Tag(dest, format!("{}_itoptr_{}", i.dest, i.operand)));
+					blockloop.push(BfOp::Mov(src, dest));
+
+					// layout.push((&i.dest, PtrSrc::Int(&unlop(&i.operand))));
 				}
 
 				_ => {
@@ -947,9 +930,21 @@ fn build_func<'a>(
 				}
 			}
 
-			for addr in just_taken.iter() {
-				assert!(just_taken.iter().filter(|&n| n == addr).count() == 1);
-			}
+			layout = layout
+				.into_iter()
+				.map(|c| match c {
+					Cell::Borrowed(c2) => *c2,
+					_ => c,
+				})
+				.collect();
+
+			layout = layout
+				.into_iter()
+				.map(|c| match c {
+					Cell::Taken(_) => Cell::Free,
+					_ => c,
+				})
+				.collect();
 		}
 
 		// if it handled a call we know that: the block ended in a call and
@@ -960,25 +955,40 @@ fn build_func<'a>(
 
 			match &block.term {
 				llvm_ir::Terminator::Br(br) => {
-					let to = n2usize(&br.dest);
-					let toblock = func2id[func.name.as_str()].blks[&to];
+					let brto = layout
+						.iter()
+						.position(|c| match c {
+							Cell::BlockMask(n) => n == &br.dest,
+							_ => false,
+						})
+						.unwrap();
 
-					blockloop.push(BfOp::Tag(fntop + toblock, format!("{}/{}", func.name, to)));
-					blockloop.push(BfOp::AddI(fntop + toblock, 1));
+					blockloop.push(BfOp::Tag(brto, format!("{}/{}", func.name, br.dest)));
+					blockloop.push(BfOp::AddI(brto, 1));
 				}
 
 				llvm_ir::Terminator::CondBr(cbr) => {
-					let cond = take_reg(&mut onstack, &mut vec![], &unlop(&cbr.condition));
+					let cond = take_reg(&mut layout, &unlop(&cbr.condition));
 
-					let tru = n2usize(&cbr.true_dest);
-					let tru = func2id[func.name.as_str()].blks[&tru];
+					let tru = layout
+						.iter()
+						.position(|c| match c {
+							Cell::BlockMask(n) => n == &cbr.true_dest,
+							_ => false,
+						})
+						.unwrap();
 
-					let fals = n2usize(&cbr.false_dest);
-					let fals = func2id[func.name.as_str()].blks[&fals];
+					let fals = layout
+						.iter()
+						.position(|c| match c {
+							Cell::BlockMask(n) => n == &cbr.false_dest,
+							_ => false,
+						})
+						.unwrap();
 
-					// TODO(turbio): well we're using the ret pad block mask
-					// as scratch cause like we'll never need it lol.
-					let temp0 = fntop + RET_LANDING_PAD;
+					// TODO(turbio): hacky but well we're using the ret pad
+					// block mask as scratch cause like we'll never need it lol.
+					let temp0 = retpad_addr;
 					blockloop.push(BfOp::AddI(temp0, 1));
 
 					blockloop.push(BfOp::Goto(cond));
@@ -986,9 +996,9 @@ fn build_func<'a>(
 					blockloop.push(BfOp::Goto(temp0));
 					blockloop.push(BfOp::Literal("-".to_string()));
 
-					blockloop.push(BfOp::AddI(fntop + tru, 1));
+					blockloop.push(BfOp::AddI(tru, 1));
 					blockloop.push(BfOp::Tag(
-						fntop + tru,
+						tru,
 						format!("{}/{}_true", func.name, n2usize(&cbr.true_dest)),
 					));
 
@@ -998,9 +1008,9 @@ fn build_func<'a>(
 					blockloop.push(BfOp::Goto(temp0));
 					blockloop.push(BfOp::Literal("[-".to_string()));
 
-					blockloop.push(BfOp::AddI(fntop + fals, 1));
+					blockloop.push(BfOp::AddI(fals, 1));
 					blockloop.push(BfOp::Tag(
-						fntop + fals,
+						fals,
 						format!("{}/{}_false", func.name, n2usize(&cbr.false_dest)),
 					));
 
@@ -1013,7 +1023,7 @@ fn build_func<'a>(
 						// TODO(turbio): figure out where to put ret args
 						match &r.return_operand.as_ref().unwrap() {
 							llvm_ir::Operand::LocalOperand { name, .. } => {
-								take_reg(&mut onstack, &mut vec![], &name);
+								take_reg(&mut layout, &name);
 								// blockloop.push(BfOp::Mov(0, 0));
 							}
 							llvm_ir::Operand::ConstantOperand(_) => {
@@ -1024,14 +1034,19 @@ fn build_func<'a>(
 						};
 					}
 
-					for al in 0..allocs.len() {
-						blockloop.push(BfOp::Zero(ftop + al));
+					for (i, c) in layout.iter().enumerate() {
+						match c {
+							Cell::Alloc(_) => {
+								blockloop.push(BfOp::Zero(i));
+							}
+							_ => {}
+						}
 					}
 
 					blockloop.push(BfOp::SubI(0, 1));
 					blockloop.push(BfOp::Tag(0, "dead_frame".to_string()));
 
-					blockloop.push(BfOp::SubI(1 + func2id[func.name.as_str()].fid, 1));
+					blockloop.push(BfOp::SubI(fid, 1));
 
 					blockloop.push(BfOp::Goto(0));
 
@@ -1050,30 +1065,16 @@ fn build_func<'a>(
 			};
 		}
 
-		funcloop.push(BfOp::Loop(fntop + bid, blockloop))
+		funcloop.push(BfOp::Loop(bid, blockloop))
 	}
 
-	assert!(onstack.iter().filter(|x| x.is_some()).count() == 0);
-
 	return (
-		vec![
-			BfOp::Tag(1 + fid, func.name.clone()),
-			BfOp::Loop(1 + fid, funcloop),
-		],
-		ftop + allocs.len() + onstack.len(),
+		vec![BfOp::Tag(fid, func.name.clone()), BfOp::Loop(fid, funcloop)],
+		layout.len(),
 	);
 }
 
 const RET_LANDING_PAD: usize = 1;
-
-// stacks frames are laid out as:
-// <main loop bit> | <func mask> | <block mask> | <registers> | <scratch>
-// the main loop bit: is always `1` and part of the runtime's flow control
-// func/block masks: control the current block of execution
-struct FnFlow {
-	fid: usize,
-	blks: HashMap<usize, usize>,
-}
 
 pub fn compile(path: &Path) -> String {
 	let path = path.canonicalize().unwrap();
@@ -1083,38 +1084,6 @@ pub fn compile(path: &Path) -> String {
 	calls_never_in_first_block(&mut module);
 
 	let funcns = module.functions.len();
-
-	// <function name> -> <function index>
-	//					  <block num> -> <block index>
-	let func2id = module
-		.functions
-		.iter()
-		.enumerate()
-		.map(|(i, f)| {
-			(
-				f.name.as_str(),
-				FnFlow {
-					fid: i,
-					blks: f
-						.basic_blocks
-						.iter()
-						.enumerate()
-						.map(|(i, b)| {
-							(
-								n2usize(&b.name),
-								// block index 1 is always the ret landing pad
-								if i >= RET_LANDING_PAD { i + 1 } else { i },
-							)
-						})
-						.collect(),
-				},
-			)
-		})
-		.collect::<HashMap<&str, FnFlow>>();
-
-	let mainfid = func2id["main"].fid;
-
-	let mut out2 = String::from("");
 
 	let mut root: Vec<BfOp> = vec![];
 
@@ -1127,24 +1096,57 @@ pub fn compile(path: &Path) -> String {
 	root.push(BfOp::Tag(0, "__FRAME__ENTRY__".to_string()));
 	root.push(BfOp::AddI(0, 1));
 
-	root.push(BfOp::Tag(1 + mainfid, "main".to_string()));
-	root.push(BfOp::AddI(1 + mainfid, 1));
+	// stacks frames are laid out as:
+	// <main loop bit> | <func mask> | <block mask> | <registers> | <scratch>
+	// the main loop bit: is always `1` and part of the runtime's flow control
+	// func/block masks: control the current block of execution
+	//
+	// all the allocas live for the lifetime of the function. Sorta are actually
+	// memory addresses but like that's tricky.
+	// let mut allocs: Vec<&llvm_ir::Name> = vec![];
+	//
+	// live registers available on the stack produced by an instruction and
+	// yet to be consumed by a following instruction. Used as a map for
+	// allocations where each cell holds a llvm register name.
+	//
+	// TODO(turbio): for now onstack registers only live between the
+	// instruction producing them and the instruction consuming them.
+	// Multiple uses is unimplemented.
+	let mut layout: Layout = vec![Cell::MainLoop];
+	for func in module.functions.iter() {
+		layout.push(Cell::FuncMask(func.name.to_string()))
+	}
+
+	let mainfid = layout
+		.iter()
+		.position(|c| match c {
+			Cell::FuncMask(n) => n == "main",
+			_ => false,
+		})
+		.unwrap();
+
+	root.push(BfOp::Tag(mainfid, "main".to_string()));
+	root.push(BfOp::AddI(mainfid, 1));
 	root.push(BfOp::Tag(1 + funcns, "main/b0".to_string()));
 	root.push(BfOp::AddI(1 + funcns, 1));
 
 	let mut mainloop: Vec<BfOp> = vec![];
 
-	for func in module.functions.iter() {
-		let (_, st_width) = build_func(funcns, 0, func, &func2id);
+	// ret pad is always the same width with: main loop + function masks +
+	// landing pad mask
+	let ret_pad_width = 1 + funcns + RET_LANDING_PAD;
 
-		mainloop.append(&mut build_func(funcns, st_width, func, &func2id).0);
+	for func in module.functions.iter() {
+		let (_, st_width) = build_func(&layout, ret_pad_width, 0, func);
+
+		mainloop.append(&mut build_func(&layout, ret_pad_width, st_width, func).0);
 	}
 
 	root.push(BfOp::Loop(0, mainloop));
 
-	printast(&mut out2, root);
-
-	out2
+	let mut out = String::from("");
+	printast(&mut out, root);
+	out
 }
 
 fn printast(out: &mut String, ast: Vec<BfOp>) {

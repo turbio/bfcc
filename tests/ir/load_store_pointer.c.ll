@@ -8,30 +8,35 @@ define void @main() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i8, align 1
   %3 = alloca i32*, align 8
-  %4 = ptrtoint i32* %1 to i8
-  store i8 %4, i8* %2, align 1
+  %4 = alloca i32*, align 8
+  %5 = ptrtoint i32* %1 to i8
+  store i8 %5, i8* %2, align 1
   store i32* %1, i32** %3, align 8
-  %5 = load i8, i8* %2, align 1
-  %6 = zext i8 %5 to i32
-  %7 = icmp sgt i32 %6, 0
-  %8 = zext i1 %7 to i32
-  %9 = trunc i32 %8 to i8
-  call void @putchar(i8 zeroext %9)
-  %10 = ptrtoint i32* %1 to i8
-  %11 = zext i8 %10 to i32
-  %12 = load i8, i8* %2, align 1
-  %13 = zext i8 %12 to i32
-  %14 = icmp eq i32 %11, %13
-  %15 = zext i1 %14 to i32
-  %16 = trunc i32 %15 to i8
-  call void @putchar(i8 zeroext %16)
-  %17 = load i8, i8* %2, align 1
-  %18 = zext i8 %17 to i64
-  %19 = inttoptr i64 %18 to i32*
-  %20 = icmp eq i32* %1, %19
-  %21 = zext i1 %20 to i32
-  %22 = trunc i32 %21 to i8
-  call void @putchar(i8 zeroext %22)
+  %6 = load i8, i8* %2, align 1
+  %7 = zext i8 %6 to i32
+  %8 = icmp sgt i32 %7, 0
+  %9 = zext i1 %8 to i32
+  %10 = trunc i32 %9 to i8
+  call void @putchar(i8 zeroext %10)
+  %11 = ptrtoint i32* %1 to i8
+  %12 = zext i8 %11 to i32
+  %13 = load i8, i8* %2, align 1
+  %14 = zext i8 %13 to i32
+  %15 = icmp eq i32 %12, %14
+  %16 = zext i1 %15 to i32
+  %17 = trunc i32 %16 to i8
+  call void @putchar(i8 zeroext %17)
+  %18 = load i8, i8* %2, align 1
+  %19 = zext i8 %18 to i64
+  %20 = inttoptr i64 %19 to i32*
+  %21 = icmp eq i32* %1, %20
+  %22 = zext i1 %21 to i32
+  %23 = trunc i32 %22 to i8
+  call void @putchar(i8 zeroext %23)
+  %24 = load i8, i8* %2, align 1
+  %25 = zext i8 %24 to i64
+  %26 = inttoptr i64 %25 to i32*
+  store i32* %26, i32** %4, align 8
   ret void
 }
 

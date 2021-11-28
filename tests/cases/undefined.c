@@ -10,7 +10,7 @@ void f() {
   putchar((int)&k);
 }
 
-// TEST:{ "name": "check some undefined behavior", "output": "\u000c\u001c\u001d\u001e" }
+// TEST:{ "skip": true, "name": "snapshot some undefined behavior", "output": "\u000c\u001c\u001d\u001e" }
 int main() {
   int i;
   putchar((int)&i);
