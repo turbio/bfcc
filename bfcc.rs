@@ -342,6 +342,20 @@ fn build_func<'a>(
 		lv.iter().find(|n| n.0 == name).unwrap().1.clone()
 	};
 
+	enum Cell {
+		MainLoop,
+		FuncMask(String),
+		BlockMask(llvm_ir::Name),
+	}
+
+	let mut layout: Vec<Cell> = vec![Cell::MainLoop];
+
+	let mut fids_sorted = func2id.iter().collect::<Vec<(&&str, &FnFlow)>>();
+	fids_sorted.sort_by(|l, r| l.1.fid.cmp(&r.1.fid));
+	for (name, flow) in fids_sorted.iter() {
+		layout.push(Cell::FuncMask(name.to_string()))
+	}
+
 	// live registers available on the stack produced by an instruction and
 	// yet to be consumed by a following instruction. Used as a map for
 	// allocations where each cell holds a llvm register name.
@@ -882,10 +896,10 @@ fn build_func<'a>(
 
 				// these are all lies and actually nops
 				llvm_ir::Instruction::ZExt(i) => {
-					let op = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
+					let src = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
 					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
 					blockloop.push(BfOp::Tag(dest, format!("{}_zext_{}", i.dest, i.operand)));
-					blockloop.push(BfOp::Mov(op, dest));
+					blockloop.push(BfOp::Mov(src, dest));
 				}
 				llvm_ir::Instruction::Trunc(i) => {
 					let src = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
@@ -896,7 +910,7 @@ fn build_func<'a>(
 				llvm_ir::Instruction::SExt(i) => {
 					let src = op_to_reg(&mut onstack, &mut just_taken, &i.operand);
 					let dest = give_reg(&mut onstack, &just_taken, &i.dest);
-					blockloop.push(BfOp::Tag(dest, format!("{}_trunc_{}", i.dest, i.operand)));
+					blockloop.push(BfOp::Tag(dest, format!("{}_sext_{}", i.dest, i.operand)));
 					blockloop.push(BfOp::Mov(src, dest));
 				}
 

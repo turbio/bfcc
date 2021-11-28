@@ -59,7 +59,8 @@ runtime init:
 			#%6_zext_i8_%5
 			<[->+<]
 			%7 = icmp sgt i32 %6_ i32 0
-			>>
+			>>#tmp_constop_0
+			
 			<<#%7_icmp_%i32_%6_sgt_i32_0
 			>>>#icmp_tmpb
 			>#icmp_tmp0
@@ -178,8 +179,10 @@ runtime init:
 			<[->+<]
 			%19 = inttoptr i64 %18 to i32*
 			%20 = icmp eq i32* %1_ i32* %19
-			>>>++++++++
-			>++++++++++++
+			>>>#tmp_constptr_8
+			++++++++
+			>#tmp_constptr_12
+			++++++++++++
 			<<<<#%20_icmp_%i32*_%1_eq_i32*_%19
 			>>>>>#icmp_tmpb
 			>#icmp_tmp0
