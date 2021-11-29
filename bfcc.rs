@@ -776,28 +776,171 @@ fn build_func<'a>(
 				llvm_ir::Instruction::Load(l) => {
 					let dest = give_reg(&mut layout, &l.dest);
 
-					let addr = layout
-						.iter()
-						.position(|c| match c {
-							Cell::Alloc(n) => n == unlop(&l.address),
-							_ => false,
-						})
-						.unwrap();
+					let addr = layout.iter().position(|c| match c {
+						Cell::Alloc(n) => n == unlop(&l.address),
+						_ => false,
+					});
 
-					blockloop.push(BfOp::Tag(
-						dest,
-						format!(
-							"load_%{}_to_%{}",
-							n2usize(unlop(&l.address)),
-							n2usize(&l.dest)
-						),
-					));
+					if addr.is_some() {
+						let addr = addr.unwrap();
 
-					let tmp = borrow_reg(&mut layout, 1);
+						blockloop.push(BfOp::Tag(
+							dest,
+							format!(
+								"load_%{}_to_%{}",
+								n2usize(unlop(&l.address)),
+								n2usize(&l.dest)
+							),
+						));
 
-					blockloop.push(BfOp::Tag(tmp, format!("tmp0_for_load")));
-					blockloop.push(BfOp::Dup(addr, tmp, dest));
-					blockloop.push(BfOp::Mov(tmp, addr));
+						let tmp = borrow_reg(&mut layout, 1);
+
+						blockloop.push(BfOp::Tag(tmp, format!("tmp0_for_load")));
+						blockloop.push(BfOp::Dup(addr, tmp, dest));
+						blockloop.push(BfOp::Mov(tmp, addr));
+					} else {
+						// ohno it's actually a pointer!?
+
+						let addr = layout
+							.iter()
+							.position(|c| match c {
+								Cell::Ptr(n) => n == unlop(&l.address),
+								Cell::Reg(n) => n == unlop(&l.address),
+								_ => false,
+							})
+							.unwrap();
+
+						// this is pretty hairy. The idea is to
+						// clear the first few cells, copy the pointer value
+						// into this area then move forward while moving cells
+						// infront behind and decrementing the pointer.
+						//
+						// for example: say we have the tape:
+						// | a | b | c | x | y | z | p | d |
+						//
+						// where `p` is the address we want to deref, `d`
+						// is where we want to store the value and `z` is the
+						// value pointed to by `p` (p would equal 5). a, b, and
+						// c are the train station.
+						//
+						// then copy the pointer to the train station
+						//
+						// | 0 | 0 | 2 | x | y | z | p | d |
+						//
+						// next we'll move forward one. the ptr copy is
+						// decremented and a return counter is incremented.
+						//
+						// | x | 0 | 1 | 1 | y | z | p | d |
+						//
+						// repeat until the ptr copy is 0.
+						//
+						// | x | y | 0 | 2 | 0 | z | p | d |
+						//
+						// once ptr copy is 0 we'll copy the next value
+						// into its place
+						//
+						// | x | y | 0 | 2 | z | z | p | d |
+						//
+						// reverse the process, moving back until the return
+						// counter is 0.
+						//
+						// | x | 0 | 1 | z | y | z | p | d |
+						//
+						// | 0 | 0 | z | x | y | z | p | d |
+						//
+						// once 0 copy the value over to d and restore the moved
+						// cells
+						//
+						// | a | b | c | x | y | z | p | z |
+						//
+						// it's like a train! choo choo
+
+						let train = borrow_reg(&mut layout, 3);
+						let train_tmp = train + 0;
+						let train_ret = train + 1;
+						let train_ptr = train + 2;
+						// while driving forward train is layed out like:
+						// | tmp | ret | ptr |
+						// each time we move forward ptr is decremented and ret
+						// is incremented for the return trip. tmp is used as a
+						// temp for duping.
+
+						// given the layout:
+						// ...a... | stackptr | ...b... | train | ...c...
+						// the pointer can be in any a, b or c.
+						// todo(turbio): assuming it always appears in b.
+						// if the pointer is in b we travel left
+						// dist = train - (ptr - stackptr)
+
+						blockloop.push(BfOp::Tag(train_tmp, format!("train_tmp")));
+						blockloop.push(BfOp::Tag(train_ret, format!("train_ret")));
+						blockloop.push(BfOp::Tag(train_ptr, format!("train_ptr")));
+
+						// so do: train - (ptr - stackptr)
+						// by:
+						// moving &train to train_ptr
+						blockloop.push(BfOp::AddI(train_ptr, train as u8));
+
+						// dup stackptr to train_ret (w/ train_tmp)
+						blockloop.push(BfOp::Left(1));
+						blockloop.push(BfOp::Dup(0, train_tmp + 1, train_ret + 1));
+						blockloop.push(BfOp::Mov(train_tmp + 1, 0));
+						blockloop.push(BfOp::Right(1));
+
+						// move addr to train_tmp
+						blockloop.push(BfOp::Mov(addr, train_tmp));
+
+						// now we should have: | ptr | stackptr | &train |
+						// so sub stackptr from ptr and then sub the result of
+						// that from &train
+						blockloop.push(BfOp::Loop(
+							train_ret,
+							vec![BfOp::SubI(train_ret, 1), BfOp::SubI(train_tmp, 1)],
+						));
+						blockloop.push(BfOp::Loop(
+							train_tmp,
+							vec![BfOp::SubI(train_tmp, 1), BfOp::SubI(train_ptr, 1)],
+						));
+
+						blockloop.push(BfOp::Comment(format!("drive left! choo choo")));
+
+						// time to drive! choo choo!
+						blockloop.push(BfOp::Loop(
+							train_ptr,
+							vec![
+								BfOp::Mov(train_ret, train_tmp),
+								BfOp::Mov(train_ptr, train_ret),
+								BfOp::Mov(train_tmp - 1, train_ptr),
+								BfOp::Left(1),
+								BfOp::SubI(train_ptr, 1),
+								BfOp::AddI(train_ret, 1),
+							],
+						));
+
+						blockloop.push(BfOp::Comment(format!("get our bag")));
+
+						// woweee, cell just to the left of &train is our
+						// address!
+
+						blockloop.push(BfOp::Dup(train_tmp - 1, train_tmp, train_ptr));
+						blockloop.push(BfOp::Mov(train_tmp, train_tmp - 1));
+
+						blockloop.push(BfOp::Comment(format!("drive baaaack")));
+
+						// aight driving back!
+						blockloop.push(BfOp::Loop(
+							train_ret,
+							vec![
+								BfOp::Mov(train_ptr + 1, train_tmp),
+								BfOp::Mov(train_ptr, train_ptr + 1),
+								BfOp::Mov(train_ret, train_ptr),
+								BfOp::Right(1),
+								BfOp::SubI(train_ret, 1),
+							],
+						));
+
+						blockloop.push(BfOp::Mov(train_ptr, dest));
+					}
 				}
 
 				llvm_ir::Instruction::ICmp(i) => {

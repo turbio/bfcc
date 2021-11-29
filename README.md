@@ -22,6 +22,8 @@ Pretty much every instruction's implementation has lots of caveats. Only brainfu
 
 Floating point, signed, and other fancy instructions are also ignored. For now they're substituted with their closest implemented counterpart lol.
 
+████████████████████████░░░░░░░░░░░░░░░░░ 58% (24/41)
+
 - Terminator Instructions
   - [x] `ret`
   - [x] `br`
@@ -52,9 +54,9 @@ Floating point, signed, and other fancy instructions are also ignored. For now t
 - Conversion Operations
   - [x] `trunc .. to`
   - [x] `zext .. to`
-  - [ ] `sext .. to`
-  - [ ] `ptrtoint .. to`
-  - [ ] `inttoptr .. to`
+  - [x] `sext .. to`
+  - [x] `ptrtoint .. to`
+  - [x] `inttoptr .. to`
   - [ ] `bitcast .. to`
 - Other Operations
   - [x] `icmp`

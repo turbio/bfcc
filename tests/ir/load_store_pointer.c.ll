@@ -8,7 +8,8 @@ define void @main() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i8, align 1
   %3 = alloca i32*, align 8
-  %4 = alloca i32*, align 8
+  %4 = alloca i32, align 4
+  store i32 112, i32* %1, align 4
   %5 = ptrtoint i32* %1 to i8
   store i8 %5, i8* %2, align 1
   store i32* %1, i32** %3, align 8
@@ -33,10 +34,12 @@ define void @main() #0 {
   %22 = zext i1 %21 to i32
   %23 = trunc i32 %22 to i8
   call void @putchar(i8 zeroext %23)
-  %24 = load i8, i8* %2, align 1
-  %25 = zext i8 %24 to i64
-  %26 = inttoptr i64 %25 to i32*
-  store i32* %26, i32** %4, align 8
+  %24 = load i32*, i32** %3, align 8
+  %25 = load i32, i32* %24, align 4
+  store i32 %25, i32* %4, align 4
+  %26 = load i32, i32* %4, align 4
+  %27 = trunc i32 %26 to i8
+  call void @putchar(i8 zeroext %27)
   ret void
 }
 
