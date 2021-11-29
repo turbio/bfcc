@@ -759,18 +759,106 @@ fn build_func<'a>(
 				}
 
 				llvm_ir::Instruction::Store(s) => {
-					let dest = layout
-						.iter()
-						.position(|cell| match cell {
-							Cell::Alloc(n) => n == unlop(&s.address),
-							_ => false,
-						})
-						.unwrap();
+					let dest = layout.iter().position(|cell| match cell {
+						Cell::Alloc(n) => n == unlop(&s.address),
+						_ => false,
+					});
 
 					let value = op_to_reg(&mut layout, &s.value);
 
-					blockloop.push(BfOp::Zero(dest));
-					blockloop.push(BfOp::Mov(value, dest));
+					if dest.is_some() {
+						let dest = dest.unwrap();
+
+						blockloop.push(BfOp::Zero(dest));
+						blockloop.push(BfOp::Mov(value, dest));
+					} else {
+						let addr = layout
+							.iter()
+							.position(|c| match c {
+								Cell::Ptr(n) => n == unlop(&s.address),
+								Cell::Reg(n) => n == unlop(&s.address),
+								_ => false,
+							})
+							.unwrap();
+
+						let train = borrow_reg(&mut layout, 4);
+
+						let train_tmp = train + 0;
+						let train_ret = train + 1;
+						let train_ptr = train + 2;
+						let train_cargo = train + 3;
+
+						let before_train = train - 1;
+						let behind_train = train_cargo + 1;
+
+						// while driving forward train is layed out like:
+						// <in front> | tmp | ret | ptr | cargo |
+
+						blockloop.push(BfOp::Tag(train_tmp, format!("train_tmp")));
+						blockloop.push(BfOp::Tag(train_ret, format!("train_ret")));
+						blockloop.push(BfOp::Tag(train_ptr, format!("train_ptr")));
+						blockloop.push(BfOp::Tag(train_cargo, format!("train_cargo")));
+
+						// moving &train to train_ptr
+						blockloop.push(BfOp::AddI(train_ptr, train as u8));
+
+						// dup stackptr to train_ret (w/ train_tmp)
+						blockloop.push(BfOp::Left(1));
+						blockloop.push(BfOp::Dup(0, train_tmp + 1, train_ret + 1));
+						blockloop.push(BfOp::Mov(train_tmp + 1, 0));
+						blockloop.push(BfOp::Right(1));
+
+						// move addr to train_tmp
+						blockloop.push(BfOp::Mov(addr, train_tmp));
+
+						// now we should have: | ptr | stackptr | &train |
+						// so sub stackptr from ptr and then sub the result of
+						// that from &train
+						blockloop.push(BfOp::Loop(
+							train_ret,
+							vec![BfOp::SubI(train_ret, 1), BfOp::SubI(train_tmp, 1)],
+						));
+						blockloop.push(BfOp::Loop(
+							train_tmp,
+							vec![BfOp::SubI(train_tmp, 1), BfOp::SubI(train_ptr, 1)],
+						));
+
+						// load in the cargo hehe
+						blockloop.push(BfOp::Mov(value, train_cargo));
+
+						blockloop.push(BfOp::Comment(format!("drive left! choo choo")));
+
+						// time to drive! choo choo!
+						blockloop.push(BfOp::Loop(
+							train_ptr,
+							vec![
+								BfOp::Mov(train_ret, train_tmp),
+								BfOp::Mov(train_ptr, train_ret),
+								BfOp::Mov(train_cargo, train_ptr),
+								BfOp::Mov(before_train, train_cargo),
+								BfOp::Left(1),
+								BfOp::SubI(train_ptr, 1),
+								BfOp::AddI(train_ret, 1),
+							],
+						));
+
+						// unload the cargo
+						blockloop.push(BfOp::Zero(before_train));
+						blockloop.push(BfOp::Mov(train_cargo, before_train));
+
+						// get out of there dude
+						blockloop.push(BfOp::Loop(
+							train_ret,
+							vec![
+								BfOp::Mov(behind_train, train_tmp),
+								BfOp::Mov(train_ret, train_ptr),
+								BfOp::Right(1),
+								BfOp::SubI(train_ret, 1),
+							],
+						));
+
+						// unimplemented!("store to non-alloca");
+					}
 				}
 
 				llvm_ir::Instruction::Load(l) => {

@@ -2,7 +2,7 @@
 
 // void deref_pointer(uint8_t *p) { putchar(*p); }
 
-// TEST:{ "name": "load store pointer", "output": "\u0001\u0001\u0001p" }
+// TEST:{ "name": "load store pointer", "output": "\u0001\u0001\u0001pa" }
 void main(void) {
   int a = 'p';
 
@@ -15,15 +15,11 @@ void main(void) {
   putchar((uint8_t)&a == addr);
   putchar(&a == (int *)addr);
 
-  // int *ptr2 = (int*)addr;
-
   int v = *ptr;
   putchar(v);
 
-  // *ptr = 'P';
+  *ptr = 'a';
 
-  // *ptr = 'P';
-
-  // deref_pointer(&a);
-  // deref_pointer(ptr);
+  int v2 = *ptr;
+  putchar(v2);
 };
