@@ -1,8 +1,8 @@
 >>>>
-+++++
+++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >#main
 +
@@ -21,146 +21,146 @@ runtime init:
 			<<<
 			<<<<<<<<<<<<<<<<<<
 		>>>]
-		<#main/53100
+		<#B:main/%call_never_first_formain
 		[
 			-
 			br label %0
 			>>#main/%0
 			+
 		<<]
-		>>#main/0
+		>>#B:main/%0
 		[
 			-
 			call @putchar(i8 104)
 			enable next
-			>#main/%4200
+			>#main/%call_term_for_0
 			+
 			putchar intrinsic
 			>>>>>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<<<<<]
-		>#main/4200
+		>#B:main/%call_term_for_0
 		[
 			-
 			call @putchar(i8 101)
 			enable next
-			>#main/%8400
+			>#main/%call_term_for_1
 			+
 			putchar intrinsic
 			>>>>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<<<<<]
-		>#main/8400
+		>#B:main/%call_term_for_1
 		[
 			-
 			call @putchar(i8 108)
 			enable next
-			>#main/%12600
+			>#main/%call_term_for_2
 			+
 			putchar intrinsic
 			>>>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<<<]
-		>#main/12600
+		>#B:main/%call_term_for_2
 		[
 			-
 			call @putchar(i8 108)
 			enable next
-			>#main/%16800
+			>#main/%call_term_for_3
 			+
 			putchar intrinsic
 			>>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<<]
-		>#main/16800
+		>#B:main/%call_term_for_3
 		[
 			-
 			call @putchar(i8 111)
 			enable next
-			>#main/%21000
+			>#main/%call_term_for_4
 			+
 			putchar intrinsic
 			>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<]
-		>#main/21000
+		>#B:main/%call_term_for_4
 		[
 			-
 			call @putchar(i8 32)
 			enable next
-			>#main/%25200
+			>#main/%call_term_for_5
 			+
 			putchar intrinsic
 			>>>>>>++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<]
-		>#main/25200
+		>#B:main/%call_term_for_5
 		[
 			-
 			call @putchar(i8 119)
 			enable next
-			>#main/%29400
+			>#main/%call_term_for_6
 			+
 			putchar intrinsic
 			>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<]
-		>#main/29400
+		>#B:main/%call_term_for_6
 		[
 			-
 			call @putchar(i8 111)
 			enable next
-			>#main/%33600
+			>#main/%call_term_for_7
 			+
 			putchar intrinsic
 			>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<]
-		>#main/33600
+		>#B:main/%call_term_for_7
 		[
 			-
 			call @putchar(i8 114)
 			enable next
-			>#main/%37800
+			>#main/%call_term_for_8
 			+
 			putchar intrinsic
 			>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<]
-		>#main/37800
+		>#B:main/%call_term_for_8
 		[
 			-
 			call @putchar(i8 108)
 			enable next
-			>#main/%42000
+			>#main/%call_term_for_9
 			+
 			putchar intrinsic
 			>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<]
-		>#main/42000
+		>#B:main/%call_term_for_9
 		[
 			-
 			call @putchar(i8 100)
 			enable next
-			>#main/%46200
+			>#main/%call_term_for_10
 			+
 			putchar intrinsic
 			>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<]
-		>#main/46200
+		>#B:main/%call_term_for_10
 		[
 			-
 			ret i32 0

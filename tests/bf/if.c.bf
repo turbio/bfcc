@@ -1,8 +1,8 @@
 >>>>
-+++++
+++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >#main
 +
@@ -21,7 +21,7 @@ runtime init:
 			<<<
 			<<<<<<<<<<<<<<<<<<
 		>>>]
-		<#main/0
+		<#B:main/%0
 		[
 			-
 			%1 = alloca i32_ align 4
@@ -92,7 +92,7 @@ runtime init:
 			<<<
 			]
 		<]
-		>>#main/5
+		>>#B:main/%5
 		[
 			-
 			%6 = load i8* %2_ align 1
@@ -102,39 +102,39 @@ runtime init:
 			>>[-<<+>>]
 			call @putchar(i8 %6)
 			enable next
-			<<<<<<<#main/%4208
+			<<<<<<<#main/%call_term_for_1
 			+
 			putchar intrinsic
 			>>>>>>.
 			[-]
 		<<<<<<<]
-		>#main/4208
+		>#B:main/%call_term_for_1
 		[
 			-
 			br label %8
 			>>>#main/%8
 			+
 		<<<]
-		>#main/7
+		>#B:main/%7
 		[
 			-
 			call @putchar(i8 110)
 			enable next
-			>#main/%8408
+			>#main/%call_term_for_3
 			+
 			putchar intrinsic
 			>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<]
-		>#main/8408
+		>#B:main/%call_term_for_3
 		[
 			-
 			br label %8
 			>#main/%8
 			+
 		<]
-		>#main/8
+		>#B:main/%8
 		[
 			-
 			%9 = load i32* %1_ align 4

@@ -1,8 +1,8 @@
 >>>>
-+++++
+++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >#main
 +
@@ -21,7 +21,7 @@ runtime init:
 			<<<
 			<<<<<<<<<<<<<<<<<
 		>>>]
-		<#main/0
+		<#B:main/%0
 		[
 			-
 			%1 = alloca i8_ align 1
@@ -37,7 +37,7 @@ runtime init:
 			<<<<<<<#main/%3
 			+
 		<<]
-		>>#main/3
+		>>#B:main/%3
 		[
 			-
 			%4 = load i8* %1_ align 1
@@ -93,7 +93,7 @@ runtime init:
 			<<<<<
 			]
 		>]
-		>#main/7
+		>#B:main/%7
 		[
 			-
 			%8 = load i8* %1_ align 1
@@ -123,20 +123,20 @@ runtime init:
 			>>[-<<+>>]
 			call @putchar(i8 %12)
 			enable next
-			<<<<<<#main/%4216
+			<<<<<<#main/%call_term_for_2
 			+
 			putchar intrinsic
 			>>>>>.
 			[-]
 		<<<<<<]
-		>#main/4216
+		>#B:main/%call_term_for_2
 		[
 			-
 			br label %13
 			>#main/%13
 			+
 		<]
-		>#main/13
+		>#B:main/%13
 		[
 			-
 			%14 = load i8* %1_ align 1
@@ -157,7 +157,7 @@ runtime init:
 			<<<<<<<<<#main/%3
 			+
 		>>>]
-		>#main/16
+		>#B:main/%16
 		[
 			-
 			ret void

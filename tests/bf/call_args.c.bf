@@ -2,7 +2,7 @@
 +++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >>#main
 +
@@ -21,7 +21,7 @@ runtime init:
 			<<<<
 			<<<<<<<<<<<<<<<
 		>>>>]
-		<#call_me/19503
+		<#B:call_me/%call_never_first_forcall_me
 		[
 			-
 			>>>>>>>>>#arg_%0
@@ -40,7 +40,7 @@ runtime init:
 			>>>>>#call_me/%3
 			+
 		<<]
-		>>#call_me/3
+		>>#B:call_me/%3
 		[
 			-
 			%4 = alloca i32_ align 4
@@ -68,13 +68,13 @@ runtime init:
 			<[->+<]
 			call @putchar(i8 %8)
 			enable next
-			<<<<<<#call_me/%4203
+			<<<<<<#call_me/%call_term_for_0
 			+
 			putchar intrinsic
 			>>>>>>>.
 			[-]
 		<<<<<<<<]
-		>#call_me/4203
+		>#B:call_me/%call_term_for_0
 		[
 			-
 			%9 = load i32* %5_ align 4
@@ -87,13 +87,13 @@ runtime init:
 			<[->+<]
 			call @putchar(i8 %10)
 			enable next
-			<<<<<#call_me/%8403
+			<<<<<#call_me/%call_term_for_1
 			+
 			putchar intrinsic
 			>>>>>>.
 			[-]
 		<<<<<<<]
-		>#call_me/8403
+		>#B:call_me/%call_term_for_1
 		[
 			-
 			%11 = load i32* %6_ align 4
@@ -106,13 +106,13 @@ runtime init:
 			<[->+<]
 			call @putchar(i8 %12)
 			enable next
-			<<<<#call_me/%12603
+			<<<<#call_me/%call_term_for_2
 			+
 			putchar intrinsic
 			>>>>>.
 			[-]
 		<<<<<<]
-		>#call_me/12603
+		>#B:call_me/%call_term_for_2
 		[
 			-
 			ret void
@@ -141,28 +141,37 @@ runtime init:
 			<<<<
 			<<<<<<<
 		>>>>]
-		<#main/11100
+		<#B:main/%call_never_first_formain
 		[
 			-
 			br label %0
 			>>#main/%0
 			+
 		<<]
-		>>#main/0
+		>>#B:main/%0
 		[
 			-
 			call @call_me(i32 49_ i32 50_ i32 51)
 			enable next
-			>#main/%4200
+			>#main/%call_term_for_0
 			+
-			>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++
-			<++++++++++++++++++++++++++++++++++++++++++++++++++
-			<+++++++++++++++++++++++++++++++++++++++++++++++++++
-			>>>++++++++++++++
+			copy up arg 0
+			>>>>>>>>#arg_0
+			+++++++++++++++++++++++++++++++++++++++++++++++++
+			copy up arg 1
+			<#arg_1
+			++++++++++++++++++++++++++++++++++++++++++++++++++
+			copy up arg 2
+			<#arg_2
+			+++++++++++++++++++++++++++++++++++++++++++++++++++
+			give callee a stack pointer
+			>>>#stack_ptr
+			++++++++++++++
 			<
-			<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]
+			<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<<]
+			>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>]
 			>
-			
+			<<<<<<<<<<<<<<<<<
 			>>>>>>>
 			#JUMP_PAD
 			+
@@ -178,7 +187,7 @@ runtime init:
 			>>#call_me/b0
 			+
 		>>]
-		>#main/4200
+		>#B:main/%call_term_for_0
 		[
 			-
 			ret void

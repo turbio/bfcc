@@ -33,9 +33,9 @@ runtime init:
 			-
 			%1 = alloca i8_ align 1
 			>>#alloca_%1
-			store i8 72_ i8* %1_ align 1
-			>#tmp_constop_72
-			++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			store i8 97_ i8* %1_ align 1
+			>#tmp_constop_97
+			+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			<[-]
 			>[-<+>]
 			%2 = load i8* %1_ align 1
@@ -43,21 +43,23 @@ runtime init:
 			>#tmp0_for_load
 			<<[->>+<+<]
 			>>[-<<+>>]
-			%3 = zext i8 %2 to i32
-			#%3_zext_i8_%2
+			%3 = add i8 %2_ i8 1
+			>#tmp_constop_1
+			+
+			<#%%3_add_%i8_%2_ci8_1
 			<[->+<]
-			%4 = add i32 %3_ i32 32
-			#tmp_constop_32
-			++++++++++++++++++++++++++++++++
-			>>#%%4_add_%i32_%3_ci32_32
-			<[->+<]
-			<[->>+<<]
-			%5 = trunc i32 %4 to i8
-			#%5_trunc_i32_%4
+			>>[-<+>]
+			store i8 %3_ i8* %1_ align 1
+			<<<[-]
 			>>[-<<+>>]
-			call @putchar(i8 %5)
+			%4 = load i8* %1_ align 1
+			<#load_%1_to_%4
+			>#tmp0_for_load
+			<<[->>+<+<]
+			>>[-<<+>>]
+			call @putchar(i8 %4)
 			enable next
-			<<<<#main/%call_term_for_0
+			<<<#main/%call_term_for_0
 			+
 			putchar intrinsic
 			>>.
@@ -66,7 +68,7 @@ runtime init:
 		>#B:main/%call_term_for_0
 		[
 			-
-			ret i32 0
+			ret void
 			>[-]
 			<<<<<<-
 			#dead_frame

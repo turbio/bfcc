@@ -1,8 +1,8 @@
 >>>>
-+++++
+++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >#main
 +
@@ -21,7 +21,7 @@ runtime init:
 			<<<
 			<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 		>>>]
-		<#main/0
+		<#B:main/%0
 		[
 			-
 			%1 = alloca i32_ align 4
@@ -37,7 +37,7 @@ runtime init:
 			<<<<<<<<<<<<<<<<<<<#main/%3
 			+
 		<<]
-		>>#main/3
+		>>#B:main/%3
 		[
 			-
 			%4 = load i32* %1_ align 4
@@ -91,7 +91,7 @@ runtime init:
 			<<<<<<<<<<<<<<<<<
 			]
 		>]
-		>#main/6
+		>#B:main/%6
 		[
 			-
 			store i32 0_ i32* %2_ align 4
@@ -103,7 +103,7 @@ runtime init:
 			<<<<<<<<<<<<<<<<<#main/%7
 			+
 		<]
-		>#main/7
+		>#B:main/%7
 		[
 			-
 			%8 = load i32* %2_ align 4
@@ -157,7 +157,7 @@ runtime init:
 			<<<<<<<<<<<<<<<
 			]
 		>>>]
-		>#main/10
+		>#B:main/%10
 		[
 			-
 			%11 = load i32* %1_ align 4
@@ -214,7 +214,7 @@ runtime init:
 			<<<<<
 			]
 		>>>>]
-		>#main/13
+		>#B:main/%13
 		[
 			-
 			%14 = load i32* %2_ align 4
@@ -271,26 +271,26 @@ runtime init:
 			<<<<<<<<
 			]
 		>>>>>]
-		>#main/16
+		>#B:main/%16
 		[
 			-
 			call @putchar(i8 111)
 			enable next
-			>#main/%4232
+			>#main/%call_term_for_6
 			+
 			putchar intrinsic
 			>>>>>>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<<<<<<<]
-		>#main/4232
+		>#B:main/%call_term_for_6
 		[
 			-
 			br label %17
 			>#main/%17
 			+
 		<]
-		>#main/17
+		>#B:main/%17
 		[
 			-
 			%18 = load i32* %1_ align 4
@@ -347,7 +347,7 @@ runtime init:
 			<<<<<<<<<<<<
 			]
 		>>>>>>>>]
-		>#main/20
+		>#B:main/%20
 		[
 			-
 			%21 = load i32* %2_ align 4
@@ -404,45 +404,45 @@ runtime init:
 			<<<<<<<<<<<<
 			]
 		>>>>>>>>>]
-		>#main/23
+		>#B:main/%23
 		[
 			-
 			call @putchar(i8 97)
 			enable next
-			>#main/%8432
+			>#main/%call_term_for_10
 			+
 			putchar intrinsic
 			>>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<<<]
-		>#main/8432
+		>#B:main/%call_term_for_10
 		[
 			-
 			br label %24
 			>#main/%24
 			+
 		<]
-		>#main/24
+		>#B:main/%24
 		[
 			-
 			call @putchar(i8 44)
 			enable next
-			>#main/%12632
+			>#main/%call_term_for_12
 			+
 			putchar intrinsic
 			>>>>>>>++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<<<<<<<]
-		>#main/12632
+		>#B:main/%call_term_for_12
 		[
 			-
 			br label %25
 			>#main/%25
 			+
 		<]
-		>#main/25
+		>#B:main/%25
 		[
 			-
 			%26 = load i32* %2_ align 4
@@ -463,14 +463,14 @@ runtime init:
 			<<<<<<<<<<<<<<<<<<<#main/%7
 			+
 		>>>>>>>>>>>]
-		>#main/28
+		>#B:main/%28
 		[
 			-
 			br label %29
 			>#main/%29
 			+
 		<]
-		>#main/29
+		>#B:main/%29
 		[
 			-
 			%30 = load i32* %1_ align 4
@@ -491,7 +491,7 @@ runtime init:
 			<<<<<<<<<<<<<<<<<<<<<#main/%3
 			+
 		>>>>>>>>>>>>>>>]
-		>#main/32
+		>#B:main/%32
 		[
 			-
 			ret void

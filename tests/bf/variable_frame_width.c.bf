@@ -1,8 +1,8 @@
 >>>>
-+++++
+++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >#main
 +
@@ -21,26 +21,26 @@ runtime init:
 			<<<
 			<<<<<<<
 		>>>]
-		<#main/11100
+		<#B:main/%call_never_first_formain
 		[
 			-
 			br label %0
 			>>#main/%0
 			+
 		<<]
-		>>#main/0
+		>>#B:main/%0
 		[
 			-
 			call @putchar(i8 46)
 			enable next
-			>#main/%4200
+			>#main/%call_term_for_0
 			+
 			putchar intrinsic
 			>++++++++++++++++++++++++++++++++++++++++++++++
 			.
 			[-]
 		<<]
-		>#main/4200
+		>#B:main/%call_term_for_0
 		[
 			-
 			ret void

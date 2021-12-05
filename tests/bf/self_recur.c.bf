@@ -2,7 +2,7 @@
 +++++
 >
 runtime init:
-#__FRAME__ENTRY__
+#TOP_FRAME
 +
 >>#main
 +
@@ -21,7 +21,7 @@ runtime init:
 			<<<<
 			<<<<<<<<<<<<<<<<<
 		>>>>]
-		<#lol/15311
+		<#B:lol/%call_never_first_forlol
 		[
 			-
 			>>>>>>>>#arg_%0
@@ -32,7 +32,7 @@ runtime init:
 			>>>>>#lol/%1
 			+
 		<<]
-		>>#lol/1
+		>>#B:lol/%1
 		[
 			-
 			%2 = alloca i32_ align 4
@@ -56,13 +56,13 @@ runtime init:
 			>[-<+>]
 			call @putchar(i8 %5)
 			enable next
-			<<<<<<#lol/%4211
+			<<<<<<#lol/%call_term_for_0
 			+
 			putchar intrinsic
 			>>>>>.
 			[-]
 		<<<<<<]
-		>#lol/4211
+		>#B:lol/%call_term_for_0
 		[
 			-
 			%6 = load i32* %2_ align 4
@@ -115,7 +115,7 @@ runtime init:
 			<<<<<
 			]
 		>>]
-		>#lol/8
+		>#B:lol/%8
 		[
 			-
 			%9 = load i32* %2_ align 4
@@ -131,14 +131,19 @@ runtime init:
 			>[->+<]
 			call @lol(i32 %10)
 			enable next
-			<<<<#lol/%8411
+			<<<<#lol/%call_term_for_2
 			+
-			>>>>>[->>>>>>>>>+<<<<<<<<<]
-			>>>>>>>>>>++++++++++++++++++++++++
+			copy up arg 0
+			>>>>>>>>>>>>>>#arg_0
+			<<<<<<<<<[->>>>>>>>>+<<<<<<<<<]
+			give callee a stack pointer
+			>>>>>>>>>>#stack_ptr
+			++++++++++++++++++++++++
 			<
-			<<<<<<<<<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<]
+			<<<<<<<<<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<<<<<<<<<<]
+			>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>]
 			>
-			
+			<<<<<<<<<<<<<<<<<<<<<<<<<
 			>>>>>>>>>>>>>>>>>
 			#JUMP_PAD
 			+
@@ -154,14 +159,14 @@ runtime init:
 			>>#lol/b0
 			+
 		>>>>]
-		>#lol/8411
+		>#B:lol/%call_term_for_2
 		[
 			-
 			br label %11
 			>#lol/%11
 			+
 		<]
-		>#lol/11
+		>#B:lol/%11
 		[
 			-
 			ret void
@@ -188,26 +193,31 @@ runtime init:
 			<<<<
 			<<<<<<<
 		>>>>]
-		<#main/11100
+		<#B:main/%call_never_first_formain
 		[
 			-
 			br label %0
 			>>#main/%0
 			+
 		<<]
-		>>#main/0
+		>>#B:main/%0
 		[
 			-
 			call @lol(i32 0)
 			enable next
-			>#main/%4200
+			>#main/%call_term_for_0
 			+
-			>>>>>>
-			>++++++++++++++
-			<
-			<<<<<<<<<<<<<[->>>>>>>>>>>>>>+<<<<<<<<<<<<<<]
-			>
+			copy up arg 0
+			>>>>>>#arg_0
 			
+			give callee a stack pointer
+			>#stack_ptr
+			++++++++++++++
+			<
+			<<<<<<<<<<<<<[->>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<]
+			>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>]
+			>
+			<<<<<<<<<<<<<<<
 			>>>>>>>
 			#JUMP_PAD
 			+
@@ -223,7 +233,7 @@ runtime init:
 			>>#lol/b0
 			+
 		>>]
-		>#main/4200
+		>#B:main/%call_term_for_0
 		[
 			-
 			ret void

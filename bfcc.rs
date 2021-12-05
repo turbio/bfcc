@@ -29,12 +29,8 @@ fn calls_terminate_blocks(module: &mut llvm_ir::Module) {
 					}
 				};
 
-				let nextn = llvm_ir::Name::Number(
-					func.basic_blocks
-						.iter()
-						.map(|block| n2usize(&block.name))
-						.max()
-						.unwrap() + 4200,
+				let nextn = llvm_ir::Name::Name(
+					Box::new(format!("call_term_for_{}", block))
 				);
 
 				if instr == func.basic_blocks[block].instrs.len() - 1 {
@@ -87,13 +83,10 @@ fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 			continue;
 		}
 
-		let nextn = llvm_ir::Name::Number(
-			func.basic_blocks
-				.iter()
-				.map(|b| n2usize(&b.name))
-				.max()
-				.unwrap() + 6900,
+		let nextn = llvm_ir::Name::Name(
+			Box::new(format!("call_never_first_for{}", func.name))
 		);
+
 
 		func.basic_blocks.insert(
 			0,
@@ -547,6 +540,12 @@ fn build_func(
 		layout.push(Cell::BlockMask(block.name.clone()));
 	}
 
+	// if we didn't push one in while walking through the bblocks (since there's only an entry)
+	// push one in now
+	if func.basic_blocks.len() == 1 {
+		layout.push(Cell::BlockMask(ret_landing_pad.clone()));
+	}
+
 	for block in func.basic_blocks.iter() {
 		for instr in block.instrs.iter() {
 			match instr {
@@ -689,8 +688,6 @@ fn build_func(
 	));
 
 	for (i, block) in func.basic_blocks.iter().enumerate() {
-		let blockn = n2usize(&block.name);
-
 		let bid = layout
 			.iter()
 			.position(|c| match c {
@@ -699,7 +696,7 @@ fn build_func(
 			})
 			.unwrap();
 
-		funcloop.push(BfOp::Tag(bid, format!("{}/{}", func.name, blockn)));
+		funcloop.push(BfOp::Tag(bid, format!("B:{}/{}", func.name, &block.name)));
 		let mut blockloop: Vec<BfOp> = vec![];
 
 		blockloop.push(BfOp::SubI(bid, 1));
@@ -894,8 +891,12 @@ fn build_func(
 						blockloop.push(BfOp::Zero(reg));
 					} else {
 						for (i, ar) in c.arguments.iter().enumerate() {
+							blockloop.push(BfOp::Comment(format!("copy up arg {}", i)));
+
 							let arg_at =
 								stack_width + ret_pad_width + 1 + (c.arguments.len() - 1 - i);
+
+							blockloop.push(BfOp::Tag(arg_at, format!("arg_{}", i)));
 
 							// TODO(turbio): copy up those args yikers
 							match &ar.0 {
@@ -917,12 +918,16 @@ fn build_func(
 						// copy our stack ptr into the callee's plus our frame size
 						let callee_st_ptr = stack_width + ret_pad_width + 1 + c.arguments.len();
 
+
+						blockloop.push(BfOp::Comment(format!("give callee a stack pointer")));
+						blockloop.push(BfOp::Tag(callee_st_ptr, format!("stack_ptr")));
 						blockloop.push(BfOp::AddI(
 							callee_st_ptr,
 							(stack_width + ret_pad_width + 3) as u8,
 						));
 						blockloop.push(BfOp::Left(1)); // forbidden territory
-						blockloop.push(BfOp::Mov(0, callee_st_ptr + 1));
+						blockloop.push(BfOp::Dup(0, callee_st_ptr + 1, callee_st_ptr + 2));
+						blockloop.push(BfOp::Mov(callee_st_ptr + 2, 0));
 						blockloop.push(BfOp::Right(1));
 
 						// setup the jump pad
@@ -1003,6 +1008,10 @@ fn build_func(
 							})
 							.unwrap();
 
+						// take that ptr
+						let prev = std::mem::replace(&mut layout[addr], Cell::Free);
+						layout[addr] = Cell::Taken(Box::new(prev));
+
 						blockloop.append(&mut build_ptr_train(
 							&mut borrow_reg,
 							&mut layout,
@@ -1051,6 +1060,10 @@ fn build_func(
 								_ => false,
 							})
 							.unwrap();
+
+						// take that ptr
+						let prev = std::mem::replace(&mut layout[addr], Cell::Free);
+						layout[addr] = Cell::Taken(Box::new(prev));
 
 						blockloop.append(&mut build_ptr_train(
 							&mut borrow_reg,
@@ -1350,10 +1363,10 @@ pub fn compile(path: &Path) -> String {
 	let ret_pad_width = 1 + funcns + RET_LANDING_PAD;
 
 	root.push(BfOp::Right(ret_pad_width + STACK_PTR_W));
-	root.push(BfOp::AddI(0, 5)); // stack base address
+	root.push(BfOp::AddI(0, ret_pad_width as u8 + STACK_PTR_W as u8)); // stack base address
 	root.push(BfOp::Right(1));
 	root.push(BfOp::Comment("runtime init:".to_string()));
-	root.push(BfOp::Tag(0, "__FRAME__ENTRY__".to_string()));
+	root.push(BfOp::Tag(0, "TOP FRAME".to_string()));
 	root.push(BfOp::AddI(0, 1));
 
 	// stacks frames are laid out as:
