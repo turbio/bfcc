@@ -76,7 +76,7 @@ fn main() {
 		}
 
 		print!("TEST {}", info.name);
-		io::stdout().flush();
+		io::stdout().flush().unwrap();
 
 		let source = format!("{}", case.path().as_path().to_str().unwrap());
 		let target = format!("./tests/ir/{}.bc", case.file_name().into_string().unwrap());
@@ -92,7 +92,6 @@ fn main() {
 			println!("{}", cc.unwrap_err());
 			continue;
 		}
-
 
 		let bfout = format!("./tests/bf/{}.bf", case.file_name().into_string().unwrap());
 		let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
@@ -258,7 +257,7 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 	}
 
 	for i in mem {
-		assert!(i == 0);
+		assert!(i == 0, "expected all memory to be zero");
 	}
 
 	Ok(ExecResult {

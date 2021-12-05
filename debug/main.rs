@@ -200,7 +200,7 @@ struct Debugger {
 	root: ncurses::SCREEN,
 }
 
-const mem_wid: usize = 30;
+const mem_wid: usize = 60;
 
 impl Debugger {
 	fn new(code: String, input: Vec<u8>) -> Debugger {
@@ -491,6 +491,13 @@ impl Debugger {
 					left + 1,
 				);
 
+				ncurses::wcolor_set(self.root, Color::Normal as i16);
+
+				ncurses::waddstr(
+					self.root,
+					&format!("{:03} : {:03} : ", (i as i32 - self.cur().mp as i32).abs(), i),
+				);
+
 				if self.cur().tape[i as usize] == 0 {
 					ncurses::wcolor_set(self.root, Color::Mem0 as i16);
 				} else if self.cur().tape[i as usize] == 1 {
@@ -501,7 +508,7 @@ impl Debugger {
 
 				ncurses::waddstr(
 					self.root,
-					&format!("{:03}", self.cur().tape[i as usize]),
+					&format!("{v:03} ", v=self.cur().tape[i as usize]),
 				);
 
 				ncurses::wattroff(self.root, ncurses::A_REVERSE());

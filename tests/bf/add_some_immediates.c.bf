@@ -1,5 +1,5 @@
 >>>>
-++++
++++++
 >
 runtime init:
 #__FRAME__ENTRY__
@@ -52,9 +52,9 @@ runtime init:
 			#tmp_constop_58
 			++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			>>#%6_icmp_%i32_%5_slt_i32_58
-			>#icmp_tmpb
-			>#icmp_tmp0
-			>#icmp_tmp1
+			>#subnu_tmpb
+			>#subnu_tmp0
+			>#subnu_tmp1
 			<<<<<[->>>+<<<]
 			>>>>>+
 			<<<<[
@@ -71,7 +71,7 @@ runtime init:
 				]
 				<
 			<<]
-			>>>>[-]
+			>>>>-
 			<<[
 				[-]
 				<+

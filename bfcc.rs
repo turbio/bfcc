@@ -143,6 +143,71 @@ enum BfOp {
 	Nop,
 }
 
+// these are all based around sub w/o underflow:
+// a | ... | u flag | ... | b | 0 | 1
+//
+// a[- b [->]  |   >   |  [<]  | <  | a]
+//             |       |       |    |
+//          b or 0     |       0    b
+//                  0 or 1
+//
+// Both minuend and subtrahend will be zeroed by this algorithm. The
+// returned usize will be the difference.
+//
+// theres an optinal underflow address if a subtraction to the minuend would
+// cause the cell to go negative then this address will be the difference..
+fn subnu(
+	borrow_reg: &mut dyn FnMut(&mut Layout, usize) -> Addr,
+	layout: &mut Layout,
+
+	minuend: Addr,
+	subtractend: Addr,
+	underflow: Option<Addr>,
+) -> (Vec<BfOp>, Addr) {
+	let tmps = borrow_reg(layout, 3);
+	let tmpb = tmps;
+	let tmp0 = tmps + 1;
+	let tmp1 = tmps + 2;
+
+	(
+		vec![
+			BfOp::Tag(tmpb, format!("subnu_tmpb")),
+			BfOp::Tag(tmp0, format!("subnu_tmp0")),
+			BfOp::Tag(tmp1, format!("subnu_tmp1")),
+			BfOp::Mov(minuend, tmpb),
+			BfOp::AddI(tmp1, 1),
+			BfOp::Loop(
+				subtractend,
+				vec![
+					BfOp::SubI(subtractend, 1),
+					if underflow.is_some() {
+						BfOp::AddI(underflow.unwrap(), 1)
+					} else {
+						BfOp::Nop
+					},
+					BfOp::Loop(
+						tmpb,
+						vec![
+							BfOp::SubI(tmpb, 1),
+							if underflow.is_some() {
+								BfOp::SubI(underflow.unwrap(), 1)
+							} else {
+								BfOp::Nop
+							},
+							BfOp::Right(1),
+						],
+					),
+					BfOp::Right(1),
+					BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
+					BfOp::Left(1),
+				],
+			),
+			BfOp::SubI(tmp1, 1),
+		],
+		tmpb,
+	)
+}
+
 fn build_icmp(
 	borrow_reg: &mut dyn FnMut(&mut Layout, usize) -> Addr,
 	layout: &mut Layout,
@@ -153,69 +218,9 @@ fn build_icmp(
 ) -> Vec<BfOp> {
 	let mut icmp_out = Vec::<BfOp>::new();
 
-	let tmps = borrow_reg(layout, 3);
-
-	icmp_out.push(BfOp::Tag(tmps, format!("icmp_tmpb")));
-	icmp_out.push(BfOp::Tag(tmps + 1, format!("icmp_tmp0")));
-	icmp_out.push(BfOp::Tag(tmps + 2, format!("icmp_tmp1")));
-
-	// these are all based around sub w/o underflow:
-	// a | ... | u flag | ... | b | 0 | 1
-	//
-	// a[- b [->]  |   >   |  [<]  | <  | a]
-	//             |       |       |    |
-	//          b or 0     |       0    b
-	//                  0 or 1
-	//
-	// Both minuend and subtrahend will be zeroed by this algorithm. The
-	// returned usize will be the difference.
-	//
-	// theres an optinal underflow flag if a subtraction to the minuend would
-	// cause the cell to go negative then this address will be >= 1.
-	let subnu = |minuend: usize, subtractend: usize, underflow: Option<usize>| {
-		let tmpb = tmps;
-		// let tmp0 = tmps + 1;
-		let tmp1 = tmps + 2;
-
-		(
-			vec![
-				BfOp::Mov(minuend, tmpb),
-				BfOp::AddI(tmp1, 1),
-				BfOp::Loop(
-					subtractend,
-					vec![
-						BfOp::SubI(subtractend, 1),
-						if underflow.is_some() {
-							BfOp::AddI(underflow.unwrap(), 1)
-						} else {
-							BfOp::Nop
-						},
-						BfOp::Loop(
-							tmpb,
-							vec![
-								BfOp::SubI(tmpb, 1),
-								if underflow.is_some() {
-									BfOp::SubI(underflow.unwrap(), 1)
-								} else {
-									BfOp::Nop
-								},
-								BfOp::Right(1),
-							],
-						),
-						BfOp::Right(1),
-						BfOp::Loop(tmpb, vec![BfOp::Left(1)]),
-						BfOp::Left(1),
-					],
-				),
-				BfOp::Zero(tmp1),
-			],
-			tmpb,
-		)
-	};
-
 	match pred {
 		llvm_ir::IntPredicate::SLT | llvm_ir::IntPredicate::ULT => {
-			let (mut ops, diff) = subnu(op1, op0, None);
+			let (mut ops, diff) = subnu(borrow_reg, layout, op1, op0, None);
 			icmp_out.append(&mut ops);
 			icmp_out.push(BfOp::Loop(
 				diff,
@@ -226,7 +231,7 @@ fn build_icmp(
 		llvm_ir::IntPredicate::NE => {
 			let underflow = borrow_reg(layout, 1);
 
-			let (mut ops, diff) = subnu(op0, op1, Some(underflow));
+			let (mut ops, diff) = subnu(borrow_reg, layout, op0, op1, Some(underflow));
 
 			icmp_out.append(&mut ops);
 
@@ -243,14 +248,14 @@ fn build_icmp(
 		}
 
 		llvm_ir::IntPredicate::SLE | llvm_ir::IntPredicate::ULE => {
-			let (mut ops, diff) = subnu(op0, op1, None);
+			let (mut ops, diff) = subnu(borrow_reg, layout, op0, op1, None);
 			icmp_out.append(&mut ops);
 			icmp_out.push(BfOp::AddI(dest, 1));
 			icmp_out.push(BfOp::Loop(diff, vec![BfOp::Zero(diff), BfOp::Zero(dest)]));
 		}
 
 		llvm_ir::IntPredicate::SGE | llvm_ir::IntPredicate::UGE => {
-			let (mut ops, diff) = subnu(op1, op0, None);
+			let (mut ops, diff) = subnu(borrow_reg, layout, op1, op0, None);
 			icmp_out.append(&mut ops);
 			icmp_out.push(BfOp::AddI(dest, 1));
 			icmp_out.push(BfOp::Loop(diff, vec![BfOp::Zero(diff), BfOp::Zero(dest)]));
@@ -259,7 +264,7 @@ fn build_icmp(
 		llvm_ir::IntPredicate::EQ => {
 			let underflow = borrow_reg(layout, 1);
 
-			let (mut ops, diff) = subnu(op1, op0, Some(underflow));
+			let (mut ops, diff) = subnu(borrow_reg, layout, op1, op0, Some(underflow));
 			icmp_out.append(&mut ops);
 
 			icmp_out.push(BfOp::AddI(dest, 1));
@@ -272,7 +277,7 @@ fn build_icmp(
 		}
 
 		llvm_ir::IntPredicate::SGT | llvm_ir::IntPredicate::UGT => {
-			let (mut ops, diff) = subnu(op0, op1, None);
+			let (mut ops, diff) = subnu(borrow_reg, layout, op0, op1, None);
 			icmp_out.append(&mut ops);
 
 			icmp_out.push(BfOp::Loop(
@@ -306,12 +311,230 @@ type Layout = Vec<Cell>;
 
 const STACK_PTR_W: usize = 1;
 
-fn build_func<'a>(
+// pointer trains are how non statically unresolved pointers are loaded and
+// stored.
+fn build_ptr_train(
+	borrow_reg: &mut dyn FnMut(&mut Layout, usize) -> Addr,
+	layout: &mut Layout,
+
+	addr: Addr,          // the actual address to visit
+	store: Option<Addr>, // if set the value at `store` is taken and stored at `addr`
+	load: Option<Addr>,  // if set the value at `addr` is copied put in `load`
+) -> Vec<BfOp> {
+	let mut routine = Vec::<BfOp>::new();
+
+	// this is pretty hairy. The generalidea is to copy the pointer value into a
+	// small region then move each cell forward while moving cells in front to the
+	// back decrementing the pointer every step. We will end up moving the number
+	// of steps dictated by the pointer.
+	//
+	// for example: say we have the tape:
+	//                               +------------+
+	//                               |            |
+	//                               |            v
+	// | tmp | ret | ptr | ? | ? | value | ptr | dest |
+	//                               ^      |
+	//                               |      |
+	//                               +------+
+	//
+	// Where we want to deref `ptr`, which points to `value`, and store the value in
+	// dest. `ptr` and `dest` are at known offsets from the current tape address. In
+	// this example the `ptr` would have value 5.
+	//
+	// copying `ptr` to the train would load 2 in the ptr cell since the trains own
+	// location in memory must be accounted for.
+	//
+	// | 0 | 0 | 2 | ? | ? | value | ptr | dest |
+	//
+	// and then just repeatedly move one cell forward... ptr copy is
+	// decremented and a return counter is incremented.
+	//
+	// | ? | 0 | 1 | 1 | ? | value | ptr | dest |
+	//
+	// until ptr is zero.
+	//
+	// | ? | ? | 0 | 2 | 0 | value | ptr | dest |
+	//
+	// then the cell right after the train aka `value` is loaded in and we drive
+	// back using ret.
+	//
+	// | ? | ? | 0 | 2 | value | value | ptr | dest |
+	//
+	// | ? | 0 | 1 | value | ? | value | ptr | dest |
+	//
+	// | 0 | 0 | value | ? | ? | value | ptr | dest |
+	//
+	// it's like a train! choo choo
+
+	// layout of a train is:
+	// to store:   <before> | tmp | ret | ptr   | cargo | <after>
+	// from store: <before> | tmp | ret | 0     | 0     | <after>
+	// to load:    <before> | tmp | ret | ptr   | <after>
+	// from load:  <before> | tmp | ret | cargo | <after>
+
+	let train_len = if store.is_some() { 4 } else { 3 };
+
+	let train = borrow_reg(layout, train_len);
+
+	let train_tmp = train + 0;
+	let train_ret = train + 1;
+	let train_ptr = train + 2;
+
+	let train_cargo = train + 3; // this is only valid when storing
+
+	let before_train = train - 1;
+	let behind_train = train + train_len; // train_cargo + 1;
+
+	// while driving forward train is layed out like:
+	// <in front> | tmp | ret | ptr | cargo |
+
+	routine.append(&mut vec![
+		BfOp::Tag(train_tmp, format!("train_tmp")),
+		BfOp::Tag(train_ret, format!("train_ret")),
+		BfOp::Tag(train_ptr, format!("train_ptr")),
+		if store.is_some() {
+			BfOp::Tag(train_cargo, format!("train_cargo"))
+		} else {
+			BfOp::Nop
+		},
+	]);
+
+	// this is all just concerned with getting the right value into the train's ptr
+	{
+		// so when moving left really we want to calculate the equivalent of:
+		// stack_pointer - addr + train_address
+		//
+		// first we sub addr from stackpointer, a negative result indicating the
+		// address is to the left of the current stack frame
+		//
+		// moving &train to train_ptr
+		// routine.push(BfOp::AddI(train_ptr, train as u8));
+
+		let stackptr_tmp = borrow_reg(layout, 1);
+		let stackptr = borrow_reg(layout, 1);
+
+		routine.push(BfOp::Tag(stackptr, format!("stackptr")));
+		routine.push(BfOp::Tag(stackptr_tmp, format!("stackptr_tmp")));
+
+		// grab the stackptr
+		routine.append(&mut vec![
+			BfOp::Left(1),
+			BfOp::Dup(0, stackptr_tmp + 1, stackptr + 1),
+			BfOp::Mov(stackptr_tmp + 1, 0),
+			BfOp::Right(1),
+		]);
+
+		let neg = borrow_reg(layout, 1);
+		routine.push(BfOp::Tag(neg, format!("ptr_underflow")));
+
+		let (mut ops, to) = subnu(borrow_reg, layout, stackptr, addr, Some(neg));
+		routine.append(&mut ops);
+
+		routine.push(BfOp::Tag(to, format!("subnu_to")));
+
+		routine.append(&mut vec![
+			// if pos
+			// train_ptr = &train + abs(stackptr - addr)
+			BfOp::Loop(
+				to,
+				vec![BfOp::Mov(to, train_ptr), BfOp::AddI(train_ptr, train as u8)],
+			),
+			// if neg
+			// train_ptr = &train + abs(stackptr - addr)
+			BfOp::Loop(
+				neg,
+				vec![
+					BfOp::AddI(train_ptr, train as u8),
+					BfOp::Loop(neg, vec![BfOp::SubI(neg, 1), BfOp::SubI(train_ptr, 1)]),
+				],
+			),
+		]);
+
+		// routine.push(BfOp::Loop(to));
+
+		// move addr to train_tmp
+		// routine.push(BfOp::Mov(addr, train_tmp));
+
+		// now we should have: | ptr | stackptr | &train |
+		// so sub stackptr from ptr and then sub the result of
+		// that from &train
+		// routine.append(&mut vec![
+		// 	BfOp::Loop(
+		// 		train_ret,
+		// 		vec![BfOp::SubI(train_ret, 1), BfOp::SubI(train_tmp, 1)],
+		// 	),
+		// 	BfOp::Loop(
+		// 		train_tmp,
+		// 		vec![BfOp::SubI(train_tmp, 1), BfOp::SubI(train_ptr, 1)],
+		// 	),
+		// ]);
+	}
+
+	if store.is_some() {
+		// load in the cargo hehe
+		routine.push(BfOp::Mov(store.unwrap(), train_cargo));
+	}
+
+	routine.push(BfOp::Comment(format!("drive left! choo choo")));
+
+	// time to drive! choo choo!
+	routine.append(&mut vec![BfOp::Loop(
+		train_ptr,
+		vec![
+			BfOp::Mov(train_ret, train_tmp),
+			BfOp::Mov(train_ptr, train_ret),
+			if store.is_some() {
+				BfOp::Mov(train_cargo, train_ptr)
+			} else {
+				BfOp::Nop
+			},
+			BfOp::Mov(before_train, behind_train-1),
+			BfOp::Left(1),
+			BfOp::SubI(train_ptr, 1),
+			BfOp::AddI(train_ret, 1),
+		],
+	)]);
+
+	if store.is_some() {
+		// unload the cargo
+		routine.push(BfOp::Zero(before_train));
+		routine.push(BfOp::Mov(train_cargo, before_train));
+	} else if load.is_some() {
+		routine.push(BfOp::Comment(format!("get our bag")));
+		routine.push(BfOp::Dup(before_train, train_tmp, train_ptr));
+		routine.push(BfOp::Mov(train_tmp, before_train));
+	}
+
+	// reverse outta there dude
+	routine.append(&mut vec![BfOp::Loop(
+		train_ret,
+		vec![
+			BfOp::Mov(behind_train, train_tmp),
+			if load.is_some() {
+				BfOp::Mov(train_ptr, behind_train)
+			} else {
+				BfOp::Nop
+			},
+			BfOp::Mov(train_ret, train_ptr),
+			BfOp::Right(1),
+			BfOp::SubI(train_ret, 1),
+		],
+	)]);
+
+	if load.is_some() {
+		routine.push(BfOp::Mov(train_ptr, load.unwrap()));
+	}
+
+	routine
+}
+
+fn build_func(
 	layout: &Layout,
 	ret_pad_width: usize,
 	st_width: usize,
-	func: &'a llvm_ir::Function,
+	func: &llvm_ir::Function,
 ) -> (Vec<BfOp>, usize) {
+	// returns the stack width too
 	let ret_landing_pad = llvm_ir::Name::Number(69420);
 
 	let mut layout: Layout = layout.clone();
@@ -342,15 +565,6 @@ fn build_func<'a>(
 			_ => false,
 		})
 		.unwrap();
-
-	// so like we keep hold of pointers as either:
-	// resolved : we know the cell address
-	// int : bruh
-	#[derive(Copy, Clone)]
-	enum PtrSrc<'a> {
-		Int(&'a llvm_ir::Name),
-		Alloc(&'a llvm_ir::Name),
-	}
 
 	// available names is a combination of all the living registers:
 	// onstack + allocs
@@ -509,14 +723,22 @@ fn build_func<'a>(
 			//
 			// TODO(turbio): also also this needs to be used after all gives/takes
 			let mut borrow_reg = |layout: &mut Layout, contig: usize| -> Addr {
-				if contig == 1 {
-					for (i, c) in layout.iter().enumerate() {
-						if match c {
+				for i in 0..(layout.len() - contig) {
+					for j in 0..contig {
+						let c = &layout[i + j];
+
+						if !match c {
 							Cell::Free => true,
 							_ => false,
 						} {
-							let prev = std::mem::replace(&mut layout[i], Cell::Free);
-							layout[i] = Cell::Borrowed(Box::new(prev));
+							break;
+						}
+
+						if j == contig - 1 {
+							for c in 0..contig {
+								let prev = std::mem::replace(&mut layout[i + c], Cell::Free);
+								layout[i + c] = Cell::Borrowed(Box::new(prev));
+							}
 							return i;
 						}
 					}
@@ -697,7 +919,7 @@ fn build_func<'a>(
 
 						blockloop.push(BfOp::AddI(
 							callee_st_ptr,
-							(stack_width + ret_pad_width) as u8,
+							(stack_width + ret_pad_width + 3) as u8,
 						));
 						blockloop.push(BfOp::Left(1)); // forbidden territory
 						blockloop.push(BfOp::Mov(0, callee_st_ptr + 1));
@@ -781,80 +1003,12 @@ fn build_func<'a>(
 							})
 							.unwrap();
 
-						let train = borrow_reg(&mut layout, 4);
-
-						let train_tmp = train + 0;
-						let train_ret = train + 1;
-						let train_ptr = train + 2;
-						let train_cargo = train + 3;
-
-						let before_train = train - 1;
-						let behind_train = train_cargo + 1;
-
-						// while driving forward train is layed out like:
-						// <in front> | tmp | ret | ptr | cargo |
-
-						blockloop.push(BfOp::Tag(train_tmp, format!("train_tmp")));
-						blockloop.push(BfOp::Tag(train_ret, format!("train_ret")));
-						blockloop.push(BfOp::Tag(train_ptr, format!("train_ptr")));
-						blockloop.push(BfOp::Tag(train_cargo, format!("train_cargo")));
-
-						// moving &train to train_ptr
-						blockloop.push(BfOp::AddI(train_ptr, train as u8));
-
-						// dup stackptr to train_ret (w/ train_tmp)
-						blockloop.push(BfOp::Left(1));
-						blockloop.push(BfOp::Dup(0, train_tmp + 1, train_ret + 1));
-						blockloop.push(BfOp::Mov(train_tmp + 1, 0));
-						blockloop.push(BfOp::Right(1));
-
-						// move addr to train_tmp
-						blockloop.push(BfOp::Mov(addr, train_tmp));
-
-						// now we should have: | ptr | stackptr | &train |
-						// so sub stackptr from ptr and then sub the result of
-						// that from &train
-						blockloop.push(BfOp::Loop(
-							train_ret,
-							vec![BfOp::SubI(train_ret, 1), BfOp::SubI(train_tmp, 1)],
-						));
-						blockloop.push(BfOp::Loop(
-							train_tmp,
-							vec![BfOp::SubI(train_tmp, 1), BfOp::SubI(train_ptr, 1)],
-						));
-
-						// load in the cargo hehe
-						blockloop.push(BfOp::Mov(value, train_cargo));
-
-						blockloop.push(BfOp::Comment(format!("drive left! choo choo")));
-
-						// time to drive! choo choo!
-						blockloop.push(BfOp::Loop(
-							train_ptr,
-							vec![
-								BfOp::Mov(train_ret, train_tmp),
-								BfOp::Mov(train_ptr, train_ret),
-								BfOp::Mov(train_cargo, train_ptr),
-								BfOp::Mov(before_train, train_cargo),
-								BfOp::Left(1),
-								BfOp::SubI(train_ptr, 1),
-								BfOp::AddI(train_ret, 1),
-							],
-						));
-
-						// unload the cargo
-						blockloop.push(BfOp::Zero(before_train));
-						blockloop.push(BfOp::Mov(train_cargo, before_train));
-
-						// get out of there dude
-						blockloop.push(BfOp::Loop(
-							train_ret,
-							vec![
-								BfOp::Mov(behind_train, train_tmp),
-								BfOp::Mov(train_ret, train_ptr),
-								BfOp::Right(1),
-								BfOp::SubI(train_ret, 1),
-							],
+						blockloop.append(&mut build_ptr_train(
+							&mut borrow_reg,
+							&mut layout,
+							addr,
+							Some(value),
+							None,
 						));
 
 						// unimplemented!("store to non-alloca");
@@ -898,136 +1052,13 @@ fn build_func<'a>(
 							})
 							.unwrap();
 
-						// this is pretty hairy. The idea is to
-						// clear the first few cells, copy the pointer value
-						// into this area then move forward while moving cells
-						// infront behind and decrementing the pointer.
-						//
-						// for example: say we have the tape:
-						// | a | b | c | x | y | z | p | d |
-						//
-						// where `p` is the address we want to deref, `d`
-						// is where we want to store the value and `z` is the
-						// value pointed to by `p` (p would equal 5). a, b, and
-						// c are the train station.
-						//
-						// then copy the pointer to the train station
-						//
-						// | 0 | 0 | 2 | x | y | z | p | d |
-						//
-						// next we'll move forward one. the ptr copy is
-						// decremented and a return counter is incremented.
-						//
-						// | x | 0 | 1 | 1 | y | z | p | d |
-						//
-						// repeat until the ptr copy is 0.
-						//
-						// | x | y | 0 | 2 | 0 | z | p | d |
-						//
-						// once ptr copy is 0 we'll copy the next value
-						// into its place
-						//
-						// | x | y | 0 | 2 | z | z | p | d |
-						//
-						// reverse the process, moving back until the return
-						// counter is 0.
-						//
-						// | x | 0 | 1 | z | y | z | p | d |
-						//
-						// | 0 | 0 | z | x | y | z | p | d |
-						//
-						// once 0 copy the value over to d and restore the moved
-						// cells
-						//
-						// | a | b | c | x | y | z | p | z |
-						//
-						// it's like a train! choo choo
-
-						let train = borrow_reg(&mut layout, 3);
-						let train_tmp = train + 0;
-						let train_ret = train + 1;
-						let train_ptr = train + 2;
-						// while driving forward train is layed out like:
-						// | tmp | ret | ptr |
-						// each time we move forward ptr is decremented and ret
-						// is incremented for the return trip. tmp is used as a
-						// temp for duping.
-
-						// given the layout:
-						// ...a... | stackptr | ...b... | train | ...c...
-						// the pointer can be in any a, b or c.
-						// todo(turbio): assuming it always appears in b.
-						// if the pointer is in b we travel left
-						// dist = train - (ptr - stackptr)
-
-						blockloop.push(BfOp::Tag(train_tmp, format!("train_tmp")));
-						blockloop.push(BfOp::Tag(train_ret, format!("train_ret")));
-						blockloop.push(BfOp::Tag(train_ptr, format!("train_ptr")));
-
-						// so do: train - (ptr - stackptr)
-						// by:
-						// moving &train to train_ptr
-						blockloop.push(BfOp::AddI(train_ptr, train as u8));
-
-						// dup stackptr to train_ret (w/ train_tmp)
-						blockloop.push(BfOp::Left(1));
-						blockloop.push(BfOp::Dup(0, train_tmp + 1, train_ret + 1));
-						blockloop.push(BfOp::Mov(train_tmp + 1, 0));
-						blockloop.push(BfOp::Right(1));
-
-						// move addr to train_tmp
-						blockloop.push(BfOp::Mov(addr, train_tmp));
-
-						// now we should have: | ptr | stackptr | &train |
-						// so sub stackptr from ptr and then sub the result of
-						// that from &train
-						blockloop.push(BfOp::Loop(
-							train_ret,
-							vec![BfOp::SubI(train_ret, 1), BfOp::SubI(train_tmp, 1)],
+						blockloop.append(&mut build_ptr_train(
+							&mut borrow_reg,
+							&mut layout,
+							addr,
+							None,
+							Some(dest),
 						));
-						blockloop.push(BfOp::Loop(
-							train_tmp,
-							vec![BfOp::SubI(train_tmp, 1), BfOp::SubI(train_ptr, 1)],
-						));
-
-						blockloop.push(BfOp::Comment(format!("drive left! choo choo")));
-
-						// time to drive! choo choo!
-						blockloop.push(BfOp::Loop(
-							train_ptr,
-							vec![
-								BfOp::Mov(train_ret, train_tmp),
-								BfOp::Mov(train_ptr, train_ret),
-								BfOp::Mov(train_tmp - 1, train_ptr),
-								BfOp::Left(1),
-								BfOp::SubI(train_ptr, 1),
-								BfOp::AddI(train_ret, 1),
-							],
-						));
-
-						blockloop.push(BfOp::Comment(format!("get our bag")));
-
-						// woweee, cell just to the left of &train is our
-						// address!
-
-						blockloop.push(BfOp::Dup(train_tmp - 1, train_tmp, train_ptr));
-						blockloop.push(BfOp::Mov(train_tmp, train_tmp - 1));
-
-						blockloop.push(BfOp::Comment(format!("drive baaaack")));
-
-						// aight driving back!
-						blockloop.push(BfOp::Loop(
-							train_ret,
-							vec![
-								BfOp::Mov(train_ptr + 1, train_tmp),
-								BfOp::Mov(train_ptr, train_ptr + 1),
-								BfOp::Mov(train_ret, train_ptr),
-								BfOp::Right(1),
-								BfOp::SubI(train_ret, 1),
-							],
-						));
-
-						blockloop.push(BfOp::Mov(train_ptr, dest));
 					}
 				}
 
@@ -1152,8 +1183,6 @@ fn build_func<'a>(
 					let dest = give_ptr(&mut layout, &i.dest);
 					blockloop.push(BfOp::Tag(dest, format!("{}_itoptr_{}", i.dest, i.operand)));
 					blockloop.push(BfOp::Mov(src, dest));
-
-					// layout.push((&i.dest, PtrSrc::Int(&unlop(&i.operand))));
 				}
 
 				_ => {
@@ -1321,7 +1350,7 @@ pub fn compile(path: &Path) -> String {
 	let ret_pad_width = 1 + funcns + RET_LANDING_PAD;
 
 	root.push(BfOp::Right(ret_pad_width + STACK_PTR_W));
-	root.push(BfOp::AddI(0, 4)); // stack base address
+	root.push(BfOp::AddI(0, 5)); // stack base address
 	root.push(BfOp::Right(1));
 	root.push(BfOp::Comment("runtime init:".to_string()));
 	root.push(BfOp::Tag(0, "__FRAME__ENTRY__".to_string()));
