@@ -29,9 +29,7 @@ fn calls_terminate_blocks(module: &mut llvm_ir::Module) {
 					}
 				};
 
-				let nextn = llvm_ir::Name::Name(
-					Box::new(format!("call_term_for_{}", block))
-				);
+				let nextn = llvm_ir::Name::Name(Box::new(format!("call_term_for_{}", block)));
 
 				if instr == func.basic_blocks[block].instrs.len() - 1 {
 					let splitn = llvm_ir::BasicBlock {
@@ -83,10 +81,7 @@ fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 			continue;
 		}
 
-		let nextn = llvm_ir::Name::Name(
-			Box::new(format!("call_never_first_for{}", func.name))
-		);
-
+		let nextn = llvm_ir::Name::Name(Box::new(format!("call_never_first_for{}", func.name)));
 
 		func.basic_blocks.insert(
 			0,
@@ -125,9 +120,6 @@ enum BfOp {
 	Putch(Addr),
 	Zero(Addr),
 	Loop(Addr, Vec<BfOp>),
-
-	Goto(Addr),
-	Literal(String),
 
 	// debug
 	Tag(Addr, String), // tag address with name in debugger
@@ -481,7 +473,7 @@ fn build_ptr_train(
 			} else {
 				BfOp::Nop
 			},
-			BfOp::Mov(before_train, behind_train-1),
+			BfOp::Mov(before_train, behind_train - 1),
 			BfOp::Left(1),
 			BfOp::SubI(train_ptr, 1),
 			BfOp::AddI(train_ret, 1),
@@ -540,8 +532,8 @@ fn build_func(
 		layout.push(Cell::BlockMask(block.name.clone()));
 	}
 
-	// if we didn't push one in while walking through the bblocks (since there's only an entry)
-	// push one in now
+	// if we didn't push one in while walking through the bblocks (since there's
+	// only an entry) push one in now
 	if func.basic_blocks.len() == 1 {
 		layout.push(Cell::BlockMask(ret_landing_pad.clone()));
 	}
@@ -682,7 +674,6 @@ fn build_func(
 			),
 			BfOp::Tag(0, format!("dead_fn_pad/{}", func.name)),
 			BfOp::SubI(retpad_addr, 1),
-			BfOp::Goto(0),
 			BfOp::Left(stack_width),
 		],
 	));
@@ -918,7 +909,6 @@ fn build_func(
 						// copy our stack ptr into the callee's plus our frame size
 						let callee_st_ptr = stack_width + ret_pad_width + 1 + c.arguments.len();
 
-
 						blockloop.push(BfOp::Comment(format!("give callee a stack pointer")));
 						blockloop.push(BfOp::Tag(callee_st_ptr, format!("stack_ptr")));
 						blockloop.push(BfOp::AddI(
@@ -932,7 +922,6 @@ fn build_func(
 
 						// setup the jump pad
 
-						blockloop.push(BfOp::Goto(0));
 						blockloop.push(BfOp::Right(stack_width));
 
 						blockloop.push(BfOp::Tag(0, format!("JUMP_PAD")));
@@ -1128,14 +1117,10 @@ fn build_func(
 						format!("%{}_sub_%{}_c{}", i.dest, i.operand0, i.operand1),
 					));
 
-					blockloop.push(BfOp::Mov(op0, dest));
-
-					blockloop.push(BfOp::Goto(op1));
-					blockloop.push(BfOp::Literal(format!("[-")));
-					blockloop.push(BfOp::Goto(dest));
-					blockloop.push(BfOp::Literal(format!("-")));
-					blockloop.push(BfOp::Goto(op1));
-					blockloop.push(BfOp::Literal(format!("]")));
+					blockloop.append(&mut vec![
+						BfOp::Mov(op0, dest),
+						BfOp::Loop(op1, vec![BfOp::SubI(op1, 1), BfOp::SubI(dest, 1)]),
+					]);
 				}
 
 				// these are all lies and actually nops
@@ -1264,31 +1249,33 @@ fn build_func(
 					let temp0 = retpad_addr;
 					blockloop.push(BfOp::AddI(temp0, 1));
 
-					blockloop.push(BfOp::Goto(cond));
-					blockloop.push(BfOp::Literal("[-".to_string()));
-					blockloop.push(BfOp::Goto(temp0));
-					blockloop.push(BfOp::Literal("-".to_string()));
-
-					blockloop.push(BfOp::AddI(tru, 1));
-					blockloop.push(BfOp::Tag(
-						tru,
-						format!("{}/{}_true", func.name, n2usize(&cbr.true_dest)),
-					));
-
-					blockloop.push(BfOp::Goto(cond));
-					blockloop.push(BfOp::Literal("]".to_string()));
-
-					blockloop.push(BfOp::Goto(temp0));
-					blockloop.push(BfOp::Literal("[-".to_string()));
-
-					blockloop.push(BfOp::AddI(fals, 1));
-					blockloop.push(BfOp::Tag(
-						fals,
-						format!("{}/{}_false", func.name, n2usize(&cbr.false_dest)),
-					));
-
-					blockloop.push(BfOp::Goto(temp0));
-					blockloop.push(BfOp::Literal("]".to_string()));
+					blockloop.append(&mut vec![
+						// if truethy
+						BfOp::Loop(
+							cond,
+							vec![
+								BfOp::SubI(cond, 1),
+								BfOp::SubI(temp0, 1),
+								BfOp::AddI(tru, 1),
+								BfOp::Tag(
+									tru,
+									format!("{}/{}_true", func.name, n2usize(&cbr.true_dest)),
+								),
+							],
+						),
+						// if falsey
+						BfOp::Loop(
+							temp0,
+							vec![
+								BfOp::SubI(temp0, 1),
+								BfOp::AddI(fals, 1),
+								BfOp::Tag(
+									fals,
+									format!("{}/{}_false", func.name, n2usize(&cbr.false_dest)),
+								),
+							],
+						),
+					]);
 				}
 
 				llvm_ir::Terminator::Ret(r) => {
@@ -1320,8 +1307,6 @@ fn build_func(
 					blockloop.push(BfOp::Tag(0, "dead_frame".to_string()));
 
 					blockloop.push(BfOp::SubI(fid, 1));
-
-					blockloop.push(BfOp::Goto(0));
 
 					blockloop.push(BfOp::Left(1));
 					blockloop.push(BfOp::Zero(0));
@@ -1499,13 +1484,6 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 			)
 			.unwrap();
 			cursor = from_a;
-		}
-		BfOp::Goto(a) => {
-			write!(out, "{}", cmov(cursor, a)).unwrap();
-			cursor = a;
-		}
-		BfOp::Literal(s) => {
-			write!(out, "{}", s).unwrap();
 		}
 		BfOp::Dup(from_a, to_a1, to_a2) => {
 			// TODO(turbio): should probably order to_a1 and to_a2 for lower travel

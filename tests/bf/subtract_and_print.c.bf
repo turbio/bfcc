@@ -18,9 +18,8 @@ runtime init:
 			>-
 			<#dead_fn_pad/main
 			>>>-
-			<<<
 			<<<<<<<<<<<<
-		>>>]
+		]
 		<#B:main/%call_never_first_formain
 		[
 			-
@@ -64,12 +63,10 @@ runtime init:
 			%7 = sub i32 %4_ i32 %6
 			#%%7_sub_%i32_%4_ci32_%6
 			>[-<+>]
-			>
-			[-
-			<<
-			-
-			>>
-			]
+			>[
+				-
+				<<-
+			>>]
 			%8 = trunc i32 %7 to i8
 			<#%8_trunc_i32_%7
 			<[->+<]
@@ -91,8 +88,7 @@ runtime init:
 			#dead_frame
 			>-
 			<
-			<
-			[-]
+			<[-]
 			>
 			<<<<<
 		>>>>>]

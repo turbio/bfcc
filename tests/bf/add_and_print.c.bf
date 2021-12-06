@@ -18,9 +18,8 @@ runtime init:
 			>-
 			<#dead_fn_pad/main
 			>>>-
-			<<<
 			<<<<<<<<<<<<
-		>>>]
+		]
 		<#B:main/%call_never_first_formain
 		[
 			-
@@ -86,8 +85,7 @@ runtime init:
 			#dead_frame
 			>-
 			<
-			<
-			[-]
+			<[-]
 			>
 			<<<<<
 		>>>>>]
