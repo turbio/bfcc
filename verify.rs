@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -156,12 +157,53 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 
 	let mut mem: [u8; 10000] = [0; 10000];
 
-	let code = code.chars().collect::<Vec<char>>();
 	let input: Vec<u8> = input.into();
 	let mut output: Vec<char> = vec![];
 
+	let mut jmpmap = HashMap::<usize, usize>::new();
+
+	let chars: Vec<char> = code.chars().collect();
+
+	'outer: for (i, c) in chars.iter().enumerate() {
+		if *c == '[' {
+			let mut d = 1;
+			for j in (i + 1)..code.len() {
+				d += match chars[j] {
+					'[' => 1,
+					']' => -1,
+					_ => 0,
+				};
+
+				if d == 0 && chars[j] == ']' {
+					jmpmap.insert(i, j);
+					continue 'outer;
+				}
+			}
+
+			panic!("unbalanced?");
+		}
+
+		if *c == ']' {
+			let mut d = 1;
+			for j in (0..i).rev() {
+				d += match chars[j] {
+					']' => 1,
+					'[' => -1,
+					_ => 0,
+				};
+
+				if d == 0 && chars[j] == '[' {
+					jmpmap.insert(i, j);
+					continue 'outer;
+				}
+			}
+
+			panic!("unbalanced?");
+		}
+	}
+
 	while pc < code.len() {
-		match code[pc] {
+		match chars[pc] {
 			',' => {
 				mem[mp] = input[ic];
 				ic += 1;
@@ -200,52 +242,13 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 
 			'[' => {
 				if mem[mp] == 0 {
-					let mut depth = 0;
-					pc += 1;
-
-					if pc == code.len() {
-						return Err(InterpErr::LoopMemOverflow);
-					}
-
-					while depth > 0 || code[pc] != ']' {
-						if code[pc] == '[' {
-							depth += 1;
-						} else if code[pc] == ']' {
-							depth -= 1;
-						}
-
-						pc += 1;
-
-						if pc >= code.len() {
-							return Err(InterpErr::LoopMemOverflow);
-						}
-					}
+					pc = jmpmap[&pc];
 				}
 			}
 
 			']' => {
 				if mem[mp] != 0 {
-					let mut depth = 0;
-
-					if pc == 0 {
-						return Err(InterpErr::LoopMemUnderflow);
-					}
-
-					pc -= 1;
-
-					while depth > 0 || code[pc] != '[' {
-						if code[pc] == ']' {
-							depth += 1;
-						} else if code[pc] == '[' {
-							depth -= 1;
-						}
-
-						if pc == 0 {
-							return Err(InterpErr::LoopMemUnderflow);
-						}
-
-						pc -= 1;
-					}
+					pc = jmpmap[&pc];
 				}
 			}
 

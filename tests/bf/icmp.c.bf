@@ -44,10 +44,10 @@ runtime init:
 			>#tmp0_for_load
 			<<<[->>>+<+<<]
 			>>>[-<<<+>>>]
-			%5 = icmp slt i32 %4_ i32 20
-			>#tmp_constop_20
-			++++++++++++++++++++
-			<#%5_icmp_%i32_%4_slt_i32_20
+			%5 = icmp slt i32 %4_ i32 50
+			>#tmp_constop_50
+			++++++++++++++++++++++++++++++++++++++++++++++++++
+			<#%5_icmp_%i32_%4_slt_i32_50
 			>>#subnu_tmpb
 			>#subnu_tmp0
 			>#subnu_tmp1
@@ -106,10 +106,10 @@ runtime init:
 			>#tmp0_for_load
 			<<[->>+<+<]
 			>>[-<<+>>]
-			%9 = icmp slt i32 %8_ i32 20
-			#tmp_constop_20
-			++++++++++++++++++++
-			>#%9_icmp_%i32_%8_slt_i32_20
+			%9 = icmp slt i32 %8_ i32 50
+			#tmp_constop_50
+			++++++++++++++++++++++++++++++++++++++++++++++++++
+			>#%9_icmp_%i32_%8_slt_i32_50
 			>>>>#subnu_tmpb
 			>#subnu_tmp0
 			>#subnu_tmp1

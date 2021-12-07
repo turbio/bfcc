@@ -277,6 +277,8 @@ fn build_icmp(
 
 #[derive(Debug, Clone)]
 enum Cell {
+	Args,
+	StackPtr,
 	MainLoop,
 
 	FuncMask(String),
@@ -516,7 +518,7 @@ fn build_ptr_train(
 fn build_func(
 	layout: &Layout,
 	ret_pad_width: usize,
-	st_width: usize,
+	stack_width: usize,
 	func: &llvm_ir::Function,
 ) -> (Vec<BfOp>, usize) {
 	// returns the stack width too
@@ -626,10 +628,6 @@ fn build_func(
 		first_block_ops.push(BfOp::Mov(0, pdest + i + 1 + STACK_PTR_W));
 		first_block_ops.push(BfOp::Right(i + STACK_PTR_W + 1));
 	}
-
-	// TODO(turbio): well this should actually be the maximum stack space
-	// needed at the instant calls are made.
-	let stack_width = st_width;
 
 	// worth noting everone's ret pad and first block have the same address
 	let retpad_addr = layout

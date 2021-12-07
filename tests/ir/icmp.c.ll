@@ -12,7 +12,7 @@ define void @main() #0 {
 
 3:                                                ; preds = %45, %0
   %4 = load i32, i32* %1, align 4
-  %5 = icmp slt i32 %4, 20
+  %5 = icmp slt i32 %4, 50
   br i1 %5, label %6, label %48
 
 6:                                                ; preds = %3
@@ -21,7 +21,7 @@ define void @main() #0 {
 
 7:                                                ; preds = %41, %6
   %8 = load i32, i32* %2, align 4
-  %9 = icmp slt i32 %8, 20
+  %9 = icmp slt i32 %8, 50
   br i1 %9, label %10, label %44
 
 10:                                               ; preds = %7

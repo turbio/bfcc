@@ -8,7 +8,7 @@ void lt(int l, int r) {
   }
 }
 
-// TEST:{ "name": "less_than", "output": "lrlrllll\nrlllllllllllllllllllrrllllllllllllllllllrrrlllllllllllllllllrrrrllllllllllllllllrrrrrlllllllllllllllrrrrrrllllllllllllllrrrrrrrlllllllllllllrrrrrrrrllllllllllllrrrrrrrrrlllllllllllrrrrrrrrrrllllllllllrrrrrrrrrrrlllllllllrrrrrrrrrrrrllllllllrrrrrrrrrrrrrlllllllrrrrrrrrrrrrrrllllllrrrrrrrrrrrrrrrlllllrrrrrrrrrrrrrrrrllllrrrrrrrrrrrrrrrrrlllrrrrrrrrrrrrrrrrrrllrrrrrrrrrrrrrrrrrrrlrrrrrrrrrrrrrrrrrrrr" }
+// TEST:{ "name": "less_than", "output": "lrlrllll\nrlllllllllllllllllllllllllllllrrllllllllllllllllllllllllllllrrrlllllllllllllllllllllllllllrrrrllllllllllllllllllllllllllrrrrrlllllllllllllllllllllllllrrrrrrllllllllllllllllllllllllrrrrrrrlllllllllllllllllllllllrrrrrrrrllllllllllllllllllllllrrrrrrrrrlllllllllllllllllllllrrrrrrrrrrllllllllllllllllllllrrrrrrrrrrrlllllllllllllllllllrrrrrrrrrrrrllllllllllllllllllrrrrrrrrrrrrrlllllllllllllllllrrrrrrrrrrrrrrllllllllllllllllrrrrrrrrrrrrrrrlllllllllllllllrrrrrrrrrrrrrrrrllllllllllllllrrrrrrrrrrrrrrrrrlllllllllllllrrrrrrrrrrrrrrrrrrllllllllllllrrrrrrrrrrrrrrrrrrrlllllllllllrrrrrrrrrrrrrrrrrrrrllllllllllrrrrrrrrrrrrrrrrrrrrrlllllllllrrrrrrrrrrrrrrrrrrrrrrllllllllrrrrrrrrrrrrrrrrrrrrrrrlllllllrrrrrrrrrrrrrrrrrrrrrrrrllllllrrrrrrrrrrrrrrrrrrrrrrrrrlllllrrrrrrrrrrrrrrrrrrrrrrrrrrllllrrrrrrrrrrrrrrrrrrrrrrrrrrrlllrrrrrrrrrrrrrrrrrrrrrrrrrrrrllrrrrrrrrrrrrrrrrrrrrrrrrrrrrrlrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr" }
 void main(void) {
   lt(1, 2); // l
   lt(2, 1); // r
@@ -22,8 +22,8 @@ void main(void) {
 
   putchar('\n');
 
-  for (int i = 0; i < 20; i++) {
-    for (int j = 0; j < 20; j++) {
+  for (int i = 0; i < 30; i++) {
+    for (int j = 0; j < 30; j++) {
       lt(i, j);
     }
   }
