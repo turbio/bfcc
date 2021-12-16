@@ -97,7 +97,9 @@ fn main() {
 		let bfout = format!("./tests/bf/{}.bf", case.file_name().into_string().unwrap());
 		let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
 
-		let result = exec(&bf_code, "").unwrap();
+		let comp = compile(&bf_code);
+
+		let result = exec(comp, "").unwrap();
 		if result.output != info.output {
 			print!("\n");
 			println!("OUTPUT MISMATCH");
@@ -149,7 +151,107 @@ struct ExecResult {
 	steps: usize,
 }
 
-fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
+#[derive(Clone, Copy, Debug)]
+enum COps {
+	Add(i32),
+	Mov(i64),
+	Putchar,
+	Getchar,
+	JmpIfZ(u64),
+	JmpIfNZ(u64),
+	//Loop(Vec<COps>)
+}
+
+fn compile(code: &str) -> Vec<COps> {
+	let mut opsout = Vec::<COps>::new();
+
+	let chars: Vec<char> = code.chars().collect();
+
+	for c in chars.iter() {
+		opsout.push(match c {
+			'+' => COps::Add(1),
+			'-' => COps::Add(-1),
+			'>' => COps::Mov(1),
+			'<' => COps::Mov(-1),
+			'[' => COps::JmpIfZ(0),
+			']' => COps::JmpIfNZ(0),
+			'.' => COps::Putchar,
+			',' => panic!("TODO"),
+			_ => continue,
+		})
+	}
+
+	// combine similar
+	let mut into = vec![opsout[0]];
+	for op in opsout.iter().skip(1) {
+		let repl = match (into[into.len() - 1], op) {
+			(COps::Add(a), COps::Add(b)) => Some(COps::Add(a + b)),
+			(COps::Mov(a), COps::Mov(b)) => Some(COps::Mov(a + b)),
+			_ => None,
+		};
+
+		if repl.is_some() {
+			let l = into.len();
+			into[l - 1] = repl.unwrap();
+		} else {
+			into.push(*op);
+		}
+	}
+	let mut opsout = into;
+
+	// actually resolve ops
+	opsout = opsout
+		.iter()
+		.enumerate()
+		.map(|(i, op)| match op {
+			COps::JmpIfZ(_) => {
+				let mut d = 1;
+				for j in (i + 1)..opsout.len() {
+					d += match opsout[j] {
+						COps::JmpIfZ(_) => 1,
+						COps::JmpIfNZ(_) => -1,
+						_ => 0,
+					};
+
+					if d == 0
+						&& match opsout[j] {
+							COps::JmpIfNZ(_) => true,
+							_ => false,
+						} {
+						return COps::JmpIfZ(j as u64);
+					}
+				}
+
+				panic!("unbalanced?");
+			}
+			COps::JmpIfNZ(_) => {
+				let mut d = 1;
+				for j in (0..i).rev() {
+					d += match opsout[j] {
+						COps::JmpIfNZ(_) => 1,
+						COps::JmpIfZ(_) => -1,
+						_ => 0,
+					};
+
+					if d == 0
+						&& match opsout[j] {
+							COps::JmpIfZ(_) => true,
+							_ => false,
+						} {
+						return COps::JmpIfNZ(j as u64);
+					}
+				}
+
+				panic!("unbalanced?");
+			}
+			_ => *op,
+		})
+		.collect();
+
+	opsout
+}
+
+fn exec(ops: Vec<COps>, input: &str) -> Result<ExecResult, InterpErr> {
 	let mut pc = 0;
 	let mut mp = 0;
 	let mut ic = 0;
@@ -162,97 +264,49 @@ fn exec(code: &str, input: &str) -> Result<ExecResult, InterpErr> {
 
 	let mut jmpmap = HashMap::<usize, usize>::new();
 
-	let chars: Vec<char> = code.chars().collect();
-
-	'outer: for (i, c) in chars.iter().enumerate() {
-		if *c == '[' {
-			let mut d = 1;
-			for j in (i + 1)..code.len() {
-				d += match chars[j] {
-					'[' => 1,
-					']' => -1,
-					_ => 0,
-				};
-
-				if d == 0 && chars[j] == ']' {
-					jmpmap.insert(i, j);
-					continue 'outer;
-				}
-			}
-
-			panic!("unbalanced?");
-		}
-
-		if *c == ']' {
-			let mut d = 1;
-			for j in (0..i).rev() {
-				d += match chars[j] {
-					']' => 1,
-					'[' => -1,
-					_ => 0,
-				};
-
-				if d == 0 && chars[j] == '[' {
-					jmpmap.insert(i, j);
-					continue 'outer;
-				}
-			}
-
-			panic!("unbalanced?");
-		}
-	}
-
-	while pc < code.len() {
-		match chars[pc] {
-			',' => {
+	while pc < ops.len() {
+		match ops[pc] {
+			COps::Getchar => {
 				mem[mp] = input[ic];
 				ic += 1;
 			}
 
-			'.' => output.push(mem[mp] as char),
+			COps::Putchar => output.push(mem[mp] as char),
 
-			'+' => {
-				if mem[mp] == 255 {
+			COps::Add(n) => {
+				let v = mem[mp] as isize + n as isize;
+				if v > 255 {
 					return Err(InterpErr::IntOverflow);
-				}
-				mem[mp] += 1
-			}
-
-			'-' => {
-				if mem[mp] == 0 {
+				} else if v < 0 {
 					return Err(InterpErr::IntUnderflow);
 				}
-				mem[mp] -= 1
+				mem[mp] = v as u8;
 			}
 
-			'>' => {
-				if mp == mem.len() - 1 {
+			COps::Mov(n) => {
+				let to = mp as isize + n as isize;
+				if to >= mem.len() as isize {
 					return Err(InterpErr::MemOverflow);
 				}
-				mp += 1
-			}
 
-			'<' => {
-				if mp == 0 {
+				if to < 0 {
 					return Err(InterpErr::MemUnderflow);
 				}
 
-				mp -= 1
+				mp = to as usize;
 			}
 
-			'[' => {
+			COps::JmpIfZ(a) => {
 				if mem[mp] == 0 {
-					pc = jmpmap[&pc];
+					pc = a as usize;
 				}
 			}
 
-			']' => {
+			COps::JmpIfNZ(a) => {
 				if mem[mp] != 0 {
-					pc = jmpmap[&pc];
+					pc = a as usize;
 				}
 			}
-
-			_ => {}
 		};
 
 		pc += 1;

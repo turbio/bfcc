@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+echo '#include <stdint.h>'
+echo '#include <stdio.h>'
+echo ''
+echo 'int main(){'
+echo 'uint8_t m[30000] = {0};'
+echo 'unsigned int p = 0;'
+echo ''
+
+sed -s 's/[^][<>,.+-]//g' | \
+	sed -s 's/\(.\)/\1\n/g' | \
+	sed -s 's/^+$/m[p]++;/g' | \
+	sed -s 's/^-$/m[p]--;/g' | \
+	sed -s 's/^>$/p++;/g' | \
+	sed -s 's/^<$/p--;/g' | \
+	sed -s 's/^\[$/while(m[p]){/g' | \
+	sed -s 's/^\]$/}/g' | \
+	sed -s 's/^\.$/putchar(m[p]);/g' | \
+	cat
+
+echo 'return 0;'
+echo '}'
