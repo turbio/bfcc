@@ -15,7 +15,7 @@ void deref_int(uint8_t p) {
 // TODO
 // void deref_pointer(uint8_t *p) {  }
 
-// TEST:{ "skip": true, "name": "load store pointer up stack inc", "output": "ab" }
+// TEST:{ "name": "load store pointer up stack inc", "output": "ab" }
 void main(void) {
   int a = 'a';
 

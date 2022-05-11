@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -20,7 +19,7 @@ mod bfcc;
 struct TestCase {
 	name: String,
 	output: String,
-	input: Option<String>,
+	// input: Option<String>,
 	skip: Option<bool>,
 }
 
@@ -52,10 +51,12 @@ fn compile_bf(path: &Path, target: &Path) -> String {
 }
 
 fn main() {
-	let cases = fs::read_dir("./tests/cases").unwrap();
+	let mut cases = fs::read_dir("./tests/cases")
+		.unwrap()
+		.map(|r| r.unwrap())
+		.collect::<Vec<_>>();
+	cases.sort_by_key(|dir| dir.path());
 	for case in cases {
-		let case = case.unwrap();
-
 		let content = fs::read_to_string(case.path()).unwrap();
 
 		let from = content.find("TEST:").unwrap() + 5;
@@ -99,7 +100,7 @@ fn main() {
 
 		let comp = compile(&bf_code);
 
-		let result = exec(comp, "").unwrap();
+		let result = exec(comp).unwrap();
 		if result.output != info.output {
 			print!("\n");
 			println!("OUTPUT MISMATCH");
@@ -142,8 +143,6 @@ enum InterpErr {
 	IntUnderflow,
 	MemOverflow,
 	MemUnderflow,
-	LoopMemOverflow,
-	LoopMemUnderflow,
 }
 
 struct ExecResult {
@@ -156,7 +155,6 @@ enum COps {
 	Add(i32),
 	Mov(i64),
 	Putchar,
-	Getchar,
 	JmpIfZ(u64),
 	JmpIfNZ(u64),
 	//Loop(Vec<COps>)
@@ -251,26 +249,17 @@ fn compile(code: &str) -> Vec<COps> {
 	opsout
 }
 
-fn exec(ops: Vec<COps>, input: &str) -> Result<ExecResult, InterpErr> {
+fn exec(ops: Vec<COps>) -> Result<ExecResult, InterpErr> {
 	let mut pc = 0;
 	let mut mp = 0;
-	let mut ic = 0;
 	let mut steps = 0;
 
 	let mut mem: [u8; 10000] = [0; 10000];
 
-	let input: Vec<u8> = input.into();
 	let mut output: Vec<char> = vec![];
-
-	let mut jmpmap = HashMap::<usize, usize>::new();
 
 	while pc < ops.len() {
 		match ops[pc] {
-			COps::Getchar => {
-				mem[mp] = input[ic];
-				ic += 1;
-			}
-
 			COps::Putchar => output.push(mem[mp] as char),
 
 			COps::Add(n) => {

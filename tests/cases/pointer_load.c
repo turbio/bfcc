@@ -1,14 +1,14 @@
 #include "stdfuck.h"
 
-// TEST:{ "skip": true, "name": "pointer load", "output": "pppp" }
+// TEST:{ "name": "pointer load", "output": "pppp" }
 int main() {
   int a = 'p';
   int *b = &a;
-  putc(*b);
+  putchar(*b);
   int **c = &b;
-  putc(**c);
+  putchar(**c);
   int ***d = &c;
-  putc(***d);
+  putchar(***d);
   int ****e = &d;
-  putc(****e);
+  putchar(****e);
 };

@@ -74,9 +74,7 @@ impl State {
 
 			Ok((
 				nextpc,
-				Some(
-					self.code[(from + annot)..(from + annot + to)].to_string(),
-				),
+				Some(self.code[(from + annot)..(from + annot + to)].to_string()),
 			))
 		} else {
 			Ok((nextpc, None))
@@ -495,7 +493,11 @@ impl Debugger {
 
 				ncurses::waddstr(
 					self.root,
-					&format!("{:03} : {:03} : ", (i as i32 - self.cur().mp as i32).abs(), i),
+					&format!(
+						"{:03} / {:03} : ",
+						(i as i32 - self.cur().mp as i32).abs(),
+						i
+					),
 				);
 
 				if self.cur().tape[i as usize] == 0 {
@@ -508,7 +510,15 @@ impl Debugger {
 
 				ncurses::waddstr(
 					self.root,
-					&format!("{v:03} ", v=self.cur().tape[i as usize]),
+					&format!(
+						"{v:03} / {c:01}",
+						v = self.cur().tape[i as usize],
+						c = if self.cur().tape[i as usize] >= 32 {
+							self.cur().tape[i as usize] as char
+						} else {
+							' '
+						}
+					),
 				);
 
 				ncurses::wattroff(self.root, ncurses::A_REVERSE());
@@ -519,7 +529,9 @@ impl Debugger {
 						self.root,
 						&format!(
 							" {}",
-							self.cur().annots[i as usize].as_ref().unwrap()
+							self.cur().annots[i as usize]
+								.as_ref()
+								.unwrap()
 						),
 					);
 					ncurses::wcolor_set(self.root, Color::Normal as i16);
@@ -615,10 +627,8 @@ fn main() {
 		}
 
 		if arg == "-b"
-			|| arg == "-break"
-			|| arg == "-breakpoint"
-			|| arg == "--b"
-			|| arg == "--break"
+			|| arg == "-break" || arg == "-breakpoint"
+			|| arg == "--b" || arg == "--break"
 			|| arg == "--breakpoint"
 		{
 			bpa = env::args().nth(i + 1).unwrap();

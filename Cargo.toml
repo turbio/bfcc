@@ -25,6 +25,3 @@ path = "exec/main.rs"
 [[bin]]
 name = "bfdb"
 path = "debug/main.rs"
-
-[doc.extern-map]
-std = "local"
