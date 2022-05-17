@@ -20,42 +20,61 @@ runtime init:
             >>>-
             l31 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         ]
-        <#B:main/%0
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%0
+        >#B:%ret_lading_pad
+        >#B:%3
+        >#B:%6
+        >#B:%7
+        >#B:%10
+        >#B:%13
+        >#B:%16
+        >#B:%call_term_for_6
+        >#B:%17
+        >#B:%20
+        >#B:%23
+        >#B:%call_term_for_10
+        >#B:%24
+        >#B:%call_term_for_12
+        >#B:%25
+        >#B:%28
+        >#B:%29
+        >#B:%32
+        >#alloc_%1
+        >#alloc_%2
+        <<<<<<<<<<<<<<<<<<<<[
             -
+            copy up args
             %1 = alloca i32_ align 4
-            >>>>>>>>>>>>>>>>>>>#alloca_%1
             %2 = alloca i32_ align 4
-            >#alloca_%2
             store i32 0_ i32* %1_ align 4
             store sitch: alloca Some(21)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_0
+            >>>>>>>>>>>>>>>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m23/21 >>[-<<+>>]
             br label %3
-            <<<<<<<<<<<<<<<<<<<#B:main/%3
-            +
+            <<<<<<<<<<<<<<<<<<<+
         <<]
-        >>#B:main/%3
-        [
+        >>[
             -
             %4 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%4
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%4
+            #load_thru_%1_to_%4
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d21/24/41 <<<[->>>+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<]
             m24/21 >>>[-<<<+>>>]
             %5 = icmp ule i32 %4_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <#constop_1
             +
-            >>>>>>>>>>>>>>>>>>>#%5_icmp_%i32_%4_ule_i32_1
+            >>>>>>>>>>>>>>>>>>#icmp_op0_i32_%4
+            <<<<<<<<<<<<<<<<<<#icmp_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>#icmp_ret_%5
             <<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -95,8 +114,7 @@ runtime init:
                 #B:main/32_false
             <<<<<<<<<<<<<<<<<]
         >]
-        >#B:main/%6
-        [
+        >[
             -
             store i32 0_ i32* %2_ align 4
             store sitch: alloca Some(22)
@@ -105,28 +123,26 @@ runtime init:
             >>>>>>>>>>>>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <[-]
             m23/22 >[-<+>]
             br label %7
-            <<<<<<<<<<<<<<<<<#B:main/%7
-            +
+            <<<<<<<<<<<<<<<<<+
         <]
-        >#B:main/%7
-        [
+        >[
             -
             %8 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%8
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%8
+            #load_thru_%2_to_%8
             <<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d22/23/43 <[->+>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<]
             m23/22 >[-<+>]
             %9 = icmp ule i32 %8_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>>#%9_icmp_%i32_%8_ule_i32_1
+            >>>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%8
+            <<<<<<<<<<<<<<<<<<<<#icmp_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>>#icmp_ret_%9
             <<<<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -166,21 +182,21 @@ runtime init:
                 #B:main/28_false
             <<<<<<<<<<<<<<<]
         >>>]
-        >#B:main/%10
-        [
+        >[
             -
             %11 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%11
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%11
+            #load_thru_%1_to_%11
             <<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d21/23/45 <<[->>+>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<]
             m23/21 >>[-<<+>>]
             %12 = icmp ne i32 %11_ i32 0
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_0
             
-            >>>>>>>>>>>>>>>>>>>>>>>#%12_icmp_%i32_%11_ne_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%11
+            <<<<<<<<<<<<<<<<<<<<<<#icmp_op1_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>#icmp_ret_%12
             <<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -223,21 +239,21 @@ runtime init:
                 #B:main/13_false
             <<<<<]
         >>>>]
-        >#B:main/%13
-        [
+        >[
             -
             %14 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%14
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%14
+            #load_thru_%2_to_%14
             <<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d22/23/47 <[->+>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<]
             m23/22 >[-<+>]
             %15 = icmp ne i32 %14_ i32 0
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_0
             
-            >>>>>>>>>>>>>>>>>>>>>>>>>#%15_icmp_%i32_%14_ne_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%14
+            <<<<<<<<<<<<<<<<<<<<<<<<#icmp_op1_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>>>#icmp_ret_%15
             <<<<<<<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -280,40 +296,37 @@ runtime init:
                 #B:main/17_false
             <<<<<<<<]
         >>>>>]
-        >#B:main/%16
-        [
+        >[
             -
             call @putchar(i8 111)
-            enable next
-            >#main/%call_term_for_6
+            enable next block when we return
+            >#caller/%call_term_for_6
             +
             putchar intrinsic
             >>>>>>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_6
-        [
+        >[
             -
             br label %17
-            >#B:main/%17
-            +
+            >+
         <]
-        >#B:main/%17
-        [
+        >[
             -
             %18 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%18
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%18
+            #load_thru_%1_to_%18
             <<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d21/23/49 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m23/21 >>[-<<+>>]
             %19 = icmp ne i32 %18_ i32 0
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_0
             
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>#%19_icmp_%i32_%18_ne_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%18
+            <<<<<<<<<<<<<<<<<<<<<<<<<<#icmp_op1_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>#icmp_ret_%19
             <<<<<<<<<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -356,21 +369,21 @@ runtime init:
                 #B:main/24_false
             <<<<<<<<<<<<]
         >>>>>>>>]
-        >#B:main/%20
-        [
+        >[
             -
             %21 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%21
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%21
+            #load_thru_%2_to_%21
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d22/23/51 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m23/22 >[-<+>]
             %22 = icmp ne i32 %21_ i32 0
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_0
             
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#%22_icmp_%i32_%21_ne_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%21
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<#icmp_op1_i32_0
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#icmp_ret_%22
             <<<<<<<<<<<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -413,59 +426,53 @@ runtime init:
                 #B:main/24_false
             <<<<<<<<<<<<]
         >>>>>>>>>]
-        >#B:main/%23
-        [
+        >[
             -
             call @putchar(i8 97)
-            enable next
-            >#main/%call_term_for_10
+            enable next block when we return
+            >#caller/%call_term_for_10
             +
             putchar intrinsic
             >>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<<]
-        >#B:main/%call_term_for_10
-        [
+        >[
             -
             br label %24
-            >#B:main/%24
-            +
+            >+
         <]
-        >#B:main/%24
-        [
+        >[
             -
             call @putchar(i8 44)
-            enable next
-            >#main/%call_term_for_12
+            enable next block when we return
+            >#caller/%call_term_for_12
             +
             putchar intrinsic
             >>>>>>>++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<]
-        >#B:main/%call_term_for_12
-        [
+        >[
             -
             br label %25
-            >#B:main/%25
-            +
+            >+
         <]
-        >#B:main/%25
-        [
+        >[
             -
             %26 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%26
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%26
+            #load_thru_%2_to_%26
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d22/23/53 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m23/22 >[-<+>]
             %27 = add i32 %26_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#%_Named(Number(27))_add_%_Named(Number(26))_c_Fixed(23)
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#add_op0_i32_%26
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#add_ret_%27
             m53/54 <[->+<]
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
                 -
@@ -474,37 +481,32 @@ runtime init:
             store i32 %27_ i32* %2_ align 4
             store sitch: alloca Some(22)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <[-]
             m54/22 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %7
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:main/%7
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>>>>>]
-        >#B:main/%28
-        [
+        >[
             -
             br label %29
-            >#B:main/%29
-            +
+            >+
         <]
-        >#B:main/%29
-        [
+        >[
             -
             %30 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%30
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%30
+            #load_thru_%1_to_%30
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d21/23/55 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m23/21 >>[-<<+>>]
             %31 = add i32 %30_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#%_Named(Number(31))_add_%_Named(Number(30))_c_Fixed(23)
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#add_op0_i32_%30
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#add_ret_%31
             m55/56 <[->+<]
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
                 -
@@ -513,17 +515,13 @@ runtime init:
             store i32 %31_ i32* %1_ align 4
             store sitch: alloca Some(21)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m56/21 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %3
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:main/%3
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>>>>>>>>>]
-        >#B:main/%32
-        [
+        >[
             -
             ret void
             zero all function allocs

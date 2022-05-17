@@ -17,14 +17,14 @@ enum Color {
 	Mem,
 }
 
-struct State {
+struct State<'a> {
 	tape: Vec<u8>,
 	annots: Vec<Option<String>>,
 
 	mp: usize,
 	pc: usize,
 
-	code: String,
+	code: &'a str,
 
 	ic: usize,
 	input: Vec<u8>,
@@ -38,8 +38,8 @@ fn is_instr(i: char) -> bool {
 	return INSTRUCTS.iter().find(|c| **c == i).is_some();
 }
 
-impl State {
-	fn new(code: String, input: Vec<u8>) -> State {
+impl<'a> State<'a> {
+	fn new(code: &'a str, input: Vec<u8>) -> State<'a> {
 		State {
 			tape: vec![0],
 			annots: vec![None],
@@ -57,8 +57,8 @@ impl State {
 	}
 
 	fn nextop(&self) -> Result<(usize, Option<String>), ()> {
-		let from = 1 + self.pc;
-		let nextpc = self.code.as_str()[from..].find(INSTRUCTS);
+		let from = self.pc + 1;
+		let nextpc = self.code[from..].find(INSTRUCTS);
 		if nextpc.is_none() {
 			return Err(());
 		}
@@ -74,33 +74,47 @@ impl State {
 
 			Ok((
 				nextpc,
-				Some(self.code[(from + annot)..(from + annot + to)].to_string()),
+				Some(
+					self.code[(from + annot)..(from + annot + to)].to_string(),
+				),
 			))
 		} else {
 			Ok((nextpc, None))
 		}
 	}
 
+	fn prevop(&self) -> Result<(usize, Option<String>), ()> {
+		let from = self.pc - 1;
+		let nextpc = self.code[..from].rfind(INSTRUCTS);
+		if nextpc.is_none() {
+			return Err(());
+		}
+
+		let nextpc = nextpc.unwrap();
+
+		Ok((nextpc, None))
+	}
+
 	fn ch(&self, i: usize) -> char {
 		self.code.chars().nth(i).unwrap()
 	}
 
-	fn next(&self) -> Result<(State, Option<String>), &str> {
-		let mut n = State {
+	fn next(&self) -> Result<(State<'a>, Option<String>), &str> {
+		let mut n: State<'a> = State {
 			tape: self.tape.clone(),
 			annots: self.annots.clone(),
 
 			pc: self.pc,
 			mp: self.mp,
 
-			code: self.code.clone(),
+			code: self.code,
 
 			ic: self.ic,
 			input: self.input.clone(),
 			output: self.output.clone(),
 		};
 
-		match n.ch(n.pc) {
+		match self.ch(self.pc) {
 			'+' => {
 				if n.tape[n.mp] == 255 {
 					return Err("overflow");
@@ -187,8 +201,8 @@ impl State {
 	}
 }
 
-struct Debugger {
-	state: Vec<State>,
+struct Debugger<'a> {
+	state: State<'a>,
 
 	code_scroll: isize,
 	mem_scroll: isize,
@@ -200,13 +214,10 @@ struct Debugger {
 
 const mem_wid: usize = 60;
 
-impl Debugger {
-	fn new(code: String, input: Vec<u8>) -> Debugger {
-		// technically incorrect but at least it won't break rendering
-		let code = code.replace('\t', "    ");
-
+impl<'a> Debugger<'a> {
+	fn new(code: &'a str, input: Vec<u8>) -> Debugger<'a> {
 		Debugger {
-			state: vec![State::new(code, input)],
+			state: State::new(code, input),
 			root: ncurses::initscr(),
 			code_scroll: 0,
 			mem_scroll: 0,
@@ -216,7 +227,7 @@ impl Debugger {
 
 	fn scroll(&mut self, l: isize, x: usize, y: usize) {
 		if x < ncurses::getmaxx(self.root) as usize - mem_wid {
-			let lines = self.cur().code.as_str().lines().count() as isize;
+			let lines = self.cur().code.lines().count() as isize;
 
 			self.code_scroll = if l + self.code_scroll < 0 {
 				0
@@ -239,15 +250,11 @@ impl Debugger {
 	}
 
 	fn cur(&self) -> &State {
-		self.state.last().unwrap()
+		&self.state
 	}
 
 	fn last(&self) -> Option<&State> {
-		if self.state.len() > 1 {
-			self.state.get(self.state.len() - 2)
-		} else {
-			None
-		}
+		None
 	}
 
 	fn jumpto(&mut self, x: i32, y: i32) {
@@ -294,22 +301,18 @@ impl Debugger {
 	}
 
 	fn step(&mut self) -> Result<(), &str> {
-		let next = self.cur().next();
+		let next = self.state.next();
 
 		if next.is_err() {
 			self.status = next.err().unwrap().to_string();
 			Err("step failed")
 		} else {
-			self.state.push(next.unwrap().0);
+			self.state = next.unwrap().0;
 			Ok(())
 		}
 	}
 
-	fn rewind(&mut self) {
-		if self.state.len() > 1 {
-			self.state.pop();
-		}
-	}
+	fn rewind(&mut self) {}
 
 	fn next(&mut self) {
 		let before = self.cur().pc;
@@ -346,7 +349,7 @@ impl Debugger {
 		self.step();
 
 		loop {
-			let ret = self.cur().next();
+			let ret = self.state.next();
 			if ret.is_err() {
 				self.status = format!("step err: {}", ret.err().unwrap());
 				break;
@@ -362,7 +365,7 @@ impl Debugger {
 				break;
 			}
 
-			self.state.push(next);
+			self.state = next;
 		}
 	}
 
@@ -411,7 +414,7 @@ impl Debugger {
 
 		let steps = format!(
 			" step: {} bp: {} st: {}",
-			self.state.len(),
+			-1,
 			bp.as_ref().unwrap_or(&"*"),
 			self.status,
 		);
@@ -529,9 +532,7 @@ impl Debugger {
 						self.root,
 						&format!(
 							" {}",
-							self.cur().annots[i as usize]
-								.as_ref()
-								.unwrap()
+							self.cur().annots[i as usize].as_ref().unwrap()
 						),
 					);
 					ncurses::wcolor_set(self.root, Color::Normal as i16);
@@ -627,8 +628,10 @@ fn main() {
 		}
 
 		if arg == "-b"
-			|| arg == "-break" || arg == "-breakpoint"
-			|| arg == "--b" || arg == "--break"
+			|| arg == "-break"
+			|| arg == "-breakpoint"
+			|| arg == "--b"
+			|| arg == "--break"
 			|| arg == "--breakpoint"
 		{
 			bpa = env::args().nth(i + 1).unwrap();
@@ -654,7 +657,10 @@ fn main() {
 		return;
 	}
 
-	let mut d = Debugger::new(code, input.as_bytes().to_vec());
+	// technically incorrect but at least it won't break rendering
+	let code = code.replace('\t', "    ");
+
+	let mut d = Debugger::new(&code, input.as_bytes().to_vec());
 
 	d.init();
 	d.draw(bp);

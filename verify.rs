@@ -63,7 +63,9 @@ fn main() {
 		let to = content[from..].find("\n").unwrap() + from;
 		let info: TestCase = serde_json::from_str(&content[from..to]).unwrap();
 
-		if env::args().len() > 1 && env::args().find(|x| x == &info.name).is_none() {
+		if env::args().len() > 1
+			&& env::args().find(|x| x == &info.name).is_none()
+		{
 			continue;
 		}
 
@@ -81,7 +83,10 @@ fn main() {
 		io::stdout().flush().unwrap();
 
 		let source = format!("{}", case.path().as_path().to_str().unwrap());
-		let target = format!("./tests/ir/{}.bc", case.file_name().into_string().unwrap());
+		let target = format!(
+			"./tests/ir/{}.bc",
+			case.file_name().into_string().unwrap()
+		);
 
 		let cc = compile_ir(&source, &target);
 		if cc.is_err() {
@@ -95,12 +100,29 @@ fn main() {
 			continue;
 		}
 
-		let bfout = format!("./tests/bf/{}.bf", case.file_name().into_string().unwrap());
+		let bfout = format!(
+			"./tests/bf/{}.bf",
+			case.file_name().into_string().unwrap()
+		);
 		let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
 
 		let comp = compile(&bf_code);
 
-		let result = exec(comp).unwrap();
+		let result = exec(comp);
+		if result.is_err() {
+			print!("\n");
+			println!("EXECUTE ERROR");
+			println!("{:?}", result.err().unwrap());
+			println!(
+				"{}FAIL{} {}",
+				color::Fg(color::Red),
+				style::Reset,
+				info.name,
+			);
+			continue;
+		}
+
+		let result = result.unwrap();
 		if result.output != info.output {
 			print!("\n");
 			println!("OUTPUT MISMATCH");

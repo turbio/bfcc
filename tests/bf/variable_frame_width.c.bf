@@ -20,27 +20,30 @@ runtime init:
             >>>-
             l7 <<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        <<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             call @putchar(i8 46)
-            enable next
-            >#main/%call_term_for_0
+            enable next block when we return
+            >#caller/%call_term_for_0
             +
             putchar intrinsic
             >++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             ret void
             zero all function allocs

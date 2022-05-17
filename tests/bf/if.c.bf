@@ -20,21 +20,29 @@ runtime init:
             >>>-
             l17 <<<<<<<<<<<<<<<<<
         ]
-        <#B:main/%0
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%0
+        >#B:%ret_lading_pad
+        >#B:%5
+        >#B:%call_term_for_1
+        >#B:%7
+        >#B:%call_term_for_3
+        >#B:%8
+        >#alloc_%1
+        >#alloc_%2
+        <<<<<<<<[
             -
+            copy up args
             %1 = alloca i32_ align 4
-            >>>>>>>#alloca_%1
             %2 = alloca i8_ align 1
-            >#alloca_%2
             store i32 0_ i32* %1_ align 4
             store sitch: alloca Some(9)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_0
+            >>>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m11/9 >>[-<<+>>]
             store i8 98_ i8* %2_ align 1
@@ -44,21 +52,21 @@ runtime init:
             >#constop_98
             ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m12/10 >>[-<<+>>]
             %3 = load i8* %2_ align 1
-            >>>>>>>>>>>>>>>#load_thru_%2_to_%3
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>#load_ret_%3
+            #load_thru_%2_to_%3
             <<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/27 <[->+>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
             m11/10 >[-<+>]
             %4 = icmp ne i8 %3_ i8 0
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_0
             
-            >>>>>>>>>>>>>>>>>#%4_icmp_%i8_%3_ne_i8_0
+            >>>>>>>>>>>>>>>>#icmp_op0_i8_%3
+            <<<<<<<<<<<<<<<<#icmp_op1_i8_0
+            >>>>>>>>>>>>>>>>>#icmp_ret_%4
             <<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -101,55 +109,48 @@ runtime init:
                 #B:main/7_false
             <<<]
         <]
-        >>#B:main/%5
-        [
+        >>[
             -
             %6 = load i8* %2_ align 1
-            >>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%6
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%6
+            #load_thru_%2_to_%6
             <<<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/29 <[->+>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             m11/10 >[-<+>]
             call @putchar(i8 %6)
-            enable next
-            <<<<<<#main/%call_term_for_1
+            enable next block when we return
+            <<<<<<#caller/%call_term_for_1
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_1
-        [
+        >[
             -
             br label %8
-            >>>#B:main/%8
-            +
+            >>>+
         <<<]
-        >#B:main/%7
-        [
+        >[
             -
             call @putchar(i8 110)
-            enable next
-            >#main/%call_term_for_3
+            enable next block when we return
+            >#caller/%call_term_for_3
             +
             putchar intrinsic
             >>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<]
-        >#B:main/%call_term_for_3
-        [
+        >[
             -
             br label %8
-            >#B:main/%8
-            +
+            >+
         <]
-        >#B:main/%8
-        [
+        >[
             -
             %9 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%9
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>#load_ret_%9
+            #load_thru_%1_to_%9
             <<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d9/11/30 <<[->>+>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<]
             m11/9 >>[-<<+>>]

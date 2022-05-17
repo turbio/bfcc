@@ -20,9 +20,21 @@ runtime init:
             >>>>-
             l17 <<<<<<<<<<<<<<<<<
         ]
-        <#B:lt/%2
-        [
+        <<<<#mainloop_lt
+        >#F:lt
+        >#F:main
+        >#B:%2
+        >#B:%ret_lading_pad
+        >#B:%8
+        >#B:%call_term_for_1
+        >#B:%9
+        >#B:%call_term_for_3
+        >#B:%10
+        >#alloc_%3
+        >#alloc_%4
+        <<<<<<<<[
             -
+            copy up args
             >>>>>>>>>>>>>>>>>>>>>>>>#arg_%0
             l2 <<
             m0/29 <<<<<<<<<<<<<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
@@ -32,41 +44,35 @@ runtime init:
             m0/31 <<<<<<<<<<<<<<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             r3 >>>
             %3 = alloca i32_ align 4
-            >>>>>>>>>>#alloca_%3
             %4 = alloca i32_ align 4
-            >#alloca_%4
             store i32 %0_ i32* %3_ align 4
             store sitch: alloca Some(10)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
-            <[-]
+            >>>>>>>>>>[-]
             m27/10 >>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>]
             store i32 %1_ i32* %4_ align 4
             store sitch: alloca Some(11)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<[-]
             m28/11 >>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>]
             %5 = load i32* %3_ align 4
-            >#load_thru_%3_to_%5
-            op_to_reg giving known register address
+            >#load_ret_%5
+            #load_thru_%3_to_%5
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/12/29 <<[->>+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             m12/10 >>[-<<+>>]
             %6 = load i32* %4_ align 4
-            >>>>>>>>>>>>>>>>>>#load_thru_%4_to_%6
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>#load_ret_%6
+            #load_thru_%4_to_%6
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d11/13/30 <<[->>+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             m13/11 >>[-<<+>>]
             %7 = icmp slt i32 %5_ i32 %6
-            op_to_reg giving known register address
-            op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>#%7_icmp_%i32_%5_slt_i32_%6
+            >>>>>>>>>>>>>>>>#icmp_op0_i32_%5
+            >#icmp_op1_i32_%6
+            >#icmp_ret_%7
             <<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -105,46 +111,39 @@ runtime init:
                 #B:lt/9_false
             <<<]
         <]
-        >>#B:lt/%8
-        [
+        >>[
             -
             call @putchar(i8 108)
-            enable next
-            >#lt/%call_term_for_1
+            enable next block when we return
+            >#caller/%call_term_for_1
             +
             putchar intrinsic
             >>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<]
-        >#B:lt/%call_term_for_1
-        [
+        >[
             -
             br label %10
-            >>>#B:lt/%10
-            +
+            >>>+
         <<<]
-        >#B:lt/%9
-        [
+        >[
             -
             call @putchar(i8 114)
-            enable next
-            >#lt/%call_term_for_3
+            enable next block when we return
+            >#caller/%call_term_for_3
             +
             putchar intrinsic
             >>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<]
-        >#B:lt/%call_term_for_3
-        [
+        >[
             -
             br label %10
-            >#B:lt/%10
-            +
+            >+
         <]
-        >#B:lt/%10
-        [
+        >[
             -
             ret void
             zero all function allocs
@@ -170,24 +169,48 @@ runtime init:
             >>>>-
             l31 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<<#mainloop_main
+        >#F:lt
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        >#B:%call_term_for_1
+        >#B:%call_term_for_2
+        >#B:%call_term_for_3
+        >#B:%call_term_for_4
+        >#B:%call_term_for_5
+        >#B:%call_term_for_6
+        >#B:%call_term_for_7
+        >#B:%call_term_for_8
+        >#B:%3
+        >#B:%6
+        >#B:%7
+        >#B:%10
+        >#B:%call_term_for_13
+        >#B:%13
+        >#B:%16
+        >#B:%17
+        >#B:%20
+        >#alloc_%1
+        >#alloc_%2
+        <<<<<<<<<<<<<<<<<<<<<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             %1 = alloca i32_ align 4
-            >>>>>>>>>>>>>>>>>>>#alloca_%1
             %2 = alloca i32_ align 4
-            >#alloca_%2
             call @lt(i32 1_ i32 2)
-            enable next
-            <<<<<<<<<<<<<<<<<<<#main/%call_term_for_0
+            enable next block when we return
+            >#caller/%call_term_for_0
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             +
@@ -204,9 +227,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -216,13 +239,14 @@ runtime init:
             >>#lt/b0
             +
         >>]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             call @lt(i32 2_ i32 1)
-            enable next
-            >#main/%call_term_for_1
+            enable next block when we return
+            >#caller/%call_term_for_1
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             ++
@@ -239,9 +263,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -251,13 +275,14 @@ runtime init:
             >>#lt/b0
             +
         >>>]
-        >#B:main/%call_term_for_1
-        [
+        >[
             -
             call @lt(i32 3_ i32 4)
-            enable next
-            >#main/%call_term_for_2
+            enable next block when we return
+            >#caller/%call_term_for_2
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             +++
@@ -274,9 +299,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -286,13 +311,14 @@ runtime init:
             >>#lt/b0
             +
         >>>>]
-        >#B:main/%call_term_for_2
-        [
+        >[
             -
             call @lt(i32 3_ i32 3)
-            enable next
-            >#main/%call_term_for_3
+            enable next block when we return
+            >#caller/%call_term_for_3
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             +++
@@ -309,9 +335,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -321,13 +347,14 @@ runtime init:
             >>#lt/b0
             +
         >>>>>]
-        >#B:main/%call_term_for_3
-        [
+        >[
             -
             call @lt(i32 4_ i32 5)
-            enable next
-            >#main/%call_term_for_4
+            enable next block when we return
+            >#caller/%call_term_for_4
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             ++++
@@ -344,9 +371,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -356,13 +383,14 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>]
-        >#B:main/%call_term_for_4
-        [
+        >[
             -
             call @lt(i32 5_ i32 6)
-            enable next
-            >#main/%call_term_for_5
+            enable next block when we return
+            >#caller/%call_term_for_5
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             +++++
@@ -379,9 +407,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -391,13 +419,14 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>]
-        >#B:main/%call_term_for_5
-        [
+        >[
             -
             call @lt(i32 6_ i32 7)
-            enable next
-            >#main/%call_term_for_6
+            enable next block when we return
+            >#caller/%call_term_for_6
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             ++++++
@@ -414,9 +443,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -426,13 +455,14 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>>]
-        >#B:main/%call_term_for_6
-        [
+        >[
             -
             call @lt(i32 7_ i32 8)
-            enable next
-            >#main/%call_term_for_7
+            enable next block when we return
+            >#caller/%call_term_for_7
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>>>>>>>#arg_0
             +++++++
@@ -449,9 +479,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -461,20 +491,18 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>>>]
-        >#B:main/%call_term_for_7
-        [
+        >[
             -
             call @putchar(i8 10)
-            enable next
-            >#main/%call_term_for_8
+            enable next block when we return
+            >#caller/%call_term_for_8
             +
             putchar intrinsic
             >>>>>>>>>>>>++++++++++
             .
             [-]
         <<<<<<<<<<<<<]
-        >#B:main/%call_term_for_8
-        [
+        >[
             -
             store i32 0_ i32* %1_ align 4
             store sitch: alloca Some(24)
@@ -483,28 +511,26 @@ runtime init:
             >>>>>>>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <<<[-]
             m27/24 >>>[-<<<+>>>]
             br label %3
-            <<<<<<<<<<<<#B:main/%3
-            +
+            <<<<<<<<<<<<+
         <]
-        >#B:main/%3
-        [
+        >[
             -
             %4 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%4
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%4
+            #load_thru_%1_to_%4
             <<<<<<<<<<<<<<<#tmp0_for_load
             d24/26/41 <<[->>+>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
             m26/24 >>[-<<+>>]
             %5 = icmp slt i32 %4_ i32 30
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_30
             ++++++++++++++++++++++++++++++
-            >>>>>>>>>>>>>>>>#%5_icmp_%i32_%4_slt_i32_30
+            >>>>>>>>>>>>>>>#icmp_op0_i32_%4
+            <<<<<<<<<<<<<<<#icmp_op1_i32_30
+            >>>>>>>>>>>>>>>>#icmp_ret_%5
             <<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -543,8 +569,7 @@ runtime init:
                 #B:main/20_false
             <<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>]
-        >#B:main/%6
-        [
+        >[
             -
             store i32 0_ i32* %2_ align 4
             store sitch: alloca Some(25)
@@ -553,28 +578,26 @@ runtime init:
             >>>>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <[-]
             m26/25 >[-<+>]
             br label %7
-            <<<<<<<<<#B:main/%7
-            +
+            <<<<<<<<<+
         <]
-        >#B:main/%7
-        [
+        >[
             -
             %8 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%8
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%8
+            #load_thru_%2_to_%8
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d25/26/43 <[->+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<]
             m26/25 >[-<+>]
             %9 = icmp slt i32 %8_ i32 30
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_30
             ++++++++++++++++++++++++++++++
-            >>>>>>>>>>>>>>>>>>#%9_icmp_%i32_%8_slt_i32_30
+            >>>>>>>>>>>>>>>>>#icmp_op0_i32_%8
+            <<<<<<<<<<<<<<<<<#icmp_op1_i32_30
+            >>>>>>>>>>>>>>>>>>#icmp_ret_%9
             <<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -613,25 +636,26 @@ runtime init:
                 #B:main/16_false
             <<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>]
-        >#B:main/%10
-        [
+        >[
             -
             %11 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%11
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%11
+            #load_thru_%1_to_%11
             <<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d24/26/45 <<[->>+>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<]
             m26/24 >>[-<<+>>]
             %12 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%12
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>#load_ret_%12
+            #load_thru_%2_to_%12
             <<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d25/26/46 <[->+>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<]
             m26/25 >[-<+>]
             call @lt(i32 %11_ i32 %12)
-            enable next
-            <<<<<<<#main/%call_term_for_13
+            enable next block when we return
+            <<<<<<<#caller/%call_term_for_13
             +
+            stack_width 31
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>>>>>>#arg_0
             m45/37 >>>>>>>>[-<<<<<<<<+>>>>>>>>]
@@ -648,9 +672,9 @@ runtime init:
             r31 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<#===FRAME_lt
@@ -660,28 +684,26 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>>>>>>>>>]
-        >#B:main/%call_term_for_13
-        [
+        >[
             -
             br label %13
-            >#B:main/%13
-            +
+            >+
         <]
-        >#B:main/%13
-        [
+        >[
             -
             %14 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%14
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%14
+            #load_thru_%2_to_%14
             <<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d25/26/47 <[->+>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<]
             m26/25 >[-<+>]
             %15 = add i32 %14_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>>>#%_Named(Number(15))_add_%_Named(Number(14))_c_Fixed(26)
+            >>>>>>>>>>>>>>>>>>>>>#add_op0_i32_%14
+            <<<<<<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>>>#add_ret_%15
             m47/48 <[->+<]
             <<<<<<<<<<<<<<<<<<<<<[
                 -
@@ -690,37 +712,32 @@ runtime init:
             store i32 %15_ i32* %2_ align 4
             store sitch: alloca Some(25)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <[-]
             m48/25 >>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>]
             br label %7
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:main/%7
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>]
-        >#B:main/%16
-        [
+        >[
             -
             br label %17
-            >#B:main/%17
-            +
+            >+
         <]
-        >#B:main/%17
-        [
+        >[
             -
             %18 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%18
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%18
+            #load_thru_%1_to_%18
             <<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d24/26/49 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<]
             m26/24 >>[-<<+>>]
             %19 = add i32 %18_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>>>>>#%_Named(Number(19))_add_%_Named(Number(18))_c_Fixed(26)
+            >>>>>>>>>>>>>>>>>>>>>>>#add_op0_i32_%18
+            <<<<<<<<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>>>>>#add_ret_%19
             m49/50 <[->+<]
             <<<<<<<<<<<<<<<<<<<<<<<[
                 -
@@ -729,17 +746,13 @@ runtime init:
             store i32 %19_ i32* %1_ align 4
             store sitch: alloca Some(24)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m50/24 >>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %3
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:main/%3
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>]
-        >#B:main/%20
-        [
+        >[
             -
             ret void
             zero all function allocs

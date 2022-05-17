@@ -20,32 +20,41 @@ runtime init:
             >>>>-
             l16 <<<<<<<<<<<<<<<<
         ]
-        <#B:lol/%call_never_first_forlol
-        [
+        <<<<#mainloop_lol
+        >#F:lol
+        >#F:main
+        >#B:%no_b0_call_for_lol
+        >#B:%ret_lading_pad
+        >#B:%1
+        >#B:%call_term_for_0
+        >#B:%8
+        >#B:%call_term_for_2
+        >#B:%11
+        >#alloc_%2
+        <<<<<<<[
             -
+            copy up args
             >>>>>>>>>>>>>>>>>>>>>>>#arg_%0
             l2 <<
             m0/28 <<<<<<<<<<<<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             r2 >>
             br label %1
-            >>>>>#B:lol/%1
-            +
+            >>>>>+
         <<]
-        >>#B:lol/%1
-        [
+        >>[
             -
             %2 = alloca i32_ align 4
-            >>>>>#alloca_%2
             store i32 %0_ i32* %2_ align 4
             store sitch: alloca Some(10)
             grab the value we're storing
             op_to_reg giving known register address
             and the destination
             op_to_reg giving known register address
-            [-]
+            >>>>>[-]
             m26/10 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
             %3 = load i32* %2_ align 4
-            >#load_thru_%2_to_%3
+            >#load_ret_%3
+            #load_thru_%2_to_%3
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/27 <[->+>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
@@ -55,26 +64,32 @@ runtime init:
             op_to_reg storing const value in temp address
             >#constop_97
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            >>>>>>>>>>>>>>>>#%%4_add_%i32_%3_ci32_97
+            >>>>>>>>>>>>>>>#add_op0_i32_%3
+            <<<<<<<<<<<<<<<#add_op1_i32_97
+            >>>>>>>>>>>>>>>>#add_ret_%4
             m27/28 <[->+<]
-            m12/28 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]
+            <<<<<<<<<<<<<<<[
+                -
+                >>>>>>>>>>>>>>>>+
+            <<<<<<<<<<<<<<<<]
             %5 = trunc i32 %4 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>#%5_trunc_i32_%4
+            >>>>>>>>>>>>>>>>#trunc_op_i32_%4
+            >#trunc_ret_%5
             m28/29 <[->+<]
             call @putchar(i8 %5)
-            enable next
-            <<<<<<<<<<<<<<<<<<<<<<#lol/%call_term_for_0
+            enable next block when we return
+            <<<<<<<<<<<<<<<<<<<<<<#caller/%call_term_for_0
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<]
-        >#B:lol/%call_term_for_0
-        [
+        >[
             -
             %6 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%6
+            >>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%6
+            #load_thru_%2_to_%6
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/30 <[->+>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<]
@@ -84,7 +99,9 @@ runtime init:
             op_to_reg storing const value in temp address
             #constop_6
             ++++++
-            >>>>>>>>>>>>>>>>>>>>#%7_icmp_%i32_%6_slt_i32_6
+            >>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%6
+            <<<<<<<<<<<<<<<<<<<#icmp_op1_i32_6
+            >>>>>>>>>>>>>>>>>>>>#icmp_ret_%7
             <<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -123,11 +140,11 @@ runtime init:
                 #B:lol/11_false
             <<<<<]
         >>]
-        >#B:lol/%8
-        [
+        >[
             -
             %9 = load i32* %2_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%9
+            >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%9
+            #load_thru_%2_to_%9
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/32 <[->+>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<]
@@ -137,13 +154,20 @@ runtime init:
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>>>#%%10_add_%i32_%9_ci32_1
+            >>>>>>>>>>>>>>>>>>>>>#add_op0_i32_%9
+            <<<<<<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>>>#add_ret_%10
             m32/33 <[->+<]
-            m11/33 <<<<<<<<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<]
+            <<<<<<<<<<<<<<<<<<<<<[
+                -
+                >>>>>>>>>>>>>>>>>>>>>>+
+            <<<<<<<<<<<<<<<<<<<<<<]
             call @lol(i32 %10)
-            enable next
-            <<<#lol/%call_term_for_2
+            enable next block when we return
+            <<<#caller/%call_term_for_2
             +
+            stack_width 16
+            ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>>>#arg_0
             m33/21 >>>>>>>>>>>>[-<<<<<<<<<<<<+>>>>>>>>>>>>]
@@ -157,9 +181,9 @@ runtime init:
             r16 >>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >#lol
+            >#caller
             +
-            >>>#lol/jump_pad_blk
+            >>>#caller/jump_pad_blk
             +
             r7 >>>>>>>
             <<<<#===FRAME_lol
@@ -169,15 +193,12 @@ runtime init:
             >>#lol/b0
             +
         >>>>]
-        >#B:lol/%call_term_for_2
-        [
+        >[
             -
             br label %11
-            >#B:lol/%11
-            +
+            >+
         <]
-        >#B:lol/%11
-        [
+        >[
             -
             ret void
             zero all function allocs
@@ -202,20 +223,27 @@ runtime init:
             >>>>-
             l7 <<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<<#mainloop_main
+        >#F:lol
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        <<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             call @lol(i32 0)
-            enable next
-            >#main/%call_term_for_0
+            enable next block when we return
+            >#caller/%call_term_for_0
             +
+            stack_width 7
+            ret_pad_width 4
             copy up arg 0
             >>>>>>#arg_0
             
@@ -229,9 +257,9 @@ runtime init:
             r7 >>>>>>>
             <<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#main
+            >>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r7 >>>>>>>
             <<<<#===FRAME_lol
@@ -241,8 +269,7 @@ runtime init:
             >>#lol/b0
             +
         >>]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             ret void
             zero all function allocs

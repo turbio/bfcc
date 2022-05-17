@@ -20,21 +20,33 @@ runtime init:
             >>>-
             l21 <<<<<<<<<<<<<<<<<<<<<
         ]
-        <#B:main/%0
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%0
+        >#B:%ret_lading_pad
+        >#B:%6
+        >#B:%call_term_for_1
+        >#B:%7
+        >#B:%11
+        >#B:%call_term_for_4
+        >#B:%12
+        >#B:%call_term_for_6
+        >#B:%13
+        >#B:%14
+        >#alloc_%1
+        >#alloc_%2
+        <<<<<<<<<<<<[
             -
+            copy up args
             %1 = alloca i32_ align 4
-            >>>>>>>>>>>#alloca_%1
             %2 = alloca i8_ align 1
-            >#alloca_%2
             store i32 0_ i32* %1_ align 4
             store sitch: alloca Some(13)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_0
+            >>>>>>>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m15/13 >>[-<<+>>]
             store i8 98_ i8* %2_ align 1
@@ -44,25 +56,25 @@ runtime init:
             >#constop_98
             ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             and the destination
-            op_to_reg giving known register address
             <<[-]
             m16/14 >>[-<<+>>]
             %3 = load i8* %2_ align 1
-            >>>>>>>>>>>>>>>#load_thru_%2_to_%3
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>#load_ret_%3
+            #load_thru_%2_to_%3
             <<<<<<<<<<<<<<<<#tmp0_for_load
             d14/15/31 <[->+>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
             m15/14 >[-<+>]
             %4 = zext i8 %3 to i32
-            op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>#%4_zext_i8_%3
+            >>>>>>>>>>>>>>>>#zext_op_i8_%3
+            >#zext_ret_%4
             m31/32 <[->+<]
             %5 = icmp eq i32 %4_ i32 97
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <<<<<<<<<<<<<<<<#constop_97
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            >>>>>>>>>>>>>>>>>>#%5_icmp_%i32_%4_eq_i32_97
+            >>>>>>>>>>>>>>>>>#icmp_op0_i32_%4
+            <<<<<<<<<<<<<<<<<#icmp_op1_i32_97
+            >>>>>>>>>>>>>>>>>>#icmp_ret_%5
             <<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -106,44 +118,41 @@ runtime init:
                 #B:main/7_false
             <<<]
         <]
-        >>#B:main/%6
-        [
+        >>[
             -
             call @putchar(i8 120)
-            enable next
-            >#main/%call_term_for_1
+            enable next block when we return
+            >#caller/%call_term_for_1
             +
             putchar intrinsic
             >>>>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<<<]
-        >#B:main/%call_term_for_1
-        [
+        >[
             -
             br label %14
-            >>>>>>>#B:main/%14
-            +
+            >>>>>>>+
         <<<<<<<]
-        >#B:main/%7
-        [
+        >[
             -
             %8 = load i8* %2_ align 1
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%8
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%8
+            #load_thru_%2_to_%8
             <<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d14/15/34 <[->+>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<]
             m15/14 >[-<+>]
             %9 = zext i8 %8 to i32
-            op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>>#%9_zext_i8_%8
+            >>>>>>>>>>>>>>>>>>>#zext_op_i8_%8
+            >#zext_ret_%9
             m34/35 <[->+<]
             %10 = icmp eq i32 %9_ i32 98
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <<<<<<<<<<<<<<<<<<<#constop_98
             ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            >>>>>>>>>>>>>>>>>>>>>#%10_icmp_%i32_%9_eq_i32_98
+            >>>>>>>>>>>>>>>>>>>>#icmp_op0_i32_%9
+            <<<<<<<<<<<<<<<<<<<<#icmp_op1_i32_98
+            >>>>>>>>>>>>>>>>>>>>>#icmp_ret_%10
             <<<<<<<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -187,57 +196,48 @@ runtime init:
                 #B:main/12_false
             <<<<<<]
         >>>]
-        >#B:main/%11
-        [
+        >[
             -
             call @putchar(i8 121)
-            enable next
-            >#main/%call_term_for_4
+            enable next block when we return
+            >#caller/%call_term_for_4
             +
             putchar intrinsic
             >>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<]
-        >#B:main/%call_term_for_4
-        [
+        >[
             -
             br label %13
-            >>>#B:main/%13
-            +
+            >>>+
         <<<]
-        >#B:main/%12
-        [
+        >[
             -
             call @putchar(i8 122)
-            enable next
-            >#main/%call_term_for_6
+            enable next block when we return
+            >#caller/%call_term_for_6
             +
             putchar intrinsic
             >>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<]
-        >#B:main/%call_term_for_6
-        [
+        >[
             -
             br label %13
-            >#B:main/%13
-            +
+            >+
         <]
-        >#B:main/%13
-        [
+        >[
             -
             br label %14
-            >#B:main/%14
-            +
+            >+
         <]
-        >#B:main/%14
-        [
+        >[
             -
             %15 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%15
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%15
+            #load_thru_%1_to_%15
             <<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d13/15/37 <<[->>+>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<]
             m15/13 >>[-<<+>>]

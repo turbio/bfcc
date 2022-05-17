@@ -20,147 +20,150 @@ runtime init:
             >>>-
             l18 <<<<<<<<<<<<<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        >#B:%call_term_for_1
+        >#B:%call_term_for_2
+        >#B:%call_term_for_3
+        >#B:%call_term_for_4
+        >#B:%call_term_for_5
+        >#B:%call_term_for_6
+        >#B:%call_term_for_7
+        >#B:%call_term_for_8
+        >#B:%call_term_for_9
+        >#B:%call_term_for_10
+        <<<<<<<<<<<<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             call @putchar(i8 104)
-            enable next
-            >#main/%call_term_for_0
+            enable next block when we return
+            >#caller/%call_term_for_0
             +
             putchar intrinsic
             >>>>>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<<<<]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             call @putchar(i8 101)
-            enable next
-            >#main/%call_term_for_1
+            enable next block when we return
+            >#caller/%call_term_for_1
             +
             putchar intrinsic
             >>>>>>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<<<<]
-        >#B:main/%call_term_for_1
-        [
+        >[
             -
             call @putchar(i8 108)
-            enable next
-            >#main/%call_term_for_2
+            enable next block when we return
+            >#caller/%call_term_for_2
             +
             putchar intrinsic
             >>>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<<]
-        >#B:main/%call_term_for_2
-        [
+        >[
             -
             call @putchar(i8 108)
-            enable next
-            >#main/%call_term_for_3
+            enable next block when we return
+            >#caller/%call_term_for_3
             +
             putchar intrinsic
             >>>>>>>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<<]
-        >#B:main/%call_term_for_3
-        [
+        >[
             -
             call @putchar(i8 111)
-            enable next
-            >#main/%call_term_for_4
+            enable next block when we return
+            >#caller/%call_term_for_4
             +
             putchar intrinsic
             >>>>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<<]
-        >#B:main/%call_term_for_4
-        [
+        >[
             -
             call @putchar(i8 32)
-            enable next
-            >#main/%call_term_for_5
+            enable next block when we return
+            >#caller/%call_term_for_5
             +
             putchar intrinsic
             >>>>>>++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<<]
-        >#B:main/%call_term_for_5
-        [
+        >[
             -
             call @putchar(i8 119)
-            enable next
-            >#main/%call_term_for_6
+            enable next block when we return
+            >#caller/%call_term_for_6
             +
             putchar intrinsic
             >>>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<<]
-        >#B:main/%call_term_for_6
-        [
+        >[
             -
             call @putchar(i8 111)
-            enable next
-            >#main/%call_term_for_7
+            enable next block when we return
+            >#caller/%call_term_for_7
             +
             putchar intrinsic
             >>>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<<]
-        >#B:main/%call_term_for_7
-        [
+        >[
             -
             call @putchar(i8 114)
-            enable next
-            >#main/%call_term_for_8
+            enable next block when we return
+            >#caller/%call_term_for_8
             +
             putchar intrinsic
             >>>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<]
-        >#B:main/%call_term_for_8
-        [
+        >[
             -
             call @putchar(i8 108)
-            enable next
-            >#main/%call_term_for_9
+            enable next block when we return
+            >#caller/%call_term_for_9
             +
             putchar intrinsic
             >>++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<]
-        >#B:main/%call_term_for_9
-        [
+        >[
             -
             call @putchar(i8 100)
-            enable next
-            >#main/%call_term_for_10
+            enable next block when we return
+            >#caller/%call_term_for_10
             +
             putchar intrinsic
             >++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<]
-        >#B:main/%call_term_for_10
-        [
+        >[
             -
             ret i32 0
             zero all function allocs

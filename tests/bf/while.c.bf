@@ -20,30 +20,37 @@ runtime init:
             >>>-
             l15 <<<<<<<<<<<<<<<
         ]
-        <#B:main/%0
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%0
+        >#B:%ret_lading_pad
+        >#B:%2
+        >#B:%5
+        >#B:%call_term_for_2
+        >#B:%10
+        >#alloc_%1
+        <<<<<<[
             -
+            copy up args
             %1 = alloca i8_ align 1
-            >>>>>>#alloca_%1
             store i8 10_ i8* %1_ align 1
             store sitch: alloca Some(8)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_10
+            >>>>>>>#constop_10
             ++++++++++
             and the destination
             op_to_reg giving known register address
             <[-]
             m9/8 >[-<+>]
             br label %2
-            <<<<<#B:main/%2
-            +
+            <<<<<+
         <<]
-        >>#B:main/%2
-        [
+        >>[
             -
             %3 = load i8* %1_ align 1
-            >>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%3
+            >>>>>>>>>>>>>>>>>>>>>#load_ret_%3
+            #load_thru_%1_to_%3
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<#tmp0_for_load
             d8/10/25 <<[->>+>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
@@ -53,7 +60,9 @@ runtime init:
             op_to_reg storing const value in temp address
             <#constop_0
             
-            >>>>>>>>>>>>>>>>>#%4_icmp_%i8_%3_ne_i8_0
+            >>>>>>>>>>>>>>>>#icmp_op0_i8_%3
+            <<<<<<<<<<<<<<<<#icmp_op1_i8_0
+            >>>>>>>>>>>>>>>>>#icmp_ret_%4
             <<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -96,37 +105,39 @@ runtime init:
                 #B:main/10_false
             <<<<]
         >]
-        >#B:main/%5
-        [
+        >[
             -
             call @putchar(i8 97)
-            enable next
-            >#main/%call_term_for_2
+            enable next block when we return
+            >#caller/%call_term_for_2
             +
             putchar intrinsic
             >>>+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<<<]
-        >#B:main/%call_term_for_2
-        [
+        >[
             -
             %6 = load i8* %1_ align 1
-            >>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%6
+            >>>>>>>>>>>>>>>>>>>>>#load_ret_%6
+            #load_thru_%1_to_%6
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<#tmp0_for_load
             d8/9/27 <[->+>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             m9/8 >[-<+>]
             %7 = zext i8 %6 to i32
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>#%7_zext_i8_%6
+            >>>>>>>>>>>>>>>>>>#zext_op_i8_%6
+            >#zext_ret_%7
             m27/28 <[->+<]
             %8 = sub i32 %7_ i32 1
             op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <<<<<<<<<<<<<<<<<<#constop_1
             +
-            >>>>>>>>>>>>>>>>>>>>#%%8_sub_%i32_%7_ci32_1
+            >>>>>>>>>>>>>>>>>>>#sub_op0_i32_%7
+            <<<<<<<<<<<<<<<<<<<#sub_op1_i32_1
+            >>>>>>>>>>>>>>>>>>>>#sub_ret_%8
             m28/29 <[->+<]
             <<<<<<<<<<<<<<<<<<<[
                 -
@@ -134,7 +145,8 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<]
             %9 = trunc i32 %8 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>>>#%9_trunc_i32_%8
+            >>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%8
+            >#trunc_ret_%9
             m29/30 <[->+<]
             store i8 %9_ i8* %1_ align 1
             store sitch: alloca Some(8)
@@ -145,11 +157,9 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<[-]
             m30/8 >>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>]
             br label %2
-            <<<<<<<<<<<<<<<<<<<<<<<<<<#B:main/%2
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>]
-        >#B:main/%10
-        [
+        >[
             -
             ret void
             zero all function allocs

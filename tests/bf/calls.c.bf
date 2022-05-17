@@ -20,27 +20,33 @@ runtime init:
             >>>>>>-
             l10 <<<<<<<<<<
         ]
-        <#B:c/%call_never_first_forc
-        [
+        <<<<<<#mainloop_c
+        >#F:c
+        >#F:b
+        >#F:a
+        >#F:main
+        >#B:%no_b0_call_for_c
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        <<<[
             -
+            copy up args
             br label %0
-            >>#B:c/%0
-            +
+            >>+
         <<]
-        >>#B:c/%0
-        [
+        >>[
             -
             call @putchar(i8 46)
-            enable next
-            >#c/%call_term_for_0
+            enable next block when we return
+            >#caller/%call_term_for_0
             +
             putchar intrinsic
             >++++++++++++++++++++++++++++++++++++++++++++++
             .
             [-]
         <<]
-        >#B:c/%call_term_for_0
-        [
+        >[
             -
             ret void
             zero all function allocs
@@ -64,40 +70,50 @@ runtime init:
             >>>>>>-
             l18 <<<<<<<<<<<<<<<<<<
         ]
-        <#B:b/%0
-        [
+        <<<<<<#mainloop_b
+        >#F:c
+        >#F:b
+        >#F:a
+        >#F:main
+        >#B:%0
+        >#B:%ret_lading_pad
+        >#B:%2
+        >#B:%5
+        >#B:%call_term_for_2
+        >#B:%6
+        >#B:%9
+        >#alloc_%1
+        <<<<<<<[
             -
+            copy up args
             %1 = alloca i32_ align 4
-            >>>>>>>#alloca_%1
             store i32 0_ i32* %1_ align 4
             store sitch: alloca Some(12)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_0
+            >>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <[-]
             m13/12 >[-<+>]
             br label %2
-            <<<<<<#B:b/%2
-            +
+            <<<<<<+
         <<]
-        >>#B:b/%2
-        [
+        >>[
             -
             %3 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%3
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>#load_ret_%3
+            #load_thru_%1_to_%3
             <<<<<<<<<<<<<<#tmp0_for_load
             d12/14/28 <<[->>+>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]
             m14/12 >>[-<<+>>]
             %4 = icmp slt i32 %3_ i32 2
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <#constop_2
             ++
-            >>>>>>>>>>>>>>>>#%4_icmp_%i32_%3_slt_i32_2
+            >>>>>>>>>>>>>>>#icmp_op0_i32_%3
+            <<<<<<<<<<<<<<<#icmp_op1_i32_2
+            >>>>>>>>>>>>>>>>#icmp_ret_%4
             <<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -136,13 +152,14 @@ runtime init:
                 #B:b/9_false
             <<<<<]
         >]
-        >#B:b/%5
-        [
+        >[
             -
             call @c()
-            enable next
-            >#b/%call_term_for_2
+            enable next block when we return
+            >#caller/%call_term_for_2
             +
+            stack_width 18
+            ret_pad_width 6
             give callee a stack pointer
             >>>>>>>>>>>>>>>>#stack_ptr
             +++++++++++++++++++++++++++
@@ -153,9 +170,9 @@ runtime init:
             r18 >>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>#b
+            >>#caller
             +
-            >>>>#b/jump_pad_blk
+            >>>>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<<<#===FRAME_c
@@ -165,28 +182,26 @@ runtime init:
             >>>>#c/b0
             +
         >>>]
-        >#B:b/%call_term_for_2
-        [
+        >[
             -
             br label %6
-            >#B:b/%6
-            +
+            >+
         <]
-        >#B:b/%6
-        [
+        >[
             -
             %7 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%7
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>#load_ret_%7
+            #load_thru_%1_to_%7
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d12/13/30 <[->+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<]
             m13/12 >[-<+>]
             %8 = add i32 %7_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>#%_Named(Number(8))_add_%_Named(Number(7))_c_Fixed(13)
+            >>>>>>>>>>>>>>>>>#add_op0_i32_%7
+            <<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>#add_ret_%8
             m30/31 <[->+<]
             <<<<<<<<<<<<<<<<<[
                 -
@@ -195,17 +210,13 @@ runtime init:
             store i32 %8_ i32* %1_ align 4
             store sitch: alloca Some(12)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <[-]
             m31/12 >>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>]
             br label %2
-            <<<<<<<<<<<<<<<<<<<<<<<<#B:b/%2
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<+
         >>>]
-        >#B:b/%9
-        [
+        >[
             -
             ret void
             zero all function allocs
@@ -230,40 +241,50 @@ runtime init:
             >>>>>>-
             l18 <<<<<<<<<<<<<<<<<<
         ]
-        <#B:a/%0
-        [
+        <<<<<<#mainloop_a
+        >#F:c
+        >#F:b
+        >#F:a
+        >#F:main
+        >#B:%0
+        >#B:%ret_lading_pad
+        >#B:%2
+        >#B:%5
+        >#B:%call_term_for_2
+        >#B:%6
+        >#B:%9
+        >#alloc_%1
+        <<<<<<<[
             -
+            copy up args
             %1 = alloca i32_ align 4
-            >>>>>>>#alloca_%1
             store i32 0_ i32* %1_ align 4
             store sitch: alloca Some(12)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_0
+            >>>>>>>>#constop_0
             
             and the destination
-            op_to_reg giving known register address
             <[-]
             m13/12 >[-<+>]
             br label %2
-            <<<<<<#B:a/%2
-            +
+            <<<<<<+
         <<]
-        >>#B:a/%2
-        [
+        >>[
             -
             %3 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%3
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>>#load_ret_%3
+            #load_thru_%1_to_%3
             <<<<<<<<<<<<<<#tmp0_for_load
             d12/14/28 <<[->>+>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]
             m14/12 >>[-<<+>>]
             %4 = icmp slt i32 %3_ i32 2
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <#constop_2
             ++
-            >>>>>>>>>>>>>>>>#%4_icmp_%i32_%3_slt_i32_2
+            >>>>>>>>>>>>>>>#icmp_op0_i32_%3
+            <<<<<<<<<<<<<<<#icmp_op1_i32_2
+            >>>>>>>>>>>>>>>>#icmp_ret_%4
             <<<<<<<<<<<<<<#subnu_tmpb
             >#subnu_tmp0
             >#subnu_tmp1
@@ -302,13 +323,14 @@ runtime init:
                 #B:a/9_false
             <<<<<]
         >]
-        >#B:a/%5
-        [
+        >[
             -
             call @b()
-            enable next
-            >#a/%call_term_for_2
+            enable next block when we return
+            >#caller/%call_term_for_2
             +
+            stack_width 18
+            ret_pad_width 6
             give callee a stack pointer
             >>>>>>>>>>>>>>>>#stack_ptr
             +++++++++++++++++++++++++++
@@ -319,9 +341,9 @@ runtime init:
             r18 >>>>>>>>>>>>>>>>>>
             <<<<<<<<<<<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>>#a
+            >>>#caller
             +
-            >>>#a/jump_pad_blk
+            >>>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<<<#===FRAME_b
@@ -331,28 +353,26 @@ runtime init:
             >>>#b/b0
             +
         >>>]
-        >#B:a/%call_term_for_2
-        [
+        >[
             -
             br label %6
-            >#B:a/%6
-            +
+            >+
         <]
-        >#B:a/%6
-        [
+        >[
             -
             %7 = load i32* %1_ align 4
-            >>>>>>>>>>>>>>>>>>>>#load_thru_%1_to_%7
-            op_to_reg giving known register address
+            >>>>>>>>>>>>>>>>>>>>#load_ret_%7
+            #load_thru_%1_to_%7
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d12/13/30 <[->+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<]
             m13/12 >[-<+>]
             %8 = add i32 %7_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
-            >>>>>>>>>>>>>>>>>>#%_Named(Number(8))_add_%_Named(Number(7))_c_Fixed(13)
+            >>>>>>>>>>>>>>>>>#add_op0_i32_%7
+            <<<<<<<<<<<<<<<<<#add_op1_i32_1
+            >>>>>>>>>>>>>>>>>>#add_ret_%8
             m30/31 <[->+<]
             <<<<<<<<<<<<<<<<<[
                 -
@@ -361,17 +381,13 @@ runtime init:
             store i32 %8_ i32* %1_ align 4
             store sitch: alloca Some(12)
             grab the value we're storing
-            op_to_reg giving known register address
             and the destination
-            op_to_reg giving known register address
             <[-]
             m31/12 >>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>]
             br label %2
-            <<<<<<<<<<<<<<<<<<<<<<<<#B:a/%2
-            +
+            <<<<<<<<<<<<<<<<<<<<<<<<+
         >>>]
-        >#B:a/%9
-        [
+        >[
             -
             ret void
             zero all function allocs
@@ -396,20 +412,29 @@ runtime init:
             >>>>>>-
             l9 <<<<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<<<<#mainloop_main
+        >#F:c
+        >#F:b
+        >#F:a
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        <<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             call @a()
-            enable next
-            >#main/%call_term_for_0
+            enable next block when we return
+            >#caller/%call_term_for_0
             +
+            stack_width 9
+            ret_pad_width 6
             give callee a stack pointer
             >>>>>>>>#stack_ptr
             ++++++++++++++++++
@@ -420,9 +445,9 @@ runtime init:
             r9 >>>>>>>>>
             <<<<<<<<<<<<<<<<<<#JUMP_PAD
             +
-            >>>>#main
+            >>>>#caller
             +
-            >>#main/jump_pad_blk
+            >>#caller/jump_pad_blk
             +
             r8 >>>>>>>>
             <<<<<<#===FRAME_a
@@ -432,8 +457,7 @@ runtime init:
             >>#a/b0
             +
         >>]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             ret void
             zero all function allocs

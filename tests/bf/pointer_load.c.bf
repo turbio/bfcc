@@ -20,31 +20,38 @@ runtime init:
             >>>-
             l26 <<<<<<<<<<<<<<<<<<<<<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        >#B:%call_term_for_1
+        >#B:%call_term_for_2
+        >#B:%call_term_for_3
+        >#alloc_%1
+        >#alloc_%2
+        >#alloc_%3
+        >#alloc_%4
+        >#alloc_%5
+        <<<<<<<<<<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             %1 = alloca i32_ align 4
-            >>>>>#alloca_%1
             %2 = alloca i32*_ align 8
-            >#alloca_%2
             %3 = alloca i32**_ align 8
-            >#alloca_%3
             %4 = alloca i32***_ align 8
-            >#alloca_%4
             %5 = alloca i32****_ align 8
-            >#alloca_%5
             store i32 112_ i32* %1_ align 4
             store sitch: alloca Some(9)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_112
+            >>>>>>>>>>#constop_112
             ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             and the destination
             op_to_reg giving known register address
@@ -55,8 +62,9 @@ runtime init:
             grab the value we're storing
             op_to_reg storing pointer value in temp address
             >#tmp_allocptr_%1
+            <#tmp_allocptr_tru_%1
             l1 <
-            d0/16/15 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>+<+<<<<<<<<<<<<<<<]
+            d0/16/15 <<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>+<+<<<<<<<<<<<<<<<]
             m15/0 >>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>]
             r1 >
             ++++++++++
@@ -65,13 +73,15 @@ runtime init:
             <<<<<[-]
             m15/10 >>>>>[-<<<<<+>>>>>]
             %6 = load i32** %2_ align 8
-            >>>>>>>>>>>>>>>>>>>>>#load_thru_%2_to_%6
+            >>>>>>>>>>>>>>>>>>>>>#load_ret_%6
+            #load_thru_%2_to_%6
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/14/36 <<<<[->>>>+>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/10 >>>>[-<<<<+>>>>]
             %7 = load i32* %6_ align 4
-            >>#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>#load_ret_%7
+            <<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -104,10 +114,12 @@ runtime init:
             <<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/18 [-<<+>>]
                 <<++++++++++++++++
             >>]
             <[
+                if neg
                 <++++++++++++++++
                 >[
                     -
@@ -137,26 +149,27 @@ runtime init:
             m18/37 >[->>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             %8 = trunc i32 %7 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>>#%8_trunc_i32_%7
+            >>>>>>>>>>>>>>>>>>>#trunc_op_i32_%7
+            >#trunc_ret_%8
             m37/38 <[->+<]
             call @putchar(i8 %8)
-            enable next
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#main/%call_term_for_0
+            enable next block when we return
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#caller/%call_term_for_0
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             store i32** %2_ i32*** %3_ align 8
             store sitch: alloca Some(11)
             grab the value we're storing
             op_to_reg storing pointer value in temp address
             >>>>>>>>>#tmp_allocptr_%2
+            >#tmp_allocptr_tru_%2
             l1 <
-            d0/15/16 <<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
+            d0/15/16 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
             m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
             r1 >
             <<+++++++++++
@@ -165,13 +178,15 @@ runtime init:
             <<<[-]
             m14/11 >>>[-<<<+>>>]
             %9 = load i32*** %3_ align 8
-            >>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%3_to_%9
+            >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%9
+            #load_thru_%3_to_%9
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d11/14/39 <<<[->>>+>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/11 >>>[-<<<+>>>]
             %10 = load i32** %9_ align 8
-            #train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%10
+            <<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -204,10 +219,12 @@ runtime init:
             <<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m23/16 [-<<<<<<<+>>>>>>>]
                 <<<<<<<++++++++++++++
             >>>>>>>]
             <<<<[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -236,7 +253,8 @@ runtime init:
             ]
             m16/40 >[->>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<]
             %11 = load i32* %10_ align 4
-            <<#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%11
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -269,10 +287,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -302,26 +322,27 @@ runtime init:
             m16/41 >[->>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<]
             %12 = trunc i32 %11 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>>>>>>>>#%12_trunc_i32_%11
+            >>>>>>>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%11
+            >#trunc_ret_%12
             m41/42 <[->+<]
             call @putchar(i8 %12)
-            enable next
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#main/%call_term_for_1
+            enable next block when we return
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#caller/%call_term_for_1
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_1
-        [
+        >[
             -
             store i32*** %3_ i32**** %4_ align 8
             store sitch: alloca Some(12)
             grab the value we're storing
             op_to_reg storing pointer value in temp address
             >>>>>>>>#tmp_allocptr_%3
+            >#tmp_allocptr_tru_%3
             l1 <
-            d0/15/16 <<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
+            d0/15/16 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
             m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
             r1 >
             <<++++++++++++
@@ -330,13 +351,15 @@ runtime init:
             <<[-]
             m14/12 >>[-<<+>>]
             %13 = load i32**** %4_ align 8
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%4_to_%13
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%13
+            #load_thru_%4_to_%13
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d12/14/43 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/12 >>[-<<+>>]
             %14 = load i32*** %13_ align 8
-            #train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%14
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -369,10 +392,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -401,7 +426,8 @@ runtime init:
             ]
             m16/44 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %15 = load i32** %14_ align 8
-            <<#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%15
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -434,10 +460,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -466,7 +494,8 @@ runtime init:
             ]
             m16/45 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %16 = load i32* %15_ align 4
-            <<#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%16
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -499,10 +528,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -532,26 +563,27 @@ runtime init:
             m16/46 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %17 = trunc i32 %16 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#%17_trunc_i32_%16
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%16
+            >#trunc_ret_%17
             m46/47 <[->+<]
             call @putchar(i8 %17)
-            enable next
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#main/%call_term_for_2
+            enable next block when we return
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#caller/%call_term_for_2
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_2
-        [
+        >[
             -
             store i32**** %4_ i32***** %5_ align 8
             store sitch: alloca Some(13)
             grab the value we're storing
             op_to_reg storing pointer value in temp address
             >>>>>>>#tmp_allocptr_%4
+            >#tmp_allocptr_tru_%4
             l1 <
-            d0/15/16 <<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
+            d0/15/16 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
             m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
             r1 >
             <<+++++++++++++
@@ -560,13 +592,15 @@ runtime init:
             <[-]
             m14/13 >[-<+>]
             %18 = load i32***** %5_ align 8
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_thru_%5_to_%18
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%18
+            #load_thru_%5_to_%18
             op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d13/14/48 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/13 >[-<+>]
             %19 = load i32**** %18_ align 8
-            #train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%19
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -599,10 +633,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -631,7 +667,8 @@ runtime init:
             ]
             m16/49 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %20 = load i32*** %19_ align 8
-            <<#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%20
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -664,10 +701,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -696,7 +735,8 @@ runtime init:
             ]
             m16/50 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %21 = load i32** %20_ align 8
-            <<#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%21
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -729,10 +769,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -761,7 +803,8 @@ runtime init:
             ]
             m16/51 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %22 = load i32* %21_ align 4
-            <<#train_tmp
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%22
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
             
@@ -794,10 +837,12 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<-
             <<#subnu_to
             [
+                if pos
                 m20/16 [-<<<<+>>>>]
                 <<<<++++++++++++++
             >>>>]
             <[
+                if neg
                 <<<++++++++++++++
                 >>>[
                     -
@@ -827,18 +872,18 @@ runtime init:
             m16/52 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %23 = trunc i32 %22 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#%23_trunc_i32_%22
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%22
+            >#trunc_ret_%23
             m52/53 <[->+<]
             call @putchar(i8 %23)
-            enable next
-            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#main/%call_term_for_3
+            enable next block when we return
+            <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#caller/%call_term_for_3
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_3
-        [
+        >[
             -
             ret i32 0
             zero all function allocs

@@ -20,44 +20,52 @@ runtime init:
             >>>-
             l9 <<<<<<<<<
         ]
-        <#B:main/%call_never_first_formain
-        [
+        <<<#mainloop_main
+        >#F:main
+        >#B:%no_b0_call_for_main
+        >#B:%ret_lading_pad
+        >#B:%0
+        >#B:%call_term_for_0
+        >#alloc_%1
+        <<<<[
             -
+            copy up args
             br label %0
-            >>#B:main/%0
-            +
+            >>+
         <<]
-        >>#B:main/%0
-        [
+        >>[
             -
             %1 = alloca i8_ align 1
-            >>#alloca_%1
             store i8 97_ i8* %1_ align 1
             store sitch: alloca Some(6)
             grab the value we're storing
             op_to_reg storing const value in temp address
-            >#constop_97
+            >>>#constop_97
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             and the destination
             op_to_reg giving known register address
             <[-]
             m7/6 >[-<+>]
             %2 = load i8* %1_ align 1
-            >>>>>>>>>>>>#load_thru_%1_to_%2
+            >>>>>>>>>>>>#load_ret_%2
+            #load_thru_%1_to_%2
             op_to_reg giving known register address
             <<<<<<<<<<<#tmp0_for_load
             d6/8/19 <<[->>+>>>>>>>>>>>+<<<<<<<<<<<<<]
             m8/6 >>[-<<+>>]
             %3 = zext i8 %2 to i32
             op_to_reg giving known register address
-            >>>>>>>>>>>>#%3_zext_i8_%2
+            >>>>>>>>>>>#zext_op_i8_%2
+            >#zext_ret_%3
             m19/20 <[->+<]
             %4 = sub i32 %3_ i32 32
             op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <<<<<<<<<<<<#constop_32
             ++++++++++++++++++++++++++++++++
-            >>>>>>>>>>>>>>#%%4_sub_%i32_%3_ci32_32
+            >>>>>>>>>>>>>#sub_op0_i32_%3
+            <<<<<<<<<<<<<#sub_op1_i32_32
+            >>>>>>>>>>>>>>#sub_ret_%4
             m20/21 <[->+<]
             <<<<<<<<<<<<<[
                 -
@@ -65,18 +73,18 @@ runtime init:
             <<<<<<<<<<<<<<]
             %5 = trunc i32 %4 to i8
             op_to_reg giving known register address
-            >>>>>>>>>>>>>>>#%5_trunc_i32_%4
+            >>>>>>>>>>>>>>#trunc_op_i32_%4
+            >#trunc_ret_%5
             m21/22 <[->+<]
             call @putchar(i8 %5)
-            enable next
-            <<<<<<<<<<<<<<<<#main/%call_term_for_0
+            enable next block when we return
+            <<<<<<<<<<<<<<<<#caller/%call_term_for_0
             +
             putchar intrinsic
             >>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<]
-        >#B:main/%call_term_for_0
-        [
+        >[
             -
             ret i32 0
             zero all function allocs
