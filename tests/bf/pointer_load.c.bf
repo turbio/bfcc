@@ -48,39 +48,26 @@ runtime init:
             %4 = alloca i32***_ align 8
             %5 = alloca i32****_ align 8
             store i32 112_ i32* %1_ align 4
-            store sitch: alloca Some(9)
-            grab the value we're storing
             op_to_reg storing const value in temp address
             >>>>>>>>>>#constop_112
             ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            and the destination
-            op_to_reg giving known register address
+            store sitch: alloca Some(9)
+            store sitch: from ConstantOperand(ConstantRef(Int { bits: 32_ value: 112 }))
             <<<<<[-]
             m14/9 >>>>>[-<<<<<+>>>>>]
             store i32* %1_ i32** %2_ align 8
             store sitch: alloca Some(10)
-            grab the value we're storing
-            op_to_reg storing pointer value in temp address
-            >#tmp_allocptr_%1
-            <#tmp_allocptr_tru_%1
-            l1 <
-            d0/16/15 <<<<<<<<<<<<<<[->>>>>>>>>>>>>>>>+<+<<<<<<<<<<<<<<<]
-            m15/0 >>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>]
-            r1 >
-            ++++++++++
-            and the destination
-            op_to_reg giving known register address
-            <<<<<[-]
-            m15/10 >>>>>[-<<<<<+>>>>>]
+            store sitch: from LocalOperand { name: Number(1)_ ty: TypeRef(PointerType { pointee_type: TypeRef(IntegerType { bits: 32 })_ addr_space: 0 }) }
+            <<<<[-]
+            m9/10 <[->+<]
             %6 = load i32** %2_ align 8
-            >>>>>>>>>>>>>>>>>>>>>#load_ret_%6
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%6
             #load_thru_%2_to_%6
-            op_to_reg giving known register address
-            <<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
-            d10/14/36 <<<<[->>>>+>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<]
-            m14/10 >>>>[-<<<<+>>>>]
+            <<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
+            d10/15/36 <<<<<[->>>>>+>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<]
+            m15/10 >>>>>[-<<<<<+>>>>>]
             %7 = load i32* %6_ align 4
-            >>>>>>>>>>>>>>>>>>>>>>>#load_ret_%7
+            >>>>>>>>>>>>>>>>>>>>>>#load_ret_%7
             <<<<<<<<<<<<<<<<<<<<<#train_tmp
             >#train_ret
             >#train_ptr
@@ -148,7 +135,6 @@ runtime init:
             ]
             m18/37 >[->>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             %8 = trunc i32 %7 to i8
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>>>>>#trunc_op_i32_%7
             >#trunc_ret_%8
             m37/38 <[->+<]
@@ -164,23 +150,12 @@ runtime init:
             -
             store i32** %2_ i32*** %3_ align 8
             store sitch: alloca Some(11)
-            grab the value we're storing
-            op_to_reg storing pointer value in temp address
-            >>>>>>>>>#tmp_allocptr_%2
-            >#tmp_allocptr_tru_%2
-            l1 <
-            d0/15/16 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
-            m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
-            r1 >
-            <<+++++++++++
-            and the destination
-            op_to_reg giving known register address
-            <<<[-]
-            m14/11 >>>[-<<<+>>>]
+            store sitch: from LocalOperand { name: Number(2)_ ty: TypeRef(PointerType { pointee_type: TypeRef(PointerType { pointee_type: TypeRef(IntegerType { bits: 32 })_ addr_space: 0 })_ addr_space: 0 }) }
+            >>>>>>[-]
+            m10/11 <[->+<]
             %9 = load i32*** %3_ align 8
-            >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%9
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%9
             #load_thru_%3_to_%9
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d11/14/39 <<<[->>>+>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/11 >>>[-<<<+>>>]
@@ -321,7 +296,6 @@ runtime init:
             ]
             m16/41 >[->>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<]
             %12 = trunc i32 %11 to i8
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%11
             >#trunc_ret_%12
             m41/42 <[->+<]
@@ -337,23 +311,12 @@ runtime init:
             -
             store i32*** %3_ i32**** %4_ align 8
             store sitch: alloca Some(12)
-            grab the value we're storing
-            op_to_reg storing pointer value in temp address
-            >>>>>>>>#tmp_allocptr_%3
-            >#tmp_allocptr_tru_%3
-            l1 <
-            d0/15/16 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
-            m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
-            r1 >
-            <<++++++++++++
-            and the destination
-            op_to_reg giving known register address
-            <<[-]
-            m14/12 >>[-<<+>>]
+            store sitch: from LocalOperand { name: Number(3)_ ty: TypeRef(PointerType { pointee_type: TypeRef(PointerType { pointee_type: TypeRef(PointerType { pointee_type: TypeRef(IntegerType { bits: 32 })_ addr_space: 0 })_ addr_space: 0 })_ addr_space: 0 }) }
+            >>>>>>[-]
+            m11/12 <[->+<]
             %13 = load i32**** %4_ align 8
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%13
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%13
             #load_thru_%4_to_%13
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d12/14/43 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/12 >>[-<<+>>]
@@ -562,7 +525,6 @@ runtime init:
             ]
             m16/46 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %17 = trunc i32 %16 to i8
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%16
             >#trunc_ret_%17
             m46/47 <[->+<]
@@ -578,23 +540,12 @@ runtime init:
             -
             store i32**** %4_ i32***** %5_ align 8
             store sitch: alloca Some(13)
-            grab the value we're storing
-            op_to_reg storing pointer value in temp address
-            >>>>>>>#tmp_allocptr_%4
-            >#tmp_allocptr_tru_%4
-            l1 <
-            d0/15/16 <<<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
-            m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
-            r1 >
-            <<+++++++++++++
-            and the destination
-            op_to_reg giving known register address
-            <[-]
-            m14/13 >[-<+>]
+            store sitch: from LocalOperand { name: Number(4)_ ty: TypeRef(PointerType { pointee_type: TypeRef(PointerType { pointee_type: TypeRef(PointerType { pointee_type: TypeRef(PointerType { pointee_type: TypeRef(IntegerType { bits: 32 })_ addr_space: 0 })_ addr_space: 0 })_ addr_space: 0 })_ addr_space: 0 }) }
+            >>>>>>[-]
+            m12/13 <[->+<]
             %18 = load i32***** %5_ align 8
-            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%18
+            >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%18
             #load_thru_%5_to_%18
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d13/14/48 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m14/13 >[-<+>]
@@ -871,7 +822,6 @@ runtime init:
             ]
             m16/52 >[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             %23 = trunc i32 %22 to i8
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#trunc_op_i32_%22
             >#trunc_ret_%23
             m52/53 <[->+<]

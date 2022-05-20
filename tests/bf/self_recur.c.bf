@@ -46,21 +46,16 @@ runtime init:
             %2 = alloca i32_ align 4
             store i32 %0_ i32* %2_ align 4
             store sitch: alloca Some(10)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(0)_ ty: TypeRef(IntegerType { bits: 32 }) }
             >>>>>[-]
             m26/10 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
             %3 = load i32* %2_ align 4
             >#load_ret_%3
             #load_thru_%2_to_%3
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/27 <[->+>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
             m11/10 >[-<+>]
             %4 = add i32 %3_ i32 97
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             >#constop_97
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -73,7 +68,6 @@ runtime init:
                 >>>>>>>>>>>>>>>>+
             <<<<<<<<<<<<<<<<]
             %5 = trunc i32 %4 to i8
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>>#trunc_op_i32_%4
             >#trunc_ret_%5
             m28/29 <[->+<]
@@ -90,12 +84,10 @@ runtime init:
             %6 = load i32* %2_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%6
             #load_thru_%2_to_%6
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/30 <[->+>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<]
             m11/10 >[-<+>]
             %7 = icmp slt i32 %6_ i32 6
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_6
             ++++++
@@ -145,12 +137,10 @@ runtime init:
             %9 = load i32* %2_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%9
             #load_thru_%2_to_%9
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d10/11/32 <[->+>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<]
             m11/10 >[-<+>]
             %10 = add i32 %9_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
@@ -221,7 +211,7 @@ runtime init:
             >>-
             <<#dead_fn_pad/main
             >>>>-
-            l7 <<<<<<<
+            l8 <<<<<<<<
         ]
         <<<<#mainloop_main
         >#F:lol
@@ -239,23 +229,26 @@ runtime init:
         >>[
             -
             call @lol(i32 0)
+            op_to_reg storing const value in temp address
+            >>#constop_0
+            
             enable next block when we return
-            >#caller/%call_term_for_0
+            <#caller/%call_term_for_0
             +
-            stack_width 7
+            stack_width 8
             ret_pad_width 4
             copy up arg 0
-            >>>>>>#arg_0
-            
+            >>>>>>>#arg_0
+            m7/13 <<<<<<[->>>>>>+<<<<<<]
             give callee a stack pointer
-            >#stack_ptr
-            ++++++++++++++
+            >>>>>>>#stack_ptr
+            +++++++++++++++
             l1 <
-            d0/14/15 <<<<<<<<<<<<<[->>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<]
-            m15/0 >>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>]
+            d0/15/16 <<<<<<<<<<<<<<[->>>>>>>>>>>>>>>+>+<<<<<<<<<<<<<<<<]
+            m16/0 >>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]
             r1 >
-            r7 >>>>>>>
-            <<<<<<<<<<<<<<<#JUMP_PAD
+            r8 >>>>>>>>
+            <<<<<<<<<<<<<<<<#JUMP_PAD
             +
             >>#caller
             +

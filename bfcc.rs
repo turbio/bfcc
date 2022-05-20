@@ -156,7 +156,7 @@ fn fixed_addr(ctx: &mut Ctx, a: usize) -> Addr {
 	return a;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum BfOp {
 	// actual brainfuck, these do fucky stuff to the instruction pointer
 	Right(usize),
@@ -328,7 +328,6 @@ fn op_to_reg<'a>(ctx: &'a mut Ctx, op: &llvm_ir::Operand) -> (Addr, Vec<BfOp>) {
 					let from_alloc = from_alloc.unwrap();
 
 					let pasi = borrow_reg(ctx, 1);
-
 					let tmp = borrow_reg(ctx, 1);
 
 					(
@@ -1046,32 +1045,43 @@ fn build_store(
 		_ => panic!("noper"),
 	};
 
-	let typ = ctx.layout.iter().position(|cell| match cell {
+	let destalloca = ctx.layout.iter().position(|cell| match cell {
 		Cell::Alloc(n) => n == unlop(&s.address),
 		_ => false,
 	});
 
 	let mut ops = vec![];
 
-	ops.push(BfOp::Comment(format!("store sitch: alloca {:?}", typ)));
+	ops.push(BfOp::Comment(format!(
+		"store sitch: alloca {:?}",
+		destalloca
+	)));
 
-	ops.push(BfOp::Comment(format!("grab the value we're storing")));
 	let (value, mut o) = op_to_reg(ctx, &s.value);
 	ops.append(&mut o);
 
-	if typ.is_some() {
-		ops.push(BfOp::Comment(format!("and the destination")));
+	ops.push(BfOp::Comment(format!("store sitch: from {:?}", s.value)));
 
-		let (dest, mut o) = op_to_reg(ctx, &op_unwrap_ptr_all(&s.address));
-		ops.append(&mut o);
+	if destalloca.is_some() {
+		// this branch is really just a fancy shortcut to resolve the address at
+		// compile time. If we can find the destination address in our current
+		// stack's allocs it's ez pz
+		let (dest, o) = op_to_reg(ctx, &op_unwrap_ptr_all(&s.address));
+		assert!(o.len() == 0);
+		ops.push(BfOp::Comment(format!("wowowowowo {} {:?}", dest, o)));
 
 		ops.push(BfOp::Zero(dest.clone()));
-		ops.push(BfOp::Mov(value, dest.clone()));
+		ops.push(BfOp::Mov(value.clone(), dest));
 	} else {
-		let (dest, mut o) = op_to_reg(ctx, &s.address);
+		let (addr, mut o) = op_to_reg(ctx, &s.address);
 		ops.append(&mut o);
 
-		ops.append(&mut build_ptr_train(ctx, dest, Some(value), None));
+		ops.append(&mut build_ptr_train(
+			ctx,
+			addr.clone(),
+			Some(value.clone()),
+			None,
+		));
 
 		// unimplemented!("store to non-alloca");
 	}
@@ -1094,14 +1104,14 @@ fn build_load(
 
 	let dest = ret.unwrap();
 
-	let typ = ctx.layout.iter().position(|c| match c {
+	let getalloca = ctx.layout.iter().position(|c| match c {
 		Cell::Alloc(n) => n == unlop(&l.address),
 		_ => false,
 	});
 
 	let mut ops = vec![];
 
-	if typ.is_some() {
+	if getalloca.is_some() {
 		ops.push(BfOp::Tag(
 			dest.clone(),
 			format!(
@@ -1111,8 +1121,8 @@ fn build_load(
 			),
 		));
 
-		let (addr, mut o) = op_to_reg(ctx, &op_unwrap_ptr_all(&l.address));
-		ops.append(&mut o);
+		let (addr, o) = op_to_reg(ctx, &op_unwrap_ptr_all(&l.address));
+		assert!(o.len() == 0);
 
 		let tmp = borrow_reg(ctx, 1);
 
@@ -1120,10 +1130,8 @@ fn build_load(
 		ops.push(BfOp::Dup(addr.clone(), tmp.clone(), dest.clone()));
 		ops.push(BfOp::Mov(tmp.clone(), addr.clone()));
 	} else {
-		// ohno it's actually a pointer!?
 		let (addr, mut o) = op_to_reg(ctx, &l.address);
 		ops.append(&mut o);
-
 		ops.append(&mut build_ptr_train(ctx, addr, None, Some(dest)));
 	}
 
@@ -1134,6 +1142,7 @@ fn build_call(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
 	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
 ) -> Vec<BfOp> {
 	let c = match i {
 		llvm_ir::Instruction::Call(c) => c,
@@ -1198,6 +1207,7 @@ fn build_call(
 
 		callops.push(BfOp::Comment("putchar intrinsic".to_string()));
 
+		/*
 		let reg = match &c.arguments[0].0 {
 			llvm_ir::Operand::LocalOperand { name, .. } => take_reg(ctx, &name),
 			llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
@@ -1211,6 +1221,12 @@ fn build_call(
 
 			_ => unimplemented!("ignoring meta?"),
 		};
+		*/
+
+		let reg = match &args[0] {
+			BuilderArgs::Reg(addr) => addr,
+			_ => panic!(),
+		};
 
 		callops.push(BfOp::Putch(reg.clone()));
 		callops.push(BfOp::Zero(reg.clone()));
@@ -1221,7 +1237,7 @@ fn build_call(
 	callops.push(BfOp::Comment(format!("stack_width {}", stack_width)));
 	callops.push(BfOp::Comment(format!("ret_pad_width {}", ret_pad_width)));
 
-	for (i, ar) in c.arguments.iter().enumerate() {
+	for (i, ar) in args.iter().enumerate() {
 		callops.push(BfOp::Comment(format!("copy up arg {}", i)));
 
 		let arg_at =
@@ -1230,18 +1246,13 @@ fn build_call(
 		callops.push(BfOp::Tag(fixed_addr(ctx, arg_at), format!("arg_{}", i)));
 
 		// TODO(turbio): copy up those args yikers
-		match &ar.0 {
-			llvm_ir::Operand::LocalOperand { name, .. } => {
-				let src = take_reg(ctx, &name);
-				callops.push(BfOp::Mov(src, fixed_addr(ctx, arg_at)));
-			}
-			llvm_ir::Operand::ConstantOperand(_) => {
-				let v = uncop(&ar.0);
-				callops.push(BfOp::AddI(fixed_addr(ctx, arg_at), v as u8));
-			}
-
-			_ => unimplemented!("ignoring meta?"),
-		}
+		callops.push(BfOp::Mov(
+			match ar {
+				BuilderArgs::Reg(c) => c.clone(),
+				_ => panic!(),
+			},
+			fixed_addr(ctx, arg_at),
+		));
 	}
 
 	// stack pointer always goes right before the main
@@ -1341,8 +1352,22 @@ fn instr_name(i: &llvm_ir::Instruction) -> &str {
 }
 
 fn instr_consumes(i: &llvm_ir::Instruction) -> Vec<&llvm_ir::Name> {
-	(match i {
-		llvm_ir::Instruction::Store(i) => vec![&i.address, &i.value],
+	instr_opers(i)
+		.iter()
+		.filter(|o| match o {
+			llvm_ir::Operand::LocalOperand { name, ty } => true,
+			_ => false,
+		})
+		.map(|o| match o {
+			llvm_ir::Operand::LocalOperand { name, ty } => name,
+			_ => panic!(),
+		})
+		.collect()
+}
+
+fn instr_opers(i: &llvm_ir::Instruction) -> Vec<&llvm_ir::Operand> {
+	match i {
+		llvm_ir::Instruction::Store(i) => vec![&i.value, &i.address],
 		llvm_ir::Instruction::Load(i) => vec![&i.address],
 		llvm_ir::Instruction::Add(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::Sub(i) => vec![&i.operand0, &i.operand1],
@@ -1357,17 +1382,7 @@ fn instr_consumes(i: &llvm_ir::Instruction) -> Vec<&llvm_ir::Name> {
 			i.arguments.iter().map(|a| &a.0).collect()
 		}
 		_ => unimplemented!("lookup for {}", i),
-	})
-	.iter()
-	.filter(|o| match o {
-		llvm_ir::Operand::LocalOperand { name, ty } => true,
-		_ => false,
-	})
-	.map(|o| match o {
-		llvm_ir::Operand::LocalOperand { name, ty } => name,
-		_ => panic!(),
-	})
-	.collect()
+	}
 }
 
 fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
@@ -1613,6 +1628,8 @@ fn build_func(
 		for (iid, instr) in block.instrs.iter().enumerate() {
 			blockloop.push(BfOp::Comment(instr.to_string()));
 
+			let opers = instr_opers(&instr);
+
 			let ascall: Result<llvm_ir::instruction::Call, _> =
 				(instr.clone()).try_into();
 			let asstore: Result<llvm_ir::instruction::Store, _> =
@@ -1624,6 +1641,40 @@ fn build_func(
 			let asicmp: Result<llvm_ir::instruction::ICmp, _> =
 				instr.clone().try_into();
 
+			let oper_addrs: Vec<(Addr, Vec<BfOp>)> = opers
+				.iter()
+				.map(|operand| match operand {
+					llvm_ir::Operand::LocalOperand { name, ty } => {
+						let isalloca =
+							ctx.layout.iter().position(|cell| match cell {
+								Cell::Alloc(n) => n == name,
+								_ => false,
+							});
+
+						if isalloca.is_some() {
+							let (addr, ops) = op_to_reg(&mut ctx, &operand);
+
+							//if !asstore.is_ok() {
+							//blockloop.append(&mut ops);
+							//}
+
+							(addr, ops)
+						} else {
+							let (addr, ops) = op_to_reg(&mut ctx, operand);
+							//blockloop.append(&mut ops);
+							(addr, ops)
+						}
+					}
+					_ => {
+						let (addr, ops) = op_to_reg(&mut ctx, operand);
+						//blockloop.append(&mut ops);
+						(addr, ops)
+					}
+				})
+				.collect();
+
+			//println!("{} {:?}", instr, oper_addrs);
+
 			if ascall.is_ok() {
 				handle_call = true;
 				assert!(
@@ -1631,7 +1682,20 @@ fn build_func(
 					"calls must be the instruction in a block, followed by a unconditional branch"
 				); // double check calls are the last instr
 
-				blockloop.append(&mut build_call(&mut ctx, instr, block));
+				for (a, ops) in oper_addrs.iter() {
+					blockloop.append(&mut ops.clone());
+				}
+
+				blockloop.append(&mut build_call(
+					&mut ctx,
+					instr,
+					block,
+					&oper_addrs
+						.iter()
+						.map(|a| BuilderArgs::Reg(a.0.clone()))
+						.collect::<Vec<BuilderArgs>>()
+						.as_slice(),
+				));
 			} else if asstore.is_ok() {
 				blockloop.append(&mut build_store(&mut ctx, instr, &[], None));
 			} else if asload.is_ok() {
@@ -1656,26 +1720,22 @@ fn build_func(
 				//	format!("alloca_{}", alloca.dest),
 				//)]);
 			} else if asicmp.is_ok() {
-				let (op0, mut ops) =
-					op_to_reg(&mut ctx, &asicmp.clone().unwrap().operand0);
-				blockloop.append(&mut ops);
-
-				let (op1, mut ops) =
-					op_to_reg(&mut ctx, &asicmp.clone().unwrap().operand1);
-				blockloop.append(&mut ops);
-
 				let ret = give_reg(&mut ctx, &instr.try_get_result().unwrap());
+
+				for (_, ops) in oper_addrs.iter() {
+					blockloop.append(&mut ops.clone());
+				}
 
 				blockloop.append(&mut vec![
 					BfOp::Tag(
-						op0.clone(),
+						oper_addrs[0].0.clone(),
 						format!(
 							"icmp_op0_{}",
 							asicmp.clone().unwrap().operand0
 						),
 					),
 					BfOp::Tag(
-						op1.clone(),
+						oper_addrs[1].0.clone(),
 						format!(
 							"icmp_op1_{}",
 							asicmp.clone().unwrap().operand1
@@ -1693,7 +1753,10 @@ fn build_func(
 				blockloop.append(&mut build_icmp_instr(
 					&mut ctx,
 					instr,
-					&[BuilderArgs::Reg(op0), BuilderArgs::Reg(op1)],
+					&[
+						BuilderArgs::Reg(oper_addrs[0].0.clone()),
+						BuilderArgs::Reg(oper_addrs[1].0.clone()),
+					],
 					Some(ret),
 				))
 			} else {
@@ -1703,20 +1766,16 @@ fn build_func(
 					let asbinop: llvm_ir::instruction::groups::BinaryOp =
 						instr.clone().try_into().unwrap();
 
-					let (op0, mut ops) =
-						op_to_reg(&mut ctx, &asbinop.get_operand0());
-					blockloop.append(&mut ops);
-
-					let (op1, mut ops) =
-						op_to_reg(&mut ctx, &asbinop.get_operand1());
-					blockloop.append(&mut ops);
-
 					let dest =
 						give_reg(&mut ctx, &instr.try_get_result().unwrap());
 
+					for (_, ops) in oper_addrs.iter() {
+						blockloop.append(&mut ops.clone());
+					}
+
 					blockloop.append(&mut vec![
 						BfOp::Tag(
-							op0.clone(),
+							oper_addrs[0].0.clone(),
 							format!(
 								"{}_op0_{}",
 								instr_name(instr),
@@ -1724,7 +1783,7 @@ fn build_func(
 							),
 						),
 						BfOp::Tag(
-							op1.clone(),
+							oper_addrs[1].0.clone(),
 							format!(
 								"{}_op1_{}",
 								instr_name(instr),
@@ -1745,23 +1804,26 @@ fn build_func(
 					blockloop.append(&mut builder.2(
 						&mut ctx,
 						instr,
-						&[BuilderArgs::Reg(op0), BuilderArgs::Reg(op1)],
+						&[
+							BuilderArgs::Reg(oper_addrs[0].0.clone()),
+							BuilderArgs::Reg(oper_addrs[1].0.clone()),
+						],
 						Some(dest),
 					))
 				} else if instr.is_unary_op() {
 					let asunop: llvm_ir::instruction::groups::UnaryOp =
 						instr.clone().try_into().unwrap();
 
-					let (mut op0, mut ops) =
-						op_to_reg(&mut ctx, &asunop.get_operand());
-					blockloop.append(&mut ops);
-
 					let dest =
 						give_reg(&mut ctx, &instr.try_get_result().unwrap());
 
+					for (_, ops) in oper_addrs.iter() {
+						blockloop.append(&mut ops.clone());
+					}
+
 					blockloop.append(&mut vec![
 						BfOp::Tag(
-							op0.clone(),
+							oper_addrs[0].0.clone(),
 							format!(
 								"{}_op_{}",
 								instr_name(instr),
@@ -1782,7 +1844,7 @@ fn build_func(
 					blockloop.append(&mut builder.2(
 						&mut ctx,
 						instr,
-						&[BuilderArgs::Reg(op0)],
+						&[BuilderArgs::Reg(oper_addrs[0].0.clone())],
 						Some(dest),
 					))
 				} else {

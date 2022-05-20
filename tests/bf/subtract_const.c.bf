@@ -37,29 +37,24 @@ runtime init:
             -
             %1 = alloca i8_ align 1
             store i8 97_ i8* %1_ align 1
-            store sitch: alloca Some(6)
-            grab the value we're storing
             op_to_reg storing const value in temp address
             >>>#constop_97
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            and the destination
-            op_to_reg giving known register address
+            store sitch: alloca Some(6)
+            store sitch: from ConstantOperand(ConstantRef(Int { bits: 8_ value: 97 }))
             <[-]
             m7/6 >[-<+>]
             %2 = load i8* %1_ align 1
             >>>>>>>>>>>>#load_ret_%2
             #load_thru_%1_to_%2
-            op_to_reg giving known register address
             <<<<<<<<<<<#tmp0_for_load
             d6/8/19 <<[->>+>>>>>>>>>>>+<<<<<<<<<<<<<]
             m8/6 >>[-<<+>>]
             %3 = zext i8 %2 to i32
-            op_to_reg giving known register address
             >>>>>>>>>>>#zext_op_i8_%2
             >#zext_ret_%3
             m19/20 <[->+<]
             %4 = sub i32 %3_ i32 32
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <<<<<<<<<<<<#constop_32
             ++++++++++++++++++++++++++++++++
@@ -72,7 +67,6 @@ runtime init:
                 >>>>>>>>>>>>>>-
             <<<<<<<<<<<<<<]
             %5 = trunc i32 %4 to i8
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>#trunc_op_i32_%4
             >#trunc_ret_%5
             m21/22 <[->+<]

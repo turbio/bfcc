@@ -50,24 +50,17 @@ runtime init:
             %4 = alloca i32_ align 4
             store i32 %0_ i32* %3_ align 4
             store sitch: alloca Some(8)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(0)_ ty: TypeRef(IntegerType { bits: 32 }) }
             >>[-]
             m22/8 >>>>>>>>>>>>>>[-<<<<<<<<<<<<<<+>>>>>>>>>>>>>>]
             store i32 %1_ i32* %4_ align 4
             store sitch: alloca Some(9)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(1)_ ty: TypeRef(IntegerType { bits: 32 }) }
             <<<<<<<<<<<<<[-]
             m23/9 >>>>>>>>>>>>>>[-<<<<<<<<<<<<<<+>>>>>>>>>>>>>>]
             %5 = load i32* %3_ align 4
             >#load_ret_%5
             #load_thru_%3_to_%5
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<#tmp0_for_load
             d8/10/24 <<[->>+>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]
             m10/8 >>[-<<+>>]
@@ -75,7 +68,6 @@ runtime init:
             op_to_reg storing const value in temp address
             >#constop_65
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            op_to_reg giving known register address
             #add_op0_i32_65
             >>>>>>>>>>>>>#add_op1_i32_%5
             >#add_ret_%6
@@ -87,13 +79,10 @@ runtime init:
             %7 = load i32* %4_ align 4
             >>#load_ret_%7
             #load_thru_%4_to_%7
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<#tmp0_for_load
             d9/10/26 <[->+>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
             m10/9 >[-<+>]
             %8 = add i32 %6_ i32 %7
-            op_to_reg giving known register address
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>#add_op0_i32_%6
             >#add_op1_i32_%7
             >#add_ret_%8
@@ -103,7 +92,6 @@ runtime init:
                 >+
             <]
             %9 = trunc i32 %8 to i8
-            op_to_reg giving known register address
             >#trunc_op_i32_%8
             >#trunc_ret_%9
             m27/28 <[->+<]
@@ -171,24 +159,17 @@ runtime init:
             %4 = alloca i32_ align 4
             store i32 %0_ i32* %3_ align 4
             store sitch: alloca Some(8)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(0)_ ty: TypeRef(IntegerType { bits: 32 }) }
             >>[-]
             m22/8 >>>>>>>>>>>>>>[-<<<<<<<<<<<<<<+>>>>>>>>>>>>>>]
             store i32 %1_ i32* %4_ align 4
             store sitch: alloca Some(9)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(1)_ ty: TypeRef(IntegerType { bits: 32 }) }
             <<<<<<<<<<<<<[-]
             m23/9 >>>>>>>>>>>>>>[-<<<<<<<<<<<<<<+>>>>>>>>>>>>>>]
             %5 = load i32* %3_ align 4
             >#load_ret_%5
             #load_thru_%3_to_%5
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<#tmp0_for_load
             d8/10/24 <<[->>+>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]
             m10/8 >>[-<<+>>]
@@ -196,7 +177,6 @@ runtime init:
             op_to_reg storing const value in temp address
             >#constop_65
             +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            op_to_reg giving known register address
             #add_op0_i32_65
             >>>>>>>>>>>>>#add_op1_i32_%5
             >#add_ret_%6
@@ -208,13 +188,10 @@ runtime init:
             %7 = load i32* %4_ align 4
             >>#load_ret_%7
             #load_thru_%4_to_%7
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<#tmp0_for_load
             d9/10/26 <[->+>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<]
             m10/9 >[-<+>]
             %8 = sub i32 %6_ i32 %7
-            op_to_reg giving known register address
-            op_to_reg giving known register address
             >>>>>>>>>>>>>>>#sub_op0_i32_%6
             >#sub_op1_i32_%7
             >#sub_ret_%8
@@ -224,7 +201,6 @@ runtime init:
                 >-
             <]
             %9 = trunc i32 %8 to i8
-            op_to_reg giving known register address
             >#trunc_op_i32_%8
             >#trunc_ret_%9
             m27/28 <[->+<]
@@ -298,13 +274,11 @@ runtime init:
             %3 = alloca i32_ align 4
             %4 = alloca i32_ align 4
             store i32 0_ i32* %1_ align 4
-            store sitch: alloca Some(24)
-            grab the value we're storing
             op_to_reg storing const value in temp address
             >>>>>>>>>>>>>>>>>>>>>>>>#constop_0
             
-            and the destination
-            op_to_reg giving known register address
+            store sitch: alloca Some(24)
+            store sitch: from ConstantOperand(ConstantRef(Int { bits: 32_ value: 0 }))
             <<<<[-]
             m28/24 >>>>[-<<<<+>>>>]
             br label %5
@@ -315,12 +289,10 @@ runtime init:
             %6 = load i32* %1_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%6
             #load_thru_%1_to_%6
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<#tmp0_for_load
             d24/29/43 <<<<<[->>>>>+>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<]
             m29/24 >>>>>[-<<<<<+>>>>>]
             %7 = icmp slt i32 %6_ i32 16
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             <#constop_16
             ++++++++++++++++
@@ -368,13 +340,11 @@ runtime init:
         >[
             -
             store i32 0_ i32* %2_ align 4
-            store sitch: alloca Some(25)
-            grab the value we're storing
             op_to_reg storing const value in temp address
             >>>>>>>>>>>>>>>>>>>>>#constop_0
             
-            and the destination
-            op_to_reg giving known register address
+            store sitch: alloca Some(25)
+            store sitch: from ConstantOperand(ConstantRef(Int { bits: 32_ value: 0 }))
             <<<[-]
             m28/25 >>>[-<<<+>>>]
             br label %9
@@ -385,12 +355,10 @@ runtime init:
             %10 = load i32* %2_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%10
             #load_thru_%2_to_%10
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<#tmp0_for_load
             d25/28/45 <<<[->>>+>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<]
             m28/25 >>>[-<<<+>>>]
             %11 = icmp slt i32 %10_ i32 16
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_16
             ++++++++++++++++
@@ -440,14 +408,12 @@ runtime init:
             %13 = load i32* %1_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%13
             #load_thru_%1_to_%13
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d24/28/47 <<<<[->>>>+>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<]
             m28/24 >>>>[-<<<<+>>>>]
             %14 = load i32* %2_ align 4
             >>>>>>>>>>>>>>>>>>>>#load_ret_%14
             #load_thru_%2_to_%14
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d25/28/48 <<<[->>>+>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<]
             m28/25 >>>[-<<<+>>>]
@@ -495,12 +461,10 @@ runtime init:
             %16 = load i32* %2_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%16
             #load_thru_%2_to_%16
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d25/28/49 <<<[->>>+>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/25 >>>[-<<<+>>>]
             %17 = add i32 %16_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
@@ -514,10 +478,7 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<]
             store i32 %17_ i32* %2_ align 4
             store sitch: alloca Some(25)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(17)_ ty: TypeRef(IntegerType { bits: 32 }) }
             <<<[-]
             m50/25 >>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %9
@@ -533,12 +494,10 @@ runtime init:
             %20 = load i32* %1_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%20
             #load_thru_%1_to_%20
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d24/28/51 <<<<[->>>>+>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/24 >>>>[-<<<<+>>>>]
             %21 = add i32 %20_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
@@ -552,10 +511,7 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<]
             store i32 %21_ i32* %1_ align 4
             store sitch: alloca Some(24)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(21)_ ty: TypeRef(IntegerType { bits: 32 }) }
             <<<<[-]
             m52/24 >>>>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %5
@@ -564,13 +520,11 @@ runtime init:
         >[
             -
             store i32 0_ i32* %3_ align 4
-            store sitch: alloca Some(26)
-            grab the value we're storing
             op_to_reg storing const value in temp address
             >>>>>>>>>>>>>>#constop_0
             
-            and the destination
-            op_to_reg giving known register address
+            store sitch: alloca Some(26)
+            store sitch: from ConstantOperand(ConstantRef(Int { bits: 32_ value: 0 }))
             <<[-]
             m28/26 >>[-<<+>>]
             br label %23
@@ -581,12 +535,10 @@ runtime init:
             %24 = load i32* %3_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%24
             #load_thru_%3_to_%24
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d26/28/53 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/26 >>[-<<+>>]
             %25 = icmp slt i32 %24_ i32 16
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_16
             ++++++++++++++++
@@ -634,13 +586,11 @@ runtime init:
         >[
             -
             store i32 0_ i32* %4_ align 4
-            store sitch: alloca Some(27)
-            grab the value we're storing
             op_to_reg storing const value in temp address
             >>>>>>>>>>>>#constop_0
             
-            and the destination
-            op_to_reg giving known register address
+            store sitch: alloca Some(27)
+            store sitch: from ConstantOperand(ConstantRef(Int { bits: 32_ value: 0 }))
             <[-]
             m28/27 >[-<+>]
             br label %27
@@ -651,12 +601,10 @@ runtime init:
             %28 = load i32* %4_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%28
             #load_thru_%4_to_%28
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d27/28/55 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/27 >[-<+>]
             %29 = icmp slt i32 %28_ i32 16
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_16
             ++++++++++++++++
@@ -706,14 +654,12 @@ runtime init:
             %31 = load i32* %3_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%31
             #load_thru_%3_to_%31
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d26/28/57 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/26 >>[-<<+>>]
             %32 = load i32* %4_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%32
             #load_thru_%4_to_%32
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d27/28/58 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/27 >[-<+>]
@@ -761,12 +707,10 @@ runtime init:
             %34 = load i32* %4_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%34
             #load_thru_%4_to_%34
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d27/28/59 <[->+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/27 >[-<+>]
             %35 = add i32 %34_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
@@ -780,10 +724,7 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             store i32 %35_ i32* %4_ align 4
             store sitch: alloca Some(27)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(35)_ ty: TypeRef(IntegerType { bits: 32 }) }
             <[-]
             m60/27 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %27
@@ -799,12 +740,10 @@ runtime init:
             %38 = load i32* %3_ align 4
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#load_ret_%38
             #load_thru_%3_to_%38
-            op_to_reg giving known register address
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#tmp0_for_load
             d26/28/61 <<[->>+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             m28/26 >>[-<<+>>]
             %39 = add i32 %38_ i32 1
-            op_to_reg giving known register address
             op_to_reg storing const value in temp address
             #constop_1
             +
@@ -818,10 +757,7 @@ runtime init:
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
             store i32 %39_ i32* %3_ align 4
             store sitch: alloca Some(26)
-            grab the value we're storing
-            op_to_reg giving known register address
-            and the destination
-            op_to_reg giving known register address
+            store sitch: from LocalOperand { name: Number(39)_ ty: TypeRef(IntegerType { bits: 32 }) }
             <<[-]
             m62/26 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
             br label %23
