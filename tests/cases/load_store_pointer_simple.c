@@ -1,4 +1,3 @@
-
 #include "stdfuck.h"
 
 // TEST:{ "name": "load store pointer simple", "output": "L" }
