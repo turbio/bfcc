@@ -12,7 +12,7 @@ define void @lol(i32 %0) #0 {
   %5 = trunc i32 %4 to i8
   call void @putchar(i8 zeroext %5)
   %6 = load i32, i32* %2, align 4
-  %7 = icmp slt i32 %6, 6
+  %7 = icmp slt i32 %6, 5
   br i1 %7, label %8, label %11
 
 8:                                                ; preds = %1

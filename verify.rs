@@ -68,11 +68,11 @@ fn main() {
 		{
 			continue;
 		}
-
 		if info.skip.unwrap_or(false) {
 			println!(
-				"{}SKIP{} {}",
-				color::Fg(color::Yellow),
+				"{}{} skip {} {}",
+				color::Fg(color::Black),
+				color::Bg(color::Yellow),
 				style::Reset,
 				info.name
 			);
@@ -91,8 +91,9 @@ fn main() {
 		let cc = compile_ir(&source, &target);
 		if cc.is_err() {
 			println!(
-				"\r{}FAIL{} {}",
-				color::Fg(color::Red),
+				"\r{}{} fail {} {}",
+				color::Fg(color::Black),
+				color::Bg(color::Red),
 				style::Reset,
 				info.name
 			);
@@ -151,8 +152,9 @@ fn main() {
 			.unwrap();
 
 		println!(
-			"\r{}PASS{} {}",
-			color::Fg(color::Green),
+			"\r{}{} pass {} {}",
+			color::Fg(color::Black),
+			color::Bg(color::Green),
 			style::Reset,
 			info.name,
 		);
