@@ -2,15 +2,13 @@ extern crate llvm_ir;
 
 use std::fmt;
 
-use bfcc::llvm_ir::instruction::BinaryOp;
-use bfcc::llvm_ir::instruction::UnaryOp;
-
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::ops::Deref;
 use std::path::Path;
 use std::rc::Rc;
 
+use std::convert::TryFrom;
 use std::convert::TryInto;
 
 // Split all blocks at calls. This should result in all calls being the last
@@ -881,13 +879,6 @@ struct Ctx {
 	ownfid: Option<usize>,
 }
 
-enum ArgsMeta {
-	ConsumedReg,
-	AsIsReg,
-	Const,
-	InPlaceReg,
-}
-
 enum RetMeta {
 	Addr,
 	InPlace,
@@ -901,37 +892,21 @@ enum BuilderArgs {
 
 struct InstrMeta<'a> {
 	builders: &'a [(
-		&'a [ArgsMeta],
 		RetMeta,
 		fn(
 			&mut Ctx,
 			&llvm_ir::Instruction,
+			&llvm_ir::BasicBlock,
 			&[BuilderArgs],
 			Option<Addr>,
 		) -> Vec<BfOp>,
 	)],
 }
 
-fn build_nop(
-	ctx: &mut Ctx,
-	i: &llvm_ir::Instruction,
-	args: &[BuilderArgs],
-	ret: Option<Addr>,
-) -> Vec<BfOp> {
-	assert_eq!(args.len(), 1);
-
-	match &args[0] {
-		BuilderArgs::Const(c) => vec![BfOp::AddI(ret.unwrap(), *c as u8)],
-		BuilderArgs::Reg(c) => {
-			assert!(ret.is_none());
-			vec![]
-		}
-	}
-}
-
 fn build_sub(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -959,6 +934,7 @@ fn build_sub(
 fn build_add(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -985,6 +961,7 @@ fn build_add(
 fn build_sub_in_place(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -1013,6 +990,7 @@ fn a2addr(a: &BuilderArgs) -> &Addr {
 fn build_nop_move(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -1025,6 +1003,7 @@ fn build_nop_move(
 fn build_icmp_instr(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -1039,6 +1018,7 @@ fn build_icmp_instr(
 fn build_store(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs], // order is [value, address]
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -1084,6 +1064,7 @@ fn build_store(
 fn build_load(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
 	ret: Option<Addr>,
 ) -> Vec<BfOp> {
@@ -1103,7 +1084,9 @@ fn build_call(
 	i: &llvm_ir::Instruction,
 	block: &llvm_ir::BasicBlock,
 	args: &[BuilderArgs],
+	ret: Option<Addr>,
 ) -> Vec<BfOp> {
+	assert!(ret.is_none());
 	let c = match i {
 		llvm_ir::Instruction::Call(c) => c,
 		_ => panic!("ohnoonono"),
@@ -1354,7 +1337,7 @@ fn instr_opers<'i>(
 		llvm_ir::Instruction::IntToPtr(i) => vec![&i.operand],
 		llvm_ir::Instruction::PtrToInt(i) => vec![&i.operand],
 		llvm_ir::Instruction::ICmp(i) => vec![&i.operand0, &i.operand1],
-		llvm_ir::Instruction::Alloca(_) => vec![],
+		llvm_ir::Instruction::Alloca(i) => vec![],
 		llvm_ir::Instruction::Call(i) => {
 			i.arguments.iter().map(|a| &a.0).collect()
 		}
@@ -1364,25 +1347,23 @@ fn instr_opers<'i>(
 
 fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 	match i {
+		llvm_ir::Instruction::Call(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_call)],
+		},
+		llvm_ir::Instruction::ICmp(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_icmp_instr)],
+		},
 		llvm_ir::Instruction::Store(_) => &InstrMeta {
-			builders: &[(&[], RetMeta::Addr, build_store)],
+			builders: &[(RetMeta::Addr, build_store)],
 		},
 		llvm_ir::Instruction::Load(_) => &InstrMeta {
-			builders: &[(&[], RetMeta::Addr, build_load)],
+			builders: &[(RetMeta::Addr, build_load)],
 		},
 		llvm_ir::Instruction::Add(_) => &InstrMeta {
-			builders: &[(
-				&[ArgsMeta::ConsumedReg, ArgsMeta::ConsumedReg],
-				RetMeta::Addr,
-				build_add,
-			)],
+			builders: &[(RetMeta::Addr, build_add)],
 		},
 		llvm_ir::Instruction::Sub(_) => &InstrMeta {
-			builders: &[(
-				&[ArgsMeta::ConsumedReg, ArgsMeta::ConsumedReg],
-				RetMeta::Addr,
-				build_sub,
-			)],
+			builders: &[(RetMeta::Addr, build_sub)],
 		},
 
 		llvm_ir::Instruction::ZExt(_)
@@ -1391,7 +1372,7 @@ fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 		| llvm_ir::Instruction::Trunc(_)
 		| llvm_ir::Instruction::SExt(_) => &InstrMeta {
 			builders: &[
-				(&[ArgsMeta::ConsumedReg], RetMeta::Addr, build_nop_move),
+				(RetMeta::Addr, build_nop_move),
 				//(&[ArgsMeta::InPlaceReg], RetMeta::InPlace, build_nop),
 				//(&[ArgsMeta::Const], RetMeta::Addr, build_nop),
 			],
@@ -1441,7 +1422,12 @@ fn build_func(
 				llvm_ir::Instruction::Alloca(a) => {
 					ctx.layout.push(Cell::Alloc(a.dest.clone()));
 				}
-				_ => {}
+				_ => {
+					let ret = instr.try_get_result();
+					if ret.is_some() {
+						give_reg(&mut ctx, &ret.unwrap());
+					}
+				}
 			}
 		}
 	}
@@ -1586,24 +1572,15 @@ fn build_func(
 			blockloop.append(&mut first_block_prelude);
 		}
 
-		let mut handle_call = false;
-
 		for (iid, instr) in block.instrs.iter().enumerate() {
 			blockloop.push(BfOp::Comment(instr.to_string()));
 
-			let ascall: Result<llvm_ir::instruction::Call, _> =
-				(instr.clone()).try_into();
-			let asstore: Result<llvm_ir::instruction::Store, _> =
-				(instr.clone()).try_into();
-			let asload: Result<llvm_ir::instruction::Load, _> =
-				(instr.clone()).try_into();
-			let asalloca: Result<llvm_ir::instruction::Alloca, _> =
-				instr.clone().try_into();
-			let asicmp: Result<llvm_ir::instruction::ICmp, _> =
-				instr.clone().try_into();
+			if llvm_ir::instruction::Alloca::try_from(instr.clone()).is_ok() {
+				// allocas arent really instructions????? idk
+				continue;
+			}
 
-			let opers = instr_opers(&ctx, &instr);
-			let oper_addrs: Vec<(Addr, Vec<BfOp>)> = opers
+			let oper_addrs: Vec<(Addr, Vec<BfOp>)> = instr_opers(&ctx, &instr)
 				.iter()
 				.map(|operand| match operand {
 					llvm_ir::Operand::LocalOperand { name, ty } => {
@@ -1637,198 +1614,27 @@ fn build_func(
 				})
 				.collect();
 
-			/*
-			for co in instr_consumes(&ctx, &instr) {
-				if multi_use.contains(&co) {
-					panic!("nooos {}", co);
-				}
-			}
-			*/
-
 			for (a, ops) in oper_addrs.iter() {
 				blockloop.append(&mut ops.clone());
 			}
 
-			if ascall.is_ok() {
-				handle_call = true;
-				assert!(
-					block.instrs.len() - 1 == iid,
-					"calls must be the last instruction in a block, followed by a unconditional branch"
-				); // double check calls are the last instr
+			let ret = instr
+				.try_get_result()
+				.and_then(|i| Some(take_reg(&mut ctx, &i)));
 
-				blockloop.append(&mut build_call(
-					&mut ctx,
-					instr,
-					block,
-					&oper_addrs
-						.iter()
-						.map(|a| BuilderArgs::Reg(a.0.clone()))
-						.collect::<Vec<BuilderArgs>>()
-						.as_slice(),
-				));
-			} else if asstore.is_ok() {
-				//if multi_use.contains(&unlop(&asstore.unwrap().address)) {}
-				blockloop.append(&mut build_store(
-					&mut ctx,
-					instr,
-					oper_addrs
-						.iter()
-						.map(|o| BuilderArgs::Reg(o.0.clone()))
-						.collect::<Vec<BuilderArgs>>()
-						.as_slice(),
-					None,
-				));
-			} else if asload.is_ok() {
-				let ret = give_reg(&mut ctx, &instr.try_get_result().unwrap());
-				blockloop.append(&mut vec![BfOp::Tag(
-					ret.clone(),
-					format!("load_ret_{}", &instr.try_get_result().unwrap()),
-				)]);
-
-				blockloop.append(&mut build_load(
-					&mut ctx,
-					instr,
-					oper_addrs
-						.iter()
-						.map(|o| BuilderArgs::Reg(o.0.clone()))
-						.collect::<Vec<BuilderArgs>>()
-						.as_slice(),
-					Some(ret),
-				));
-			} else if asalloca.is_ok() {
-				//let alloca = asalloca.unwrap();
-				//let to = give_reg(&mut ctx,
-				// &instr.try_get_result().unwrap());
-				//blockloop.append(&mut vec![BfOp::Tag(
-				//	to,
-				//	format!("alloca_{}", alloca.dest),
-				//)]);
-			} else if asicmp.is_ok() {
-				let ret = give_reg(&mut ctx, &instr.try_get_result().unwrap());
-
-				blockloop.append(&mut vec![
-					BfOp::Tag(
-						oper_addrs[0].0.clone(),
-						format!(
-							"icmp_op0_{}",
-							asicmp.clone().unwrap().operand0
-						),
-					),
-					BfOp::Tag(
-						oper_addrs[1].0.clone(),
-						format!(
-							"icmp_op1_{}",
-							asicmp.clone().unwrap().operand1
-						),
-					),
-					BfOp::Tag(
-						ret.clone(),
-						format!(
-							"icmp_ret_{}",
-							&instr.try_get_result().unwrap()
-						),
-					),
-				]);
-
-				blockloop.append(&mut build_icmp_instr(
-					&mut ctx,
-					instr,
-					oper_addrs
-						.iter()
-						.map(|o| BuilderArgs::Reg(o.0.clone()))
-						.collect::<Vec<BuilderArgs>>()
-						.as_slice(),
-					Some(ret),
-				))
-			} else {
-				let instrmeta = lookup_instr(instr);
-
-				if instr.is_binary_op() {
-					let asbinop: llvm_ir::instruction::groups::BinaryOp =
-						instr.clone().try_into().unwrap();
-
-					let dest =
-						give_reg(&mut ctx, &instr.try_get_result().unwrap());
-
-					blockloop.append(&mut vec![
-						BfOp::Tag(
-							oper_addrs[0].0.clone(),
-							format!(
-								"{}_op0_{}",
-								instr_name(instr),
-								&asbinop.get_operand0()
-							),
-						),
-						BfOp::Tag(
-							oper_addrs[1].0.clone(),
-							format!(
-								"{}_op1_{}",
-								instr_name(instr),
-								&asbinop.get_operand1()
-							),
-						),
-						BfOp::Tag(
-							dest.clone(),
-							format!(
-								"{}_ret_{}",
-								instr_name(instr),
-								&instr.try_get_result().unwrap()
-							),
-						),
-					]);
-
-					let builder = &instrmeta.builders[0];
-					blockloop.append(&mut builder.2(
-						&mut ctx,
-						instr,
-						oper_addrs
-							.iter()
-							.map(|o| BuilderArgs::Reg(o.0.clone()))
-							.collect::<Vec<BuilderArgs>>()
-							.as_slice(),
-						Some(dest),
-					))
-				} else if instr.is_unary_op() {
-					let asunop: llvm_ir::instruction::groups::UnaryOp =
-						instr.clone().try_into().unwrap();
-
-					let dest =
-						give_reg(&mut ctx, &instr.try_get_result().unwrap());
-
-					blockloop.append(&mut vec![
-						BfOp::Tag(
-							oper_addrs[0].0.clone(),
-							format!(
-								"{}_op_{}",
-								instr_name(instr),
-								&asunop.get_operand()
-							),
-						),
-						BfOp::Tag(
-							dest.clone(),
-							format!(
-								"{}_ret_{}",
-								instr_name(instr),
-								&instr.try_get_result().unwrap()
-							),
-						),
-					]);
-
-					let builder = &instrmeta.builders[0];
-					blockloop.append(&mut builder.2(
-						&mut ctx,
-						instr,
-						oper_addrs
-							.iter()
-							.map(|o| BuilderArgs::Reg(o.0.clone()))
-							.collect::<Vec<BuilderArgs>>()
-							.as_slice(),
-						Some(dest),
-					))
-				} else {
-					panic!("aa {}", instr);
-				}
-			}
+			let instrmeta = lookup_instr(instr);
+			let builder = &instrmeta.builders[0];
+			blockloop.append(&mut builder.1(
+				&mut ctx,
+				instr,
+				block,
+				oper_addrs
+					.iter()
+					.map(|o| BuilderArgs::Reg(o.0.clone()))
+					.collect::<Vec<BuilderArgs>>()
+					.as_slice(),
+				ret,
+			));
 
 			ctx.layout = ctx
 				.layout
@@ -1843,7 +1649,12 @@ fn build_func(
 		// if it handled a call we know that: the block ended in a call and
 		// the terminator was a unconditional branch. These are both
 		// rolled into the call instruction builder.
-		if !handle_call {
+
+		let last = block.instrs.last();
+		if last.is_none()
+			|| llvm_ir::instruction::Call::try_from(last.unwrap().clone())
+				.is_err()
+		{
 			blockloop.push(BfOp::Comment(block.term.to_string()));
 
 			match &block.term {
