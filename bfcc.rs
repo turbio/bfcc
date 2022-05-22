@@ -27,20 +27,28 @@ fn calls_terminate_blocks(module: &mut llvm_ir::Module) {
 		while block < func.basic_blocks.len() {
 			let mut instr = 0;
 			while instr < func.basic_blocks[block].instrs.len() {
-				match &func.basic_blocks[block].instrs[instr] {
-					llvm_ir::Instruction::Call(c) => c,
-					_ => {
-						instr += 1;
-						continue;
-					}
-				};
+				if llvm_ir::instruction::Call::try_from(
+					func.basic_blocks[block].instrs[instr].clone(),
+				)
+				.is_err()
+				{
+					instr += 1;
+					continue;
+				}
+
+				// so when we get to a call
 
 				let nextn = llvm_ir::Name::Name(Box::new(format!(
 					"call_term_for_{}",
 					block
 				)));
 
-				if instr == func.basic_blocks[block].instrs.len() - 1 {
+				let last_instr =
+					instr == func.basic_blocks[block].instrs.len() - 1;
+
+				// even if it's the last instr that's a call we still split the
+				// block and sprinkle in an uncond br to make things ez
+				if last_instr {
 					let splitn = llvm_ir::BasicBlock {
 						name: nextn.clone(),
 						instrs: vec![],
@@ -69,6 +77,29 @@ fn calls_terminate_blocks(module: &mut llvm_ir::Module) {
 							dest: nextn.clone(),
 						});
 				}
+
+				// update all the phi nodes too. Since our block now has a
+				// unconditional succ we'll need to rename any phis naming this
+				// block to instead name the succ.
+				//
+				// man... maybe i shoulda done this in cpp cause like... man
+				// llvm has all this stufffff
+				let orig_block = func.basic_blocks[block].name.clone();
+				for bblock in &mut func.basic_blocks {
+					for instr in &mut bblock.instrs {
+						match instr {
+							llvm_ir::Instruction::Phi(phi) => {
+								for inval in &mut phi.incoming_values {
+									if inval.1 == orig_block {
+										inval.1 = nextn.clone();
+									}
+								}
+							}
+							_ => {}
+						}
+					}
+				}
+
 				instr += 1;
 			}
 
@@ -910,6 +941,71 @@ fn build_sub(
 	]
 }
 
+fn build_or(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let op0 = match &args[0] {
+		BuilderArgs::Reg(addr) => addr,
+		BuilderArgs::Const(_) => panic!(),
+	};
+	let op1 = match &args[1] {
+		BuilderArgs::Reg(addr) => addr,
+		BuilderArgs::Const(_) => panic!(),
+	};
+
+	let dest = ret.unwrap();
+
+	vec![
+		BfOp::Loop(
+			op0.clone(),
+			vec![
+				BfOp::AddI(dest.clone(), 1),
+				BfOp::Zero(op0.clone()),
+				BfOp::Zero(op1.clone()),
+			],
+		),
+		BfOp::Loop(
+			op1.clone(),
+			vec![BfOp::AddI(dest.clone(), 1), BfOp::Zero(op1.clone())],
+		),
+	]
+}
+
+fn build_and(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let op0 = match &args[0] {
+		BuilderArgs::Reg(addr) => addr,
+		BuilderArgs::Const(_) => panic!(),
+	};
+	let op1 = match &args[1] {
+		BuilderArgs::Reg(addr) => addr,
+		BuilderArgs::Const(_) => panic!(),
+	};
+
+	let dest = ret.unwrap();
+
+	vec![BfOp::Loop(
+		op0.clone(),
+		vec![
+			BfOp::Zero(op0.clone()),
+			BfOp::Loop(
+				op1.clone(),
+				vec![BfOp::Zero(op1.clone()), BfOp::AddI(dest.clone(), 1)],
+			),
+			BfOp::Zero(op1.clone()),
+		],
+	)]
+}
+
 fn build_add(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
@@ -1266,6 +1362,9 @@ fn instr_name(i: &llvm_ir::Instruction) -> &str {
 		llvm_ir::Instruction::SExt(_) => "sext",
 		llvm_ir::Instruction::IntToPtr(_) => "inttoptr",
 		llvm_ir::Instruction::PtrToInt(_) => "ptrtoint",
+		llvm_ir::Instruction::Phi(_) => "phi",
+		llvm_ir::Instruction::Or(_) => "or",
+		llvm_ir::Instruction::And(_) => "and",
 		_ => unimplemented!("lookup for {}", i),
 	}
 }
@@ -1313,7 +1412,12 @@ fn instr_opers<'i>(
 		llvm_ir::Instruction::IntToPtr(i) => vec![&i.operand],
 		llvm_ir::Instruction::PtrToInt(i) => vec![&i.operand],
 		llvm_ir::Instruction::ICmp(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::Or(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::And(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::Alloca(i) => vec![],
+		llvm_ir::Instruction::Phi(i) => {
+			i.incoming_values.iter().map(|(o, _)| o).collect()
+		}
 		llvm_ir::Instruction::Call(i) => {
 			i.arguments.iter().map(|a| &a.0).collect()
 		}
@@ -1340,6 +1444,13 @@ fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 		},
 		llvm_ir::Instruction::Sub(_) => &InstrMeta {
 			builders: &[(RetMeta::Addr, build_sub)],
+		},
+
+		llvm_ir::Instruction::Or(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_or)],
+		},
+		llvm_ir::Instruction::And(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_and)],
 		},
 
 		llvm_ir::Instruction::ZExt(_)
@@ -1562,6 +1673,11 @@ fn build_func(
 				continue;
 			}
 
+			if llvm_ir::instruction::Phi::try_from(instr.clone()).is_ok() {
+				// phi nodes are handled by the branch instr generator
+				continue;
+			}
+
 			let oper_addrs: Vec<(Addr, Vec<BfOp>)> = instr_opers(&ctx, &instr)
 				.iter()
 				.map(|operand| match operand {
@@ -1657,6 +1773,45 @@ fn build_func(
 
 			match &block.term {
 				llvm_ir::Terminator::Br(br) => {
+					let toblock = func
+						.basic_blocks
+						.iter()
+						.find(|bb| br.dest == bb.name)
+						.unwrap();
+
+					let tophis = toblock
+						.instrs
+						.iter()
+						.filter_map(|i| {
+							llvm_ir::instruction::Phi::try_from((*i).clone())
+								.ok()
+						})
+						.collect::<Vec<_>>();
+
+					if tophis.len() > 1 {
+						panic!("idk how to do multiple phis");
+					}
+
+					if tophis.len() == 1 {
+						let tophis = tophis[0].clone();
+						let our_branch = tophis
+							.incoming_values
+							.iter()
+							.find(|pair| pair.1 == block.name)
+							.unwrap();
+
+						blockloop
+							.push(BfOp::Comment(format!("doing phi stuff")));
+						blockloop.push(BfOp::Comment(format!("{}", tophis)));
+
+						let (brval, mut o) = op_to_reg(&mut ctx, &our_branch.0);
+						blockloop.append(&mut o);
+
+						let dest = take_reg(&mut ctx, &tophis.dest);
+						blockloop.push(BfOp::Zero(dest.clone()));
+						blockloop.push(BfOp::Mov(brval, dest.clone()));
+					}
+
 					let brto = ctx
 						.layout
 						.iter()
@@ -1697,6 +1852,69 @@ fn build_func(
 						})
 						.unwrap();
 					let fals = fixed_addr(fals);
+
+					let totrublock = func
+						.basic_blocks
+						.iter()
+						.find(|bb| cbr.true_dest == bb.name)
+						.unwrap();
+
+					let totruphis = totrublock
+						.instrs
+						.iter()
+						.filter(|i| {
+							llvm_ir::instruction::Phi::try_from((*i).clone())
+								.is_ok()
+						})
+						.collect::<Vec<_>>();
+
+					if totruphis.len() > 1 {
+						panic!("idk how to do multiple phis");
+					}
+
+					if totruphis.len() == 1 {
+						panic!("idk how to do any phis");
+					}
+
+					let tofalsblock = func
+						.basic_blocks
+						.iter()
+						.find(|bb| cbr.false_dest == bb.name)
+						.unwrap();
+
+					let tofalsphis = tofalsblock
+						.instrs
+						.iter()
+						.filter_map(|i| {
+							llvm_ir::instruction::Phi::try_from((*i).clone())
+								.ok()
+						})
+						.collect::<Vec<_>>();
+
+					if tofalsphis.len() > 1 {
+						panic!("idk how to do multiple phis");
+					}
+
+					if tofalsphis.len() == 1 {
+						let tofalsphis = tofalsphis[0].clone();
+						let our_branch = tofalsphis
+							.incoming_values
+							.iter()
+							.find(|pair| pair.1 == block.name)
+							.unwrap();
+
+						blockloop
+							.push(BfOp::Comment(format!("doing phi stuff")));
+						blockloop
+							.push(BfOp::Comment(format!("{}", tofalsphis)));
+
+						let (brval, mut o) = op_to_reg(&mut ctx, &our_branch.0);
+						blockloop.append(&mut o);
+
+						let dest = take_reg(&mut ctx, &tofalsphis.dest);
+						blockloop.push(BfOp::Zero(dest.clone()));
+						blockloop.push(BfOp::Mov(brval, dest.clone()));
+					}
 
 					// TODO(turbio): hacky but well we're using the ret pad
 					// block mask as scratch cause like we'll never need it lol.

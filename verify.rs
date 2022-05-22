@@ -23,9 +23,11 @@ struct TestCase {
 	skip: Option<bool>,
 }
 
-fn compile_ir(from: &str, to: &str) -> Result<(), String> {
+fn compile_ir(flags: &str, from: &str, to: &str) -> Result<(), String> {
+	let mut args = flags.split(" ").collect::<Vec<&str>>();
+	args.append(&mut vec!["-emit-llvm", "-I", ".", "-c", from, "-o", to]);
 	let res = Command::new("clang")
-		.args(["-O0", "-emit-llvm", "-I", ".", "-c", from, "-o", to])
+		.args(args)
 		.output()
 		.map_err(|e| e.to_string())
 		.and_then(|o| match o.status.success() {
@@ -50,114 +52,154 @@ fn compile_bf(path: &Path, target: &Path) -> String {
 	code_out
 }
 
+fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
+	if env::args().len() > 1 && env::args().find(|x| x == &info.name).is_none()
+	{
+		return;
+	}
+
+	if info.skip.unwrap_or(false) {
+		println!(
+			"{}{} skip {} {}",
+			color::Fg(color::Yellow),
+			style::Invert,
+			style::Reset,
+			info.name
+		);
+		return;
+	}
+
+	print!(
+		"{}{} test {} {}",
+		color::Fg(color::LightYellow),
+		style::Invert,
+		style::Reset,
+		info.name
+	);
+	io::stdout().flush().unwrap();
+
+	let source = format!("{}", case.path().as_path().to_str().unwrap());
+	let target = format!(
+		"./tests/ir/{}.{}.bc",
+		case.file_name().into_string().unwrap(),
+		name
+	);
+
+	let cc = compile_ir(cflags, &source, &target);
+	if cc.is_err() {
+		println!(
+			"\r{}{} fail {} {}",
+			color::Fg(color::Red),
+			style::Invert,
+			style::Reset,
+			info.name
+		);
+		println!("{}", cc.unwrap_err());
+		return;
+	}
+
+	let bfout = format!(
+		"./tests/bf/{}.{}.bf",
+		case.file_name().into_string().unwrap(),
+		name
+	);
+	let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
+
+	let comp = compile(&bf_code);
+
+	let result = exec(comp);
+	if result.is_err() {
+		print!("\n");
+		println!("EXECUTE ERROR");
+		println!("{:?}", result.err().unwrap());
+		println!(
+			"{}FAIL{} {}",
+			color::Fg(color::Red),
+			style::Reset,
+			info.name,
+		);
+		return;
+	}
+
+	let result = result.unwrap();
+	if result.output != info.output {
+		print!("\n");
+		println!("OUTPUT MISMATCH");
+		println!("---");
+		println!("expected: {}", info.output);
+		println!("  actual: {}", result.output);
+		println!("---");
+		println!("source: {}", source);
+		println!("target: {}", bfout);
+		println!(
+			"{}FAIL{} {}",
+			color::Fg(color::Red),
+			style::Reset,
+			info.name,
+		);
+		return;
+	}
+
+	let mut stats = File::create(Path::new(&format!(
+		"./tests/stats/{}.{}.txt",
+		case.file_name().into_string().unwrap(),
+		name,
+	)))
+	.unwrap();
+	stats
+		.write_all(format!("steps: {}\n", result.steps).as_bytes())
+		.unwrap();
+
+	println!(
+		"\r{}{} pass {} {}",
+		color::Fg(color::Green),
+		style::Invert,
+		style::Reset,
+		info.name,
+	);
+}
+
 fn main() {
 	let mut cases = fs::read_dir("./tests/cases")
 		.unwrap()
 		.map(|r| r.unwrap())
 		.collect::<Vec<_>>();
 	cases.sort_by_key(|dir| dir.path());
-	for case in cases {
+
+	println!(
+		"{}{} test {} {}",
+		color::Fg(color::Blue),
+		style::Invert,
+		style::Reset,
+		"-O0 no opt",
+	);
+
+	for case in cases.iter() {
 		let content = fs::read_to_string(case.path()).unwrap();
 
 		let from = content.find("TEST:").unwrap() + 5;
 		let to = content[from..].find("\n").unwrap() + from;
 		let info: TestCase = serde_json::from_str(&content[from..to]).unwrap();
 
-		if env::args().len() > 1
-			&& env::args().find(|x| x == &info.name).is_none()
-		{
-			continue;
-		}
-		if info.skip.unwrap_or(false) {
-			println!(
-				"{}{} skip {} {}",
-				color::Fg(color::Black),
-				color::Bg(color::Yellow),
-				style::Reset,
-				info.name
-			);
-			continue;
-		}
+		run_test(case, info, "-O0", "o0");
+	}
 
-		print!("TEST {}", info.name);
-		io::stdout().flush().unwrap();
+	println!(
+		"{}{} test {} {}",
+		color::Fg(color::Blue),
+		style::Invert,
+		style::Reset,
+		"-O1 opt level 1",
+	);
 
-		let source = format!("{}", case.path().as_path().to_str().unwrap());
-		let target = format!(
-			"./tests/ir/{}.bc",
-			case.file_name().into_string().unwrap()
-		);
+	for case in cases.iter() {
+		let content = fs::read_to_string(case.path()).unwrap();
 
-		let cc = compile_ir(&source, &target);
-		if cc.is_err() {
-			println!(
-				"\r{}{} fail {} {}",
-				color::Fg(color::Black),
-				color::Bg(color::Red),
-				style::Reset,
-				info.name
-			);
-			println!("{}", cc.unwrap_err());
-			continue;
-		}
+		let from = content.find("TEST:").unwrap() + 5;
+		let to = content[from..].find("\n").unwrap() + from;
+		let info: TestCase = serde_json::from_str(&content[from..to]).unwrap();
 
-		let bfout = format!(
-			"./tests/bf/{}.bf",
-			case.file_name().into_string().unwrap()
-		);
-		let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
-
-		let comp = compile(&bf_code);
-
-		let result = exec(comp);
-		if result.is_err() {
-			print!("\n");
-			println!("EXECUTE ERROR");
-			println!("{:?}", result.err().unwrap());
-			println!(
-				"{}FAIL{} {}",
-				color::Fg(color::Red),
-				style::Reset,
-				info.name,
-			);
-			continue;
-		}
-
-		let result = result.unwrap();
-		if result.output != info.output {
-			print!("\n");
-			println!("OUTPUT MISMATCH");
-			println!("---");
-			println!("expected: {}", info.output);
-			println!("  actual: {}", result.output);
-			println!("---");
-			println!("source: {}", source);
-			println!("target: {}", bfout);
-			println!(
-				"{}FAIL{} {}",
-				color::Fg(color::Red),
-				style::Reset,
-				info.name,
-			);
-			continue;
-		}
-
-		let mut stats = File::create(Path::new(&format!(
-			"./tests/stats/{}.txt",
-			case.file_name().into_string().unwrap(),
-		)))
-		.unwrap();
-		stats
-			.write_all(format!("steps: {}\n", result.steps).as_bytes())
-			.unwrap();
-
-		println!(
-			"\r{}{} pass {} {}",
-			color::Fg(color::Black),
-			color::Bg(color::Green),
-			style::Reset,
-			info.name,
-		);
+		run_test(case, info, "-O1", "o1");
 	}
 }
 
