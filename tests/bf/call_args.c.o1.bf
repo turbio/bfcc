@@ -136,29 +136,29 @@ runtime init:
         [
             -
             call @call_me(i32 49_ i32 50_ i32 51)
-            op_to_reg storing const value in temp address
-            >>#constop_49
-            +++++++++++++++++++++++++++++++++++++++++++++++++
-            op_to_reg storing const value in temp address
-            >#constop_50
-            ++++++++++++++++++++++++++++++++++++++++++++++++++
-            op_to_reg storing const value in temp address
-            >#constop_51
-            +++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<#caller/%call_term_for_0
+            >#caller/%call_term_for_0
             +
             stack_width 10
             ret_pad_width 4
             copy up arg 0
             >>>>>>>>>>>#arg_0
-            m7/17 <<<<<<<<<<[->>>>>>>>>>+<<<<<<<<<<]
+            op_to_reg storing const value in temp address
+            <<<<<<<<<<#constop_49
+            +++++++++++++++++++++++++++++++++++++++++++++++++
+            m7/17 [->>>>>>>>>>+<<<<<<<<<<]
             copy up arg 1
             >>>>>>>>>#arg_1
-            m8/16 <<<<<<<<[->>>>>>>>+<<<<<<<<]
+            op_to_reg storing const value in temp address
+            <<<<<<<<#constop_50
+            ++++++++++++++++++++++++++++++++++++++++++++++++++
+            m8/16 [->>>>>>>>+<<<<<<<<]
             copy up arg 2
             >>>>>>>#arg_2
-            m9/15 <<<<<<[->>>>>>+<<<<<<]
+            op_to_reg storing const value in temp address
+            <<<<<<#constop_51
+            +++++++++++++++++++++++++++++++++++++++++++++++++++
+            m9/15 [->>>>>>+<<<<<<]
             give callee a stack pointer
             >>>>>>>>>#stack_ptr
             +++++++++++++++++

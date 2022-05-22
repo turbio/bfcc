@@ -37,14 +37,14 @@ runtime init:
         [
             -
             call @putchar(i8 104)
-            op_to_reg storing const value in temp address
-            >>#constop_104
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <#caller/%call_term_for_0
+            >#caller/%call_term_for_0
             +
             putchar intrinsic
-            >.
+            op_to_reg storing const value in temp address
+            >#constop_104
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<]
         >#B:%call_term_for_0

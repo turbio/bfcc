@@ -47,154 +47,154 @@ runtime init:
         [
             -
             call @putchar(i8 104)
-            op_to_reg storing const value in temp address
-            >>>>>>>>>>>>#constop_104
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<<<<<<<#caller/%call_term_for_0
+            >#caller/%call_term_for_0
             +
             putchar intrinsic
-            >>>>>>>>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>>>>>>>#constop_104
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<<<<<<<]
         >#B:%call_term_for_0
         [
             -
             call @putchar(i8 101)
-            op_to_reg storing const value in temp address
-            >>>>>>>>>>>>#constop_101
-            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<<<<<<<#caller/%call_term_for_1
+            >#caller/%call_term_for_1
             +
             putchar intrinsic
-            >>>>>>>>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>>>>>>>#constop_101
+            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<<<<<<<]
         >#B:%call_term_for_1
         [
             -
             call @putchar(i8 108)
-            op_to_reg storing const value in temp address
-            >>>>>>>>>>#constop_108
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<<<<<#caller/%call_term_for_2
+            >#caller/%call_term_for_2
             +
             putchar intrinsic
-            >>>>>>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>>>>>#constop_108
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<<<<<]
         >#B:%call_term_for_2
         [
             -
             call @putchar(i8 108)
-            op_to_reg storing const value in temp address
-            >>>>>>>>>#constop_108
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<<<<#caller/%call_term_for_3
+            >#caller/%call_term_for_3
             +
             putchar intrinsic
-            >>>>>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>>>>#constop_108
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<<<<]
         >#B:%call_term_for_3
         [
             -
             call @putchar(i8 111)
-            op_to_reg storing const value in temp address
-            >>>>>>>>#constop_111
-            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<<<#caller/%call_term_for_4
+            >#caller/%call_term_for_4
             +
             putchar intrinsic
-            >>>>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>>>#constop_111
+            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<<<]
         >#B:%call_term_for_4
         [
             -
             call @putchar(i8 32)
-            op_to_reg storing const value in temp address
-            >>>>>>>#constop_32
-            ++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<<#caller/%call_term_for_5
+            >#caller/%call_term_for_5
             +
             putchar intrinsic
-            >>>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>>#constop_32
+            ++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<<]
         >#B:%call_term_for_5
         [
             -
             call @putchar(i8 119)
-            op_to_reg storing const value in temp address
-            >>>>>>#constop_119
-            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<<#caller/%call_term_for_6
+            >#caller/%call_term_for_6
             +
             putchar intrinsic
-            >>>>>.
+            op_to_reg storing const value in temp address
+            >>>>>#constop_119
+            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<<]
         >#B:%call_term_for_6
         [
             -
             call @putchar(i8 111)
-            op_to_reg storing const value in temp address
-            >>>>>#constop_111
-            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<<#caller/%call_term_for_7
+            >#caller/%call_term_for_7
             +
             putchar intrinsic
-            >>>>.
+            op_to_reg storing const value in temp address
+            >>>>#constop_111
+            +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<<]
         >#B:%call_term_for_7
         [
             -
             call @putchar(i8 114)
-            op_to_reg storing const value in temp address
-            >>>>#constop_114
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<<#caller/%call_term_for_8
+            >#caller/%call_term_for_8
             +
             putchar intrinsic
-            >>>.
+            op_to_reg storing const value in temp address
+            >>>#constop_114
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<<]
         >#B:%call_term_for_8
         [
             -
             call @putchar(i8 108)
-            op_to_reg storing const value in temp address
-            >>>#constop_108
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <<#caller/%call_term_for_9
+            >#caller/%call_term_for_9
             +
             putchar intrinsic
-            >>.
+            op_to_reg storing const value in temp address
+            >>#constop_108
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<<]
         >#B:%call_term_for_9
         [
             -
             call @putchar(i8 100)
-            op_to_reg storing const value in temp address
-            >>#constop_100
-            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             enable next block when we return
-            <#caller/%call_term_for_10
+            >#caller/%call_term_for_10
             +
             putchar intrinsic
-            >.
+            op_to_reg storing const value in temp address
+            >#constop_100
+            ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            .
             [-]
         <<]
         >#B:%call_term_for_10
