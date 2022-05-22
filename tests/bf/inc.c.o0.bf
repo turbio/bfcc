@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -22,21 +22,23 @@ runtime init:
         ]
         <<<#mainloop_main
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
         >#alloc_%1
-        >#%2_F
-        >#%3_F
-        >#%4_F
-        <<<<<<<[
+        >#%2_=_load_i8*_%1__align_1
+        >#%3_=_add_i8_%2__i8_1
+        >#%4_=_load_i8*_%1__align_1
+        <<<<<<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             %1 = alloca i8_ align 1
             store i8 97_ i8* %1_ align 1
@@ -361,7 +363,8 @@ runtime init:
             >>>>.
             [-]
         <<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             ret void
             zero all function allocs

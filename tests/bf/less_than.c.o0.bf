@@ -11,7 +11,7 @@ runtime init:
 <<<[
     >#lt
     [
-        >>>#lt/RET_LANDING_PAD
+        >>>#B:%ret_lading_pad
         [
             <<<<-
             #dead_frame
@@ -32,12 +32,13 @@ runtime init:
         >#B:%10
         >#alloc_%3
         >#alloc_%4
-        >#%5_F
-        >#%6_F
-        >#%7_F
-        >#%0_F
-        >#%1_F
-        <<<<<<<<<<<<<[
+        >#%5_=_load_i32*_%3__align_4
+        >#%6_=_load_i32*_%4__align_4
+        >#%7_=_icmp_slt_i32_%5__i32_%6
+        >#%0
+        >#%1
+        <<<<<<<<<<<<<#B:%2
+        [
             -
             copy up args
             >>>>>>>>>>>>#arg_%0
@@ -391,7 +392,8 @@ runtime init:
                 #B:lt/9_false
             <<<]
         <]
-        >>[
+        >>#B:%8
+        [
             -
             call @putchar(i8 108)
             op_to_reg storing const value in temp address
@@ -404,12 +406,14 @@ runtime init:
             >>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             br label %10
             >>>+
         <<<]
-        >[
+        >#B:%9
+        [
             -
             call @putchar(i8 114)
             op_to_reg storing const value in temp address
@@ -422,12 +426,14 @@ runtime init:
             >>>>>>>>>.
             [-]
         <<<<<<<<<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             br label %10
             >+
         <]
-        >[
+        >#B:%10
+        [
             -
             ret void
             zero all function allocs
@@ -444,7 +450,7 @@ runtime init:
     <<<<<<<<]
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<<-
             #dead_frame
@@ -456,7 +462,7 @@ runtime init:
         <<<<#mainloop_main
         >#F:lt
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
@@ -479,23 +485,25 @@ runtime init:
         >#B:%20
         >#alloc_%1
         >#alloc_%2
-        >#%4_F
-        >#%5_F
-        >#%8_F
-        >#%9_F
-        >#%11_F
-        >#%12_F
-        >#%14_F
-        >#%15_F
-        >#%18_F
-        >#%19_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%4_=_load_i32*_%1__align_4
+        >#%5_=_icmp_slt_i32_%4__i32_30
+        >#%8_=_load_i32*_%2__align_4
+        >#%9_=_icmp_slt_i32_%8__i32_30
+        >#%11_=_load_i32*_%1__align_4
+        >#%12_=_load_i32*_%2__align_4
+        >#%14_=_load_i32*_%2__align_4
+        >#%15_=_add_i32_%14__i32_1
+        >#%18_=_load_i32*_%1__align_4
+        >#%19_=_add_i32_%18__i32_1
+        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             %1 = alloca i32_ align 4
             %2 = alloca i32_ align 4
@@ -539,7 +547,8 @@ runtime init:
             >>#lt/b0
             +
         >>]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             call @lt(i32 2_ i32 1)
             op_to_reg storing const value in temp address
@@ -581,7 +590,8 @@ runtime init:
             >>#lt/b0
             +
         >>>]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             call @lt(i32 3_ i32 4)
             op_to_reg storing const value in temp address
@@ -623,7 +633,8 @@ runtime init:
             >>#lt/b0
             +
         >>>>]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             call @lt(i32 3_ i32 3)
             op_to_reg storing const value in temp address
@@ -665,7 +676,8 @@ runtime init:
             >>#lt/b0
             +
         >>>>>]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             call @lt(i32 4_ i32 5)
             op_to_reg storing const value in temp address
@@ -707,7 +719,8 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             call @lt(i32 5_ i32 6)
             op_to_reg storing const value in temp address
@@ -749,7 +762,8 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>]
-        >[
+        >#B:%call_term_for_5
+        [
             -
             call @lt(i32 6_ i32 7)
             op_to_reg storing const value in temp address
@@ -791,7 +805,8 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>>]
-        >[
+        >#B:%call_term_for_6
+        [
             -
             call @lt(i32 7_ i32 8)
             op_to_reg storing const value in temp address
@@ -833,7 +848,8 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>>>]
-        >[
+        >#B:%call_term_for_7
+        [
             -
             call @putchar(i8 10)
             op_to_reg storing const value in temp address
@@ -846,7 +862,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_8
+        [
             -
             store i32 0_ i32* %1_ align 4
             op_to_reg storing const value in temp address
@@ -930,7 +947,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<<<<<<+
         <]
-        >[
+        >#B:%3
+        [
             -
             %4 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -1049,7 +1067,8 @@ runtime init:
                 #B:main/20_false
             <<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>]
-        >[
+        >#B:%6
+        [
             -
             store i32 0_ i32* %2_ align 4
             op_to_reg storing const value in temp address
@@ -1133,7 +1152,8 @@ runtime init:
             br label %7
             <<<<<<<<<<<<<<<<<<<<<<<+
         <]
-        >[
+        >#B:%7
+        [
             -
             %8 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -1252,7 +1272,8 @@ runtime init:
                 #B:main/16_false
             <<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>]
-        >[
+        >#B:%10
+        [
             -
             %11 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -1438,12 +1459,14 @@ runtime init:
             >>#lt/b0
             +
         >>>>>>>>>>>>>>>]
-        >[
+        >#B:%call_term_for_13
+        [
             -
             br label %13
             >+
         <]
-        >[
+        >#B:%13
+        [
             -
             %14 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -1608,12 +1631,14 @@ runtime init:
             br label %7
             <<<<<<<<<<<<<<<<<<<<<<+
         >>>]
-        >[
+        >#B:%16
+        [
             -
             br label %17
             >+
         <]
-        >[
+        >#B:%17
+        [
             -
             %18 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -1778,7 +1803,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>]
-        >[
+        >#B:%20
+        [
             -
             ret void
             zero all function allocs

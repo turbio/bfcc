@@ -11,7 +11,7 @@ runtime init:
 <<<<<[
     >#c
     [
-        >>>>>#c/RET_LANDING_PAD
+        >>>>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -25,17 +25,19 @@ runtime init:
         >#F:b
         >#F:a
         >#F:main
-        >#B:%no_b0_call_for_c
+        >#B:%no_block0_call_for_c
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
-        <<<[
+        <<<#B:%no_block0_call_for_c
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             call @putchar(i8 46)
             op_to_reg storing const value in temp address
@@ -48,7 +50,8 @@ runtime init:
             >.
             [-]
         <<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             ret void
             zero all function allocs
@@ -63,7 +66,7 @@ runtime init:
     <<<<<<<]
     >#b
     [
-        >>>>#b/RET_LANDING_PAD
+        >>>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -85,11 +88,12 @@ runtime init:
         >#B:%6
         >#B:%9
         >#alloc_%1
-        >#%3_F
-        >#%4_F
-        >#%7_F
-        >#%8_F
-        <<<<<<<<<<<[
+        >#%3_=_load_i32*_%1__align_4
+        >#%4_=_icmp_slt_i32_%3__i32_2
+        >#%7_=_load_i32*_%1__align_4
+        >#%8_=_add_i32_%7__i32_1
+        <<<<<<<<<<<#B:%0
+        [
             -
             copy up args
             %1 = alloca i32_ align 4
@@ -175,7 +179,8 @@ runtime init:
             br label %2
             <<<<<<<<<<<<<<+
         <<]
-        >>[
+        >>#B:%2
+        [
             -
             %3 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -294,7 +299,8 @@ runtime init:
                 #B:b/9_false
             <<<<<]
         >]
-        >[
+        >#B:%5
+        [
             -
             call @c()
             enable next block when we return
@@ -324,12 +330,14 @@ runtime init:
             >>>>#c/b0
             +
         >>>]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             br label %6
             >+
         <]
-        >[
+        >#B:%6
+        [
             -
             %7 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -494,7 +502,8 @@ runtime init:
             br label %2
             <<<<<<<<<<<<<+
         >>>]
-        >[
+        >#B:%9
+        [
             -
             ret void
             zero all function allocs
@@ -510,7 +519,7 @@ runtime init:
     <<<<<<<<<]
     >#a
     [
-        >>>#a/RET_LANDING_PAD
+        >>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -532,11 +541,12 @@ runtime init:
         >#B:%6
         >#B:%9
         >#alloc_%1
-        >#%3_F
-        >#%4_F
-        >#%7_F
-        >#%8_F
-        <<<<<<<<<<<[
+        >#%3_=_load_i32*_%1__align_4
+        >#%4_=_icmp_slt_i32_%3__i32_2
+        >#%7_=_load_i32*_%1__align_4
+        >#%8_=_add_i32_%7__i32_1
+        <<<<<<<<<<<#B:%0
+        [
             -
             copy up args
             %1 = alloca i32_ align 4
@@ -622,7 +632,8 @@ runtime init:
             br label %2
             <<<<<<<<<<<<<<+
         <<]
-        >>[
+        >>#B:%2
+        [
             -
             %3 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -741,7 +752,8 @@ runtime init:
                 #B:a/9_false
             <<<<<]
         >]
-        >[
+        >#B:%5
+        [
             -
             call @b()
             enable next block when we return
@@ -771,12 +783,14 @@ runtime init:
             >>>#b/b0
             +
         >>>]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             br label %6
             >+
         <]
-        >[
+        >#B:%6
+        [
             -
             %7 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -941,7 +955,8 @@ runtime init:
             br label %2
             <<<<<<<<<<<<<+
         >>>]
-        >[
+        >#B:%9
+        [
             -
             ret void
             zero all function allocs
@@ -957,7 +972,7 @@ runtime init:
     <<<<<<<<]
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -971,17 +986,19 @@ runtime init:
         >#F:b
         >#F:a
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
-        <<<[
+        <<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             call @a()
             enable next block when we return
@@ -1011,7 +1028,8 @@ runtime init:
             >>#a/b0
             +
         >>]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             ret void
             zero all function allocs

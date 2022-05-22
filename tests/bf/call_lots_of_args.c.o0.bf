@@ -11,7 +11,7 @@ runtime init:
 <<<<<[
     >#three_args
     [
-        >>>>>#three_args/RET_LANDING_PAD
+        >>>>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -25,7 +25,7 @@ runtime init:
         >#F:five_args
         >#F:twelve_args
         >#F:main
-        >#B:%no_b0_call_for_three_args
+        >#B:%no_block0_call_for_three_args
         >#B:%ret_lading_pad
         >#B:%3
         >#B:%call_term_for_0
@@ -34,16 +34,17 @@ runtime init:
         >#alloc_%4
         >#alloc_%5
         >#alloc_%6
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        >#%12_F
-        >#%0_F
-        >#%1_F
-        >#%2_F
-        <<<<<<<<<<<<<<<<<[
+        >#%7_=_load_i32*_%4__align_4
+        >#%8_=_trunc_i32_%7_to_i8
+        >#%9_=_load_i32*_%5__align_4
+        >#%10_=_trunc_i32_%9_to_i8
+        >#%11_=_load_i32*_%6__align_4
+        >#%12_=_trunc_i32_%11_to_i8
+        >#%0
+        >#%1
+        >#%2
+        <<<<<<<<<<<<<<<<<#B:%no_block0_call_for_three_args
+        [
             -
             copy up args
             >>>>>>>>>>>>>>>#arg_%0
@@ -61,7 +62,8 @@ runtime init:
             br label %3
             >>>>>>>+
         <<]
-        >>[
+        >>#B:%3
+        [
             -
             %4 = alloca i32_ align 4
             %5 = alloca i32_ align 4
@@ -379,7 +381,8 @@ runtime init:
             >>>>>>>.
             [-]
         <<<<<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %9 = load i32* %5_ align 4
             op_to_reg storing pointer value in temp address
@@ -466,7 +469,8 @@ runtime init:
             >>>>>>>>.
             [-]
         <<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %11 = load i32* %6_ align 4
             op_to_reg storing pointer value in temp address
@@ -553,7 +557,8 @@ runtime init:
             >>>>>>>>>.
             [-]
         <<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             ret void
             zero all function allocs
@@ -571,7 +576,7 @@ runtime init:
     <<<<<<<<<]
     >#five_args
     [
-        >>>>#five_args/RET_LANDING_PAD
+        >>>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -585,7 +590,7 @@ runtime init:
         >#F:five_args
         >#F:twelve_args
         >#F:main
-        >#B:%no_b0_call_for_five_args
+        >#B:%no_block0_call_for_five_args
         >#B:%ret_lading_pad
         >#B:%5
         >#B:%call_term_for_0
@@ -598,22 +603,23 @@ runtime init:
         >#alloc_%8
         >#alloc_%9
         >#alloc_%10
-        >#%11_F
-        >#%12_F
-        >#%13_F
-        >#%14_F
-        >#%15_F
-        >#%16_F
-        >#%17_F
-        >#%18_F
-        >#%19_F
-        >#%20_F
-        >#%0_F
-        >#%1_F
-        >#%2_F
-        >#%3_F
-        >#%4_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%11_=_load_i32*_%6__align_4
+        >#%12_=_trunc_i32_%11_to_i8
+        >#%13_=_load_i32*_%7__align_4
+        >#%14_=_trunc_i32_%13_to_i8
+        >#%15_=_load_i32*_%8__align_4
+        >#%16_=_trunc_i32_%15_to_i8
+        >#%17_=_load_i32*_%9__align_4
+        >#%18_=_trunc_i32_%17_to_i8
+        >#%19_=_load_i32*_%10__align_4
+        >#%20_=_trunc_i32_%19_to_i8
+        >#%0
+        >#%1
+        >#%2
+        >#%3
+        >#%4
+        <<<<<<<<<<<<<<<<<<<<<<<<<<<#B:%no_block0_call_for_five_args
+        [
             -
             copy up args
             >>>>>>>>>>>>>>>>>>>>>>>#arg_%0
@@ -639,7 +645,8 @@ runtime init:
             br label %5
             >>>>>>>+
         <<]
-        >>[
+        >>#B:%5
+        [
             -
             %6 = alloca i32_ align 4
             %7 = alloca i32_ align 4
@@ -1111,7 +1118,8 @@ runtime init:
             >>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %13 = load i32* %7_ align 4
             op_to_reg storing pointer value in temp address
@@ -1198,7 +1206,8 @@ runtime init:
             >>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %15 = load i32* %8_ align 4
             op_to_reg storing pointer value in temp address
@@ -1285,7 +1294,8 @@ runtime init:
             >>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             %17 = load i32* %9_ align 4
             op_to_reg storing pointer value in temp address
@@ -1372,7 +1382,8 @@ runtime init:
             >>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             %19 = load i32* %10_ align 4
             op_to_reg storing pointer value in temp address
@@ -1459,7 +1470,8 @@ runtime init:
             >>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             ret void
             zero all function allocs
@@ -1479,7 +1491,7 @@ runtime init:
     <<<<<<<<<<]
     >#twelve_args
     [
-        >>>#twelve_args/RET_LANDING_PAD
+        >>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -1493,7 +1505,7 @@ runtime init:
         >#F:five_args
         >#F:twelve_args
         >#F:main
-        >#B:%no_b0_call_for_twelve_args
+        >#B:%no_block0_call_for_twelve_args
         >#B:%ret_lading_pad
         >#B:%12
         >#B:%call_term_for_0
@@ -1514,35 +1526,36 @@ runtime init:
         >#alloc_%22
         >#alloc_%23
         >#alloc_%24
-        >#%25_F
-        >#%26_F
-        >#%27_F
-        >#%28_F
-        >#%29_F
-        >#%30_F
-        >#%31_F
-        >#%32_F
-        >#%33_F
-        >#%34_F
-        >#%35_F
-        >#%36_F
-        >#%37_F
-        >#%38_F
-        >#%39_F
-        >#%40_F
-        >#%0_F
-        >#%1_F
-        >#%2_F
-        >#%3_F
-        >#%4_F
-        >#%5_F
-        >#%6_F
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%25_=_load_i32*_%13__align_4
+        >#%26_=_load_i32*_%14__align_4
+        >#%27_=_load_i32*_%15__align_4
+        >#%28_=_load_i32*_%16__align_4
+        >#%29_=_load_i32*_%17__align_4
+        >#%30_=_load_i32*_%18__align_4
+        >#%31_=_load_i32*_%19__align_4
+        >#%32_=_load_i32*_%20__align_4
+        >#%33_=_load_i32*_%21__align_4
+        >#%34_=_trunc_i32_%33_to_i8
+        >#%35_=_load_i32*_%22__align_4
+        >#%36_=_trunc_i32_%35_to_i8
+        >#%37_=_load_i32*_%23__align_4
+        >#%38_=_trunc_i32_%37_to_i8
+        >#%39_=_load_i32*_%24__align_4
+        >#%40_=_trunc_i32_%39_to_i8
+        >#%0
+        >#%1
+        >#%2
+        >#%3
+        >#%4
+        >#%5
+        >#%6
+        >#%7
+        >#%8
+        >#%9
+        >#%10
+        >#%11
+        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:%no_block0_call_for_twelve_args
+        [
             -
             copy up args
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#arg_%0
@@ -1596,7 +1609,8 @@ runtime init:
             br label %12
             >>>>>>>+
         <<]
-        >>[
+        >>#B:%12
+        [
             -
             %13 = alloca i32_ align 4
             %14 = alloca i32_ align 4
@@ -2784,7 +2798,8 @@ runtime init:
             >>>>#three_args/b0
             +
         >>]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %28 = load i32* %16_ align 4
             op_to_reg storing pointer value in temp address
@@ -3204,7 +3219,8 @@ runtime init:
             >>>#five_args/b0
             +
         >>>]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %33 = load i32* %21_ align 4
             op_to_reg storing pointer value in temp address
@@ -3291,7 +3307,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             %35 = load i32* %22_ align 4
             op_to_reg storing pointer value in temp address
@@ -3378,7 +3395,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             %37 = load i32* %23_ align 4
             op_to_reg storing pointer value in temp address
@@ -3465,7 +3483,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             %39 = load i32* %24_ align 4
             op_to_reg storing pointer value in temp address
@@ -3552,7 +3571,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_5
+        [
             -
             ret void
             zero all function allocs
@@ -3579,7 +3599,7 @@ runtime init:
     <<<<<<<<<<]
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -3593,7 +3613,7 @@ runtime init:
         >#F:five_args
         >#F:twelve_args
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
@@ -3601,13 +3621,15 @@ runtime init:
         >#B:%call_term_for_2
         >#B:%call_term_for_3
         >#B:%call_term_for_4
-        <<<<<<<[
+        <<<<<<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             call @three_args(i32 79_ i32 119_ i32 79)
             op_to_reg storing const value in temp address
@@ -3655,7 +3677,8 @@ runtime init:
             >>>>#three_args/b0
             +
         >>]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             call @putchar(i8 10)
             op_to_reg storing const value in temp address
@@ -3668,7 +3691,8 @@ runtime init:
             >>>>.
             [-]
         <<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             call @five_args(i32 122_ i32 97_ i32 100_ i32 100_ i32 121)
             op_to_reg storing const value in temp address
@@ -3728,7 +3752,8 @@ runtime init:
             >>>#five_args/b0
             +
         >>>>]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             call @putchar(i8 10)
             op_to_reg storing const value in temp address
@@ -3741,7 +3766,8 @@ runtime init:
             >>.
             [-]
         <<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             call @twelve_args(i32 108_ i32 109_ i32 97_ i32 111_ i32 109_ i32 121_ i32 100_ i32 117_ i32 100_ i32 101_ i32 33_ i32 63)
             op_to_reg storing const value in temp address
@@ -3843,7 +3869,8 @@ runtime init:
             >>#twelve_args/b0
             +
         >>>>>>]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             ret void
             zero all function allocs

@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -35,14 +35,15 @@ runtime init:
         >#B:%14
         >#alloc_%1
         >#alloc_%2
-        >#%3_F
-        >#%4_F
-        >#%5_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%15_F
-        <<<<<<<<<<<<<<<<<<<[
+        >#%3_=_load_i8*_%2__align_1
+        >#%4_=_zext_i8_%3_to_i32
+        >#%5_=_icmp_eq_i32_%4__i32_97
+        >#%8_=_load_i8*_%2__align_1
+        >#%9_=_zext_i8_%8_to_i32
+        >#%10_=_icmp_eq_i32_%9__i32_98
+        >#%15_=_load_i32*_%1__align_4
+        <<<<<<<<<<<<<<<<<<<#B:%0
+        [
             -
             copy up args
             %1 = alloca i32_ align 4
@@ -329,7 +330,8 @@ runtime init:
                 #B:main/7_false
             <<<]
         <]
-        >>[
+        >>#B:%6
+        [
             -
             call @putchar(i8 120)
             op_to_reg storing const value in temp address
@@ -342,12 +344,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             br label %14
             >>>>>>>+
         <<<<<<<]
-        >[
+        >#B:%7
+        [
             -
             %8 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -473,7 +477,8 @@ runtime init:
                 #B:main/12_false
             <<<<<<]
         >>>]
-        >[
+        >#B:%11
+        [
             -
             call @putchar(i8 121)
             op_to_reg storing const value in temp address
@@ -486,12 +491,14 @@ runtime init:
             >>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             br label %13
             >>>+
         <<<]
-        >[
+        >#B:%12
+        [
             -
             call @putchar(i8 122)
             op_to_reg storing const value in temp address
@@ -504,17 +511,20 @@ runtime init:
             >>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_6
+        [
             -
             br label %13
             >+
         <]
-        >[
+        >#B:%13
+        [
             -
             br label %14
             >+
         <]
-        >[
+        >#B:%14
+        [
             -
             %15 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address

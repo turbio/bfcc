@@ -125,7 +125,7 @@ fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 		}
 
 		let nextn = llvm_ir::Name::Name(Box::new(format!(
-			"no_b0_call_for_{}",
+			"no_block0_call_for_{}",
 			func.name
 		)));
 
@@ -993,17 +993,19 @@ fn build_and(
 
 	let dest = ret.unwrap();
 
-	vec![BfOp::Loop(
-		op0.clone(),
-		vec![
-			BfOp::Zero(op0.clone()),
-			BfOp::Loop(
-				op1.clone(),
-				vec![BfOp::Zero(op1.clone()), BfOp::AddI(dest.clone(), 1)],
-			),
-			BfOp::Zero(op1.clone()),
-		],
-	)]
+	vec![
+		BfOp::Loop(
+			op0.clone(),
+			vec![
+				BfOp::Zero(op0.clone()),
+				BfOp::Loop(
+					op1.clone(),
+					vec![BfOp::Zero(op1.clone()), BfOp::AddI(dest.clone(), 1)],
+				),
+			],
+		),
+		BfOp::Zero(op1.clone()),
+	]
 }
 
 fn build_add(
@@ -1397,6 +1399,39 @@ fn instr_consumes<'i>(
 		.collect()
 }
 
+fn consumed_op_to_reg(
+	ctx: &mut Ctx,
+	operand: &llvm_ir::Operand,
+	multi_use: &Vec<&llvm_ir::Name>,
+) -> (Addr, Vec<BfOp>) {
+	match operand {
+		llvm_ir::Operand::LocalOperand { name, ty } => {
+			if multi_use.contains(&name) {
+				let tmp = borrow_reg(ctx, 1);
+				let consumable = borrow_reg(ctx, 1);
+
+				let (nonconsumable, o) = op_to_reg(ctx, operand);
+				assert!(o.len() == 0, "{:?}", o);
+
+				(
+					consumable.clone(),
+					vec![
+						BfOp::Dup(
+							nonconsumable.clone(),
+							tmp.clone(),
+							consumable.clone(),
+						),
+						BfOp::Mov(tmp.clone(), nonconsumable.clone()),
+					],
+				)
+			} else {
+				op_to_reg(ctx, operand)
+			}
+		}
+		_ => op_to_reg(ctx, operand),
+	}
+}
+
 fn instr_opers<'i>(
 	ctx: &Ctx,
 	i: &'i llvm_ir::Instruction,
@@ -1606,7 +1641,7 @@ fn build_func(
 	// can't fall into our own landing pad.
 	funcloop.push(BfOp::Tag(
 		retpad_addr.clone(),
-		format!("{}/RET_LANDING_PAD", func.name),
+		format!("B:{}", ret_landing_pad),
 	));
 
 	// lil block to move left. kill mainloop, func, block and then skedaddle.
@@ -1638,9 +1673,28 @@ fn build_func(
 				fixed_addr(i),
 				format!("mainloop_{}", func.name),
 			)),
-			Cell::Reg { n, .. } => {
-				funcloop.push(BfOp::Tag(fixed_addr(i), format!("{}_F", n)))
-			}
+			Cell::Reg { n, multi_use } => funcloop.push(BfOp::Tag(
+				fixed_addr(i),
+				format!(
+					"{}{}",
+					func.basic_blocks // o lort
+						.iter()
+						.filter_map(|bb| bb
+							.instrs
+							.iter()
+							.filter(|i| i
+								.try_get_result()
+								.filter(|r| r == &n)
+								.is_some())
+							.next())
+						.next()
+						.map_or(format!("{}", n), |i| format!("{}", i)),
+					match multi_use {
+						true => "(mult)",
+						false => "",
+					}
+				),
+			)),
 			Cell::Borrowed(n) => panic!("how??"),
 			Cell::Free => panic!("how??"),
 		}
@@ -1680,35 +1734,8 @@ fn build_func(
 
 			let oper_addrs: Vec<(Addr, Vec<BfOp>)> = instr_opers(&ctx, &instr)
 				.iter()
-				.map(|operand| match operand {
-					llvm_ir::Operand::LocalOperand { name, ty } => {
-						if multi_use.contains(&name) {
-							let tmp = borrow_reg(&mut ctx, 1);
-							let consumable = borrow_reg(&mut ctx, 1);
-
-							let (nonconsumable, o) =
-								op_to_reg(&mut ctx, operand);
-							assert!(o.len() == 0, "{:?}", o);
-
-							(
-								consumable.clone(),
-								vec![
-									BfOp::Dup(
-										nonconsumable.clone(),
-										tmp.clone(),
-										consumable.clone(),
-									),
-									BfOp::Mov(
-										tmp.clone(),
-										nonconsumable.clone(),
-									),
-								],
-							)
-						} else {
-							op_to_reg(&mut ctx, operand)
-						}
-					}
-					_ => op_to_reg(&mut ctx, operand),
+				.map(|operand| {
+					consumed_op_to_reg(&mut ctx, operand, &multi_use)
 				})
 				.collect();
 
@@ -1804,7 +1831,20 @@ fn build_func(
 							.push(BfOp::Comment(format!("doing phi stuff")));
 						blockloop.push(BfOp::Comment(format!("{}", tophis)));
 
-						let (brval, mut o) = op_to_reg(&mut ctx, &our_branch.0);
+						match &our_branch.0 {
+							llvm_ir::Operand::LocalOperand { name, ty } => {
+								if multi_use.contains(&name) {
+									panic!("yeek");
+								}
+							}
+							_ => {}
+						}
+
+						let (brval, mut o) = consumed_op_to_reg(
+							&mut ctx,
+							&our_branch.0,
+							&multi_use,
+						);
 						blockloop.append(&mut o);
 
 						let dest = take_reg(&mut ctx, &tophis.dest);
@@ -1908,7 +1948,11 @@ fn build_func(
 						blockloop
 							.push(BfOp::Comment(format!("{}", tofalsphis)));
 
-						let (brval, mut o) = op_to_reg(&mut ctx, &our_branch.0);
+						let (brval, mut o) = consumed_op_to_reg(
+							&mut ctx,
+							&our_branch.0,
+							&multi_use,
+						);
 						blockloop.append(&mut o);
 
 						let dest = take_reg(&mut ctx, &tofalsphis.dest);
@@ -1999,7 +2043,8 @@ fn build_func(
 			};
 		}
 
-		funcloop.push(BfOp::Loop(fixed_addr(bid), blockloop))
+		funcloop.push(BfOp::Tag(fixed_addr(bid), format!("B:{}", block.name)));
+		funcloop.push(BfOp::Loop(fixed_addr(bid), blockloop));
 	}
 
 	let mut i = ctx.layout.len() + 10;
@@ -2191,7 +2236,11 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 			let s: String = s
 				.chars()
 				.map(|x| match x {
-					'+' | '-' | '<' | '>' | '.' | ',' | '[' | ']' | ' ' => '_',
+					'+' | '-' | '.' | ',' | ' ' => '_',
+					'<' => '(',
+					'>' => ')',
+					'[' => '{',
+					']' => '}',
 					_ => x,
 				})
 				.collect();

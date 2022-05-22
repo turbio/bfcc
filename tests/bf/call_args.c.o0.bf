@@ -11,7 +11,7 @@ runtime init:
 <<<[
     >#call_me
     [
-        >>>#call_me/RET_LANDING_PAD
+        >>>#B:%ret_lading_pad
         [
             <<<<-
             #dead_frame
@@ -23,7 +23,7 @@ runtime init:
         <<<<#mainloop_call_me
         >#F:call_me
         >#F:main
-        >#B:%no_b0_call_for_call_me
+        >#B:%no_block0_call_for_call_me
         >#B:%ret_lading_pad
         >#B:%3
         >#B:%call_term_for_0
@@ -32,16 +32,17 @@ runtime init:
         >#alloc_%4
         >#alloc_%5
         >#alloc_%6
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        >#%12_F
-        >#%0_F
-        >#%1_F
-        >#%2_F
-        <<<<<<<<<<<<<<<<<[
+        >#%7_=_load_i32*_%4__align_4
+        >#%8_=_trunc_i32_%7_to_i8
+        >#%9_=_load_i32*_%5__align_4
+        >#%10_=_trunc_i32_%9_to_i8
+        >#%11_=_load_i32*_%6__align_4
+        >#%12_=_trunc_i32_%11_to_i8
+        >#%0
+        >#%1
+        >#%2
+        <<<<<<<<<<<<<<<<<#B:%no_block0_call_for_call_me
+        [
             -
             copy up args
             >>>>>>>>>>>>>>>#arg_%0
@@ -59,7 +60,8 @@ runtime init:
             br label %3
             >>>>>+
         <<]
-        >>[
+        >>#B:%3
+        [
             -
             %4 = alloca i32_ align 4
             %5 = alloca i32_ align 4
@@ -377,7 +379,8 @@ runtime init:
             >>>>>>>.
             [-]
         <<<<<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %9 = load i32* %5_ align 4
             op_to_reg storing pointer value in temp address
@@ -464,7 +467,8 @@ runtime init:
             >>>>>>>>.
             [-]
         <<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %11 = load i32* %6_ align 4
             op_to_reg storing pointer value in temp address
@@ -551,7 +555,8 @@ runtime init:
             >>>>>>>>>.
             [-]
         <<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             ret void
             zero all function allocs
@@ -569,7 +574,7 @@ runtime init:
     <<<<<<<]
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<<-
             #dead_frame
@@ -581,17 +586,19 @@ runtime init:
         <<<<#mainloop_main
         >#F:call_me
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
-        <<<[
+        <<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             call @call_me(i32 49_ i32 50_ i32 51)
             op_to_reg storing const value in temp address
@@ -639,7 +646,8 @@ runtime init:
             >>#call_me/b0
             +
         >>]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             ret void
             zero all function allocs

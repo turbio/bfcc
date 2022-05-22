@@ -11,7 +11,7 @@ runtime init:
 <<<<<[
     >#deref_int_inc
     [
-        >>>>>#deref_int_inc/RET_LANDING_PAD
+        >>>>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -28,13 +28,14 @@ runtime init:
         >#B:%1
         >#B:%ret_lading_pad
         >#alloc_%2
-        >#%3_F
-        >#%4_F
-        >#%5_F
-        >#%6_F
-        >#%7_F
-        >#%0_F
-        <<<<<<<<[
+        >#%3_=_load_i8*_%2__align_1
+        >#%4_=_zext_i8_%3_to_i64
+        >#%5_=_inttoptr_i64_%4_to_i32*(mult)
+        >#%6_=_load_i32*_%5__align_4
+        >#%7_=_add_i32_%6__i32_1
+        >#%0
+        <<<<<<<<#B:%1
+        [
             -
             copy up args
             >>>>>>>>#arg_%0
@@ -361,7 +362,7 @@ runtime init:
     <<<<]
     >#deref_int_inc2
     [
-        >>>>#deref_int_inc2/RET_LANDING_PAD
+        >>>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -378,16 +379,17 @@ runtime init:
         >#B:%1
         >#B:%ret_lading_pad
         >#alloc_%2
-        >#%3_F
-        >#%4_F
-        >#%5_F
-        >#%6_F
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%0_F
-        <<<<<<<<<<<[
+        >#%3_=_load_i8*_%2__align_1
+        >#%4_=_zext_i8_%3_to_i64
+        >#%5_=_inttoptr_i64_%4_to_i32*
+        >#%6_=_load_i32*_%5__align_4
+        >#%7_=_add_i32_%6__i32_1
+        >#%8_=_load_i8*_%2__align_1
+        >#%9_=_zext_i8_%8_to_i64
+        >#%10_=_inttoptr_i64_%9_to_i32*
+        >#%0
+        <<<<<<<<<<<#B:%1
+        [
             -
             copy up args
             >>>>>>>>>>>#arg_%0
@@ -787,7 +789,7 @@ runtime init:
     <<<]
     >#deref_int
     [
-        >>>#deref_int/RET_LANDING_PAD
+        >>>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -801,18 +803,19 @@ runtime init:
         >#F:deref_int_inc2
         >#F:deref_int
         >#F:main
-        >#B:%no_b0_call_for_deref_int
+        >#B:%no_block0_call_for_deref_int
         >#B:%ret_lading_pad
         >#B:%1
         >#B:%call_term_for_0
         >#alloc_%2
-        >#%3_F
-        >#%4_F
-        >#%5_F
-        >#%6_F
-        >#%7_F
-        >#%0_F
-        <<<<<<<<<<[
+        >#%3_=_load_i8*_%2__align_1
+        >#%4_=_zext_i8_%3_to_i64
+        >#%5_=_inttoptr_i64_%4_to_i32*
+        >#%6_=_load_i32*_%5__align_4
+        >#%7_=_trunc_i32_%6_to_i8
+        >#%0
+        <<<<<<<<<<#B:%no_block0_call_for_deref_int
+        [
             -
             copy up args
             >>>>>>>>>>#arg_%0
@@ -822,7 +825,8 @@ runtime init:
             br label %1
             >>>>>>>+
         <<]
-        >>[
+        >>#B:%1
+        [
             -
             %2 = alloca i8_ align 1
             store i8 %0_ i8* %2_ align 1
@@ -1057,7 +1061,8 @@ runtime init:
             >>>>>>.
             [-]
         <<<<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             ret void
             zero all function allocs
@@ -1073,7 +1078,7 @@ runtime init:
     <<<<<]
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<<<<-
             #dead_frame
@@ -1087,23 +1092,25 @@ runtime init:
         >#F:deref_int_inc2
         >#F:deref_int
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
         >#B:%call_term_for_1
         >#B:%call_term_for_2
         >#alloc_%1
-        >#%2_F
-        >#%3_F
-        >#%4_F
-        <<<<<<<<<[
+        >#%2_=_ptrtoint_i32*_%1_to_i8
+        >#%3_=_ptrtoint_i32*_%1_to_i8
+        >#%4_=_ptrtoint_i32*_%1_to_i8
+        <<<<<<<<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             %1 = alloca i32_ align 4
             store i32 97_ i32* %1_ align 4
@@ -1226,7 +1233,8 @@ runtime init:
             >>#deref_int/b0
             +
         >>]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %3 = ptrtoint i32* %1 to i8
             op_to_reg storing pointer value in temp address
@@ -1269,7 +1277,8 @@ runtime init:
             >>>>#deref_int_inc/b0
             +
         >>>]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %4 = ptrtoint i32* %1 to i8
             op_to_reg storing pointer value in temp address
@@ -1312,7 +1321,8 @@ runtime init:
             >>#deref_int/b0
             +
         >>>>]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             ret void
             zero all function allocs

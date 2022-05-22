@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -35,21 +35,22 @@ runtime init:
         >#B:%21
         >#alloc_%1
         >#alloc_%2
-        >#%4_F
-        >#%5_F
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        >#%12_F
-        >#%13_F
-        >#%17_F
-        >#%18_F
-        >#%19_F
-        >#%20_F
-        >#%22_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%4_=_load_i8*_%2__align_1
+        >#%5_=_icmp_ne_i8_%4__i8_0
+        >#%7_=_load_i8*_%2__align_1
+        >#%8_=_zext_i8_%7_to_i32
+        >#%9_=_add_i32_48__i32_%8
+        >#%10_=_trunc_i32_%9_to_i8
+        >#%11_=_load_i8*_%2__align_1
+        >#%12_=_zext_i8_%11_to_i32
+        >#%13_=_icmp_ne_i32_%12__i32_1
+        >#%17_=_load_i8*_%2__align_1
+        >#%18_=_zext_i8_%17_to_i32
+        >#%19_=_sub_i32_%18__i32_1
+        >#%20_=_trunc_i32_%19_to_i8
+        >#%22_=_load_i32*_%1__align_4
+        <<<<<<<<<<<<<<<<<<<<<<<<<<#B:%0
+        [
             -
             copy up args
             %1 = alloca i32_ align 4
@@ -215,7 +216,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         <<]
-        >>[
+        >>#B:%3
+        [
             -
             %4 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -338,7 +340,8 @@ runtime init:
                 #B:main/21_false
             <<<<<<<<<]
         >]
-        >[
+        >#B:%6
+        [
             -
             %7 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -436,7 +439,8 @@ runtime init:
             >>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             %11 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -561,7 +565,8 @@ runtime init:
                 #B:main/15_false
             <<<<<<<]
         >>>]
-        >[
+        >#B:%14
+        [
             -
             call @putchar(i8 44)
             op_to_reg storing const value in temp address
@@ -574,7 +579,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             call @putchar(i8 32)
             op_to_reg storing const value in temp address
@@ -587,17 +593,20 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_5
+        [
             -
             br label %15
             >+
         <]
-        >[
+        >#B:%15
+        [
             -
             br label %16
             >+
         <]
-        >[
+        >#B:%16
+        [
             -
             %17 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -766,7 +775,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>]
-        >[
+        >#B:%21
+        [
             -
             %22 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address

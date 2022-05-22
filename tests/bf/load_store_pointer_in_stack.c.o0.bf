@@ -11,7 +11,7 @@ runtime init:
 <<<[
     >#another_stack
     [
-        >>>#another_stack/RET_LANDING_PAD
+        >>>#B:%ret_lading_pad
         [
             <<<<-
             #dead_frame
@@ -23,7 +23,7 @@ runtime init:
         <<<<#mainloop_another_stack
         >#F:another_stack
         >#F:main
-        >#B:%no_b0_call_for_another_stack
+        >#B:%no_block0_call_for_another_stack
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
@@ -36,44 +36,46 @@ runtime init:
         >#alloc_%3
         >#alloc_%4
         >#alloc_%5
-        >#%6_F
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        >#%12_F
-        >#%13_F
-        >#%14_F
-        >#%15_F
-        >#%16_F
-        >#%17_F
-        >#%18_F
-        >#%19_F
-        >#%20_F
-        >#%21_F
-        >#%22_F
-        >#%23_F
-        >#%24_F
-        >#%25_F
-        >#%26_F
-        >#%27_F
-        >#%28_F
-        >#%29_F
-        >#%30_F
-        >#%31_F
-        >#%32_F
-        >#%33_F
-        >#%34_F
-        >#%35_F
-        >#%36_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%6_=_ptrtoint_i32*_%1_to_i8
+        >#%7_=_load_i8*_%2__align_1
+        >#%8_=_zext_i8_%7_to_i32
+        >#%9_=_icmp_sgt_i32_%8__i32_0
+        >#%10_=_zext_i1_%9_to_i32
+        >#%11_=_add_i32_65__i32_%10
+        >#%12_=_trunc_i32_%11_to_i8
+        >#%13_=_ptrtoint_i32*_%1_to_i8
+        >#%14_=_zext_i8_%13_to_i32
+        >#%15_=_load_i8*_%2__align_1
+        >#%16_=_zext_i8_%15_to_i32
+        >#%17_=_icmp_eq_i32_%14__i32_%16
+        >#%18_=_zext_i1_%17_to_i32
+        >#%19_=_add_i32_65__i32_%18
+        >#%20_=_trunc_i32_%19_to_i8
+        >#%21_=_load_i8*_%2__align_1
+        >#%22_=_zext_i8_%21_to_i64
+        >#%23_=_inttoptr_i64_%22_to_i32*
+        >#%24_=_icmp_eq_i32*_%1__i32*_%23
+        >#%25_=_zext_i1_%24_to_i32
+        >#%26_=_add_i32_65__i32_%25
+        >#%27_=_trunc_i32_%26_to_i8
+        >#%28_=_load_i32**_%3__align_8
+        >#%29_=_load_i32*_%28__align_4
+        >#%30_=_load_i32*_%4__align_4
+        >#%31_=_trunc_i32_%30_to_i8
+        >#%32_=_load_i32**_%3__align_8
+        >#%33_=_load_i32**_%3__align_8
+        >#%34_=_load_i32*_%33__align_4
+        >#%35_=_load_i32*_%5__align_4
+        >#%36_=_trunc_i32_%35_to_i8
+        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:%no_block0_call_for_another_stack
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             %1 = alloca i32_ align 4
             %2 = alloca i8_ align 1
@@ -455,7 +457,8 @@ runtime init:
             >>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %13 = ptrtoint i32* %1 to i8
             op_to_reg storing pointer value in temp address
@@ -597,7 +600,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %21 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -737,7 +741,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             %28 = load i32** %3_ align 8
             op_to_reg storing pointer value in temp address
@@ -1042,7 +1047,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             %32 = load i32** %3_ align 8
             op_to_reg storing pointer value in temp address
@@ -1493,7 +1499,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             ret void
             zero all function allocs
@@ -1513,7 +1520,7 @@ runtime init:
     <<<<<<<<<]
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<<-
             #dead_frame
@@ -1525,7 +1532,7 @@ runtime init:
         <<<<#mainloop_main
         >#F:another_stack
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
@@ -1539,44 +1546,46 @@ runtime init:
         >#alloc_%3
         >#alloc_%4
         >#alloc_%5
-        >#%6_F
-        >#%7_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        >#%12_F
-        >#%13_F
-        >#%14_F
-        >#%15_F
-        >#%16_F
-        >#%17_F
-        >#%18_F
-        >#%19_F
-        >#%20_F
-        >#%21_F
-        >#%22_F
-        >#%23_F
-        >#%24_F
-        >#%25_F
-        >#%26_F
-        >#%27_F
-        >#%28_F
-        >#%29_F
-        >#%30_F
-        >#%31_F
-        >#%32_F
-        >#%33_F
-        >#%34_F
-        >#%35_F
-        >#%36_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%6_=_ptrtoint_i32*_%1_to_i8
+        >#%7_=_load_i8*_%2__align_1
+        >#%8_=_zext_i8_%7_to_i32
+        >#%9_=_icmp_sgt_i32_%8__i32_0
+        >#%10_=_zext_i1_%9_to_i32
+        >#%11_=_add_i32_65__i32_%10
+        >#%12_=_trunc_i32_%11_to_i8
+        >#%13_=_ptrtoint_i32*_%1_to_i8
+        >#%14_=_zext_i8_%13_to_i32
+        >#%15_=_load_i8*_%2__align_1
+        >#%16_=_zext_i8_%15_to_i32
+        >#%17_=_icmp_eq_i32_%14__i32_%16
+        >#%18_=_zext_i1_%17_to_i32
+        >#%19_=_add_i32_65__i32_%18
+        >#%20_=_trunc_i32_%19_to_i8
+        >#%21_=_load_i8*_%2__align_1
+        >#%22_=_zext_i8_%21_to_i64
+        >#%23_=_inttoptr_i64_%22_to_i32*
+        >#%24_=_icmp_eq_i32*_%1__i32*_%23
+        >#%25_=_zext_i1_%24_to_i32
+        >#%26_=_add_i32_65__i32_%25
+        >#%27_=_trunc_i32_%26_to_i8
+        >#%28_=_load_i32**_%3__align_8
+        >#%29_=_load_i32*_%28__align_4
+        >#%30_=_load_i32*_%4__align_4
+        >#%31_=_trunc_i32_%30_to_i8
+        >#%32_=_load_i32**_%3__align_8
+        >#%33_=_load_i32**_%3__align_8
+        >#%34_=_load_i32*_%33__align_4
+        >#%35_=_load_i32*_%5__align_4
+        >#%36_=_trunc_i32_%35_to_i8
+        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             %1 = alloca i32_ align 4
             %2 = alloca i8_ align 1
@@ -1958,7 +1967,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             %13 = ptrtoint i32* %1 to i8
             op_to_reg storing pointer value in temp address
@@ -2100,7 +2110,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_1
+        [
             -
             %21 = load i8* %2_ align 1
             op_to_reg storing pointer value in temp address
@@ -2240,7 +2251,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             %28 = load i32** %3_ align 8
             op_to_reg storing pointer value in temp address
@@ -2545,7 +2557,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             %32 = load i32** %3_ align 8
             op_to_reg storing pointer value in temp address
@@ -2996,7 +3009,8 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_4
+        [
             -
             call @another_stack()
             enable next block when we return
@@ -3026,7 +3040,8 @@ runtime init:
             >>#another_stack/b0
             +
         >>>>>>>]
-        >[
+        >#B:%call_term_for_5
+        [
             -
             ret void
             zero all function allocs

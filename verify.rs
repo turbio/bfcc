@@ -5,6 +5,7 @@ use std::io;
 use std::io::prelude::*;
 use std::path::Path;
 use std::process::Command;
+use std::time;
 
 extern crate termion;
 use termion::{color, style};
@@ -113,11 +114,13 @@ fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 		println!("EXECUTE ERROR");
 		println!("{:?}", result.err().unwrap());
 		println!(
-			"{}FAIL{} {}",
+			"\r{}{} fail {} {}",
 			color::Fg(color::Red),
+			style::Invert,
 			style::Reset,
-			info.name,
+			info.name
 		);
+
 		return;
 	}
 
@@ -132,11 +135,13 @@ fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 		println!("source: {}", source);
 		println!("target: {}", bfout);
 		println!(
-			"{}FAIL{} {}",
+			"\r{}{} fail {} {}",
 			color::Fg(color::Red),
+			style::Invert,
 			style::Reset,
-			info.name,
+			info.name
 		);
+
 		return;
 	}
 
@@ -151,11 +156,14 @@ fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 		.unwrap();
 
 	println!(
-		"\r{}{} pass {} {}",
+		"\r{}{} pass {} {} {}({} ms){}",
 		color::Fg(color::Green),
 		style::Invert,
 		style::Reset,
 		info.name,
+		color::Fg(color::LightBlack),
+		0, // TODO
+		style::Reset
 	);
 }
 
@@ -209,6 +217,7 @@ enum InterpErr {
 	IntUnderflow,
 	MemOverflow,
 	MemUnderflow,
+	ExitMemNonZero,
 }
 
 struct ExecResult {
@@ -369,7 +378,9 @@ fn exec(ops: Vec<COps>) -> Result<ExecResult, InterpErr> {
 	}
 
 	for i in mem {
-		assert!(i == 0, "expected all memory to be zero");
+		if i != 0 {
+			return Err(InterpErr::ExitMemNonZero);
+		}
 	}
 
 	Ok(ExecResult {

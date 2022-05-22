@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -22,17 +22,19 @@ runtime init:
         ]
         <<<#mainloop_main
         >#F:main
-        >#B:%no_b0_call_for_main
+        >#B:%no_block0_call_for_main
         >#B:%ret_lading_pad
         >#B:%0
         >#B:%call_term_for_0
-        <<<[
+        <<<#B:%no_block0_call_for_main
+        [
             -
             copy up args
             br label %0
             >>+
         <<]
-        >>[
+        >>#B:%0
+        [
             -
             call @putchar(i8 104)
             op_to_reg storing const value in temp address
@@ -45,7 +47,8 @@ runtime init:
             >.
             [-]
         <<]
-        >[
+        >#B:%call_term_for_0
+        [
             -
             ret i32 0
             zero all function allocs

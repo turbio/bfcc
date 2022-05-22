@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -72,39 +72,40 @@ runtime init:
         >#B:%66
         >#alloc_%1
         >#alloc_%2
-        >#%4_F
-        >#%5_F
-        >#%7_F
-        >#%8_F
-        >#%11_F
-        >#%12_F
-        >#%15_F
-        >#%16_F
-        >#%19_F
-        >#%20_F
-        >#%23_F
-        >#%24_F
-        >#%27_F
-        >#%28_F
-        >#%32_F
-        >#%33_F
-        >#%36_F
-        >#%37_F
-        >#%39_F
-        >#%40_F
-        >#%43_F
-        >#%44_F
-        >#%47_F
-        >#%48_F
-        >#%51_F
-        >#%52_F
-        >#%55_F
-        >#%56_F
-        >#%59_F
-        >#%60_F
-        >#%64_F
-        >#%65_F
-        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<[
+        >#%4_=_load_i32*_%1__align_4
+        >#%5_=_icmp_slt_i32_%4__i32_10
+        >#%7_=_load_i32*_%1__align_4
+        >#%8_=_icmp_slt_i32_%7__i32_5
+        >#%11_=_load_i32*_%1__align_4
+        >#%12_=_icmp_ne_i32_%11__i32_5
+        >#%15_=_load_i32*_%1__align_4
+        >#%16_=_icmp_eq_i32_%15__i32_5
+        >#%19_=_load_i32*_%1__align_4
+        >#%20_=_icmp_sgt_i32_%19__i32_5
+        >#%23_=_load_i32*_%1__align_4
+        >#%24_=_icmp_sle_i32_%23__i32_5
+        >#%27_=_load_i32*_%1__align_4
+        >#%28_=_icmp_sge_i32_%27__i32_5
+        >#%32_=_load_i32*_%1__align_4
+        >#%33_=_add_i32_%32__i32_1
+        >#%36_=_load_i32*_%2__align_4
+        >#%37_=_icmp_slt_i32_%36__i32_10
+        >#%39_=_load_i32*_%2__align_4
+        >#%40_=_icmp_slt_i32_5__i32_%39
+        >#%43_=_load_i32*_%2__align_4
+        >#%44_=_icmp_ne_i32_5__i32_%43
+        >#%47_=_load_i32*_%2__align_4
+        >#%48_=_icmp_eq_i32_5__i32_%47
+        >#%51_=_load_i32*_%2__align_4
+        >#%52_=_icmp_sgt_i32_5__i32_%51
+        >#%55_=_load_i32*_%2__align_4
+        >#%56_=_icmp_sle_i32_5__i32_%55
+        >#%59_=_load_i32*_%2__align_4
+        >#%60_=_icmp_sge_i32_5__i32_%59
+        >#%64_=_load_i32*_%2__align_4
+        >#%65_=_add_i32_%64__i32_1
+        <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#B:%0
+        [
             -
             copy up args
             %1 = alloca i32_ align 4
@@ -191,7 +192,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         <<]
-        >>[
+        >>#B:%3
+        [
             -
             %4 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -310,7 +312,8 @@ runtime init:
                 #B:main/34_false
             <<<<<<<<<<<<<<<<<<<<<<<]
         >]
-        >[
+        >#B:%6
+        [
             -
             %7 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -429,7 +432,8 @@ runtime init:
                 #B:main/10_false
             <<<<<]
         >>]
-        >[
+        >#B:%9
+        [
             -
             call @putchar(i8 108)
             op_to_reg storing const value in temp address
@@ -442,12 +446,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_3
+        [
             -
             br label %10
             >+
         <]
-        >[
+        >#B:%10
+        [
             -
             %11 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -570,7 +576,8 @@ runtime init:
                 #B:main/14_false
             <<<<<<<<]
         >>>>>]
-        >[
+        >#B:%13
+        [
             -
             call @putchar(i8 110)
             op_to_reg storing const value in temp address
@@ -583,12 +590,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_6
+        [
             -
             br label %14
             >+
         <]
-        >[
+        >#B:%14
+        [
             -
             %15 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -712,7 +721,8 @@ runtime init:
                 #B:main/18_false
             <<<<<<<<<<<]
         >>>>>>>>]
-        >[
+        >#B:%17
+        [
             -
             call @putchar(i8 101)
             op_to_reg storing const value in temp address
@@ -725,12 +735,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_9
+        [
             -
             br label %18
             >+
         <]
-        >[
+        >#B:%18
+        [
             -
             %19 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -849,7 +861,8 @@ runtime init:
                 #B:main/22_false
             <<<<<<<<<<<<<<]
         >>>>>>>>>>>]
-        >[
+        >#B:%21
+        [
             -
             call @putchar(i8 103)
             op_to_reg storing const value in temp address
@@ -862,12 +875,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_12
+        [
             -
             br label %22
             >+
         <]
-        >[
+        >#B:%22
+        [
             -
             %23 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -987,7 +1002,8 @@ runtime init:
                 #B:main/26_false
             <<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>]
-        >[
+        >#B:%25
+        [
             -
             call @putchar(i8 76)
             op_to_reg storing const value in temp address
@@ -1000,12 +1016,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_15
+        [
             -
             br label %26
             >+
         <]
-        >[
+        >#B:%26
+        [
             -
             %27 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -1125,7 +1143,8 @@ runtime init:
                 #B:main/30_false
             <<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%29
+        [
             -
             call @putchar(i8 71)
             op_to_reg storing const value in temp address
@@ -1138,12 +1157,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_18
+        [
             -
             br label %30
             >+
         <]
-        >[
+        >#B:%30
+        [
             -
             call @putchar(i8 44)
             op_to_reg storing const value in temp address
@@ -1156,12 +1177,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_20
+        [
             -
             br label %31
             >+
         <]
-        >[
+        >#B:%31
+        [
             -
             %32 = load i32* %1_ align 4
             op_to_reg storing pointer value in temp address
@@ -1326,7 +1349,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%34
+        [
             -
             store i32 0_ i32* %2_ align 4
             op_to_reg storing const value in temp address
@@ -1410,7 +1434,8 @@ runtime init:
             br label %35
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         <]
-        >[
+        >#B:%35
+        [
             -
             %36 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -1529,7 +1554,8 @@ runtime init:
                 #B:main/66_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%38
+        [
             -
             %39 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -1648,7 +1674,8 @@ runtime init:
                 #B:main/42_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%41
+        [
             -
             call @putchar(i8 108)
             op_to_reg storing const value in temp address
@@ -1661,12 +1688,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_26
+        [
             -
             br label %42
             >+
         <]
-        >[
+        >#B:%42
+        [
             -
             %43 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -1789,7 +1818,8 @@ runtime init:
                 #B:main/46_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%45
+        [
             -
             call @putchar(i8 110)
             op_to_reg storing const value in temp address
@@ -1802,12 +1832,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_29
+        [
             -
             br label %46
             >+
         <]
-        >[
+        >#B:%46
+        [
             -
             %47 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -1931,7 +1963,8 @@ runtime init:
                 #B:main/50_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%49
+        [
             -
             call @putchar(i8 101)
             op_to_reg storing const value in temp address
@@ -1944,12 +1977,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_32
+        [
             -
             br label %50
             >+
         <]
-        >[
+        >#B:%50
+        [
             -
             %51 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -2068,7 +2103,8 @@ runtime init:
                 #B:main/54_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%53
+        [
             -
             call @putchar(i8 103)
             op_to_reg storing const value in temp address
@@ -2081,12 +2117,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_35
+        [
             -
             br label %54
             >+
         <]
-        >[
+        >#B:%54
+        [
             -
             %55 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -2206,7 +2244,8 @@ runtime init:
                 #B:main/58_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%57
+        [
             -
             call @putchar(i8 76)
             op_to_reg storing const value in temp address
@@ -2219,12 +2258,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_38
+        [
             -
             br label %58
             >+
         <]
-        >[
+        >#B:%58
+        [
             -
             %59 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -2344,7 +2385,8 @@ runtime init:
                 #B:main/62_false
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
         >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%61
+        [
             -
             call @putchar(i8 71)
             op_to_reg storing const value in temp address
@@ -2357,12 +2399,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_41
+        [
             -
             br label %62
             >+
         <]
-        >[
+        >#B:%62
+        [
             -
             call @putchar(i8 44)
             op_to_reg storing const value in temp address
@@ -2375,12 +2419,14 @@ runtime init:
             >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_43
+        [
             -
             br label %63
             >+
         <]
-        >[
+        >#B:%63
+        [
             -
             %64 = load i32* %2_ align 4
             op_to_reg storing pointer value in temp address
@@ -2545,7 +2591,8 @@ runtime init:
             br label %35
             <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+
         >>>>>>>>>>>>>>>>>>>>>]
-        >[
+        >#B:%66
+        [
             -
             ret void
             zero all function allocs

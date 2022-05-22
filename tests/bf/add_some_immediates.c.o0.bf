@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -31,17 +31,18 @@ runtime init:
         >#B:%16
         >#alloc_%1
         >#alloc_%2
-        >#%4_F
-        >#%5_F
-        >#%6_F
-        >#%8_F
-        >#%9_F
-        >#%10_F
-        >#%11_F
-        >#%12_F
-        >#%14_F
-        >#%15_F
-        <<<<<<<<<<<<<<<<<<[
+        >#%4_=_load_i8*_%1__align_1
+        >#%5_=_zext_i8_%4_to_i32
+        >#%6_=_icmp_slt_i32_%5__i32_58
+        >#%8_=_load_i8*_%1__align_1
+        >#%9_=_zext_i8_%8_to_i32
+        >#%10_=_add_i32_%9__i32_65
+        >#%11_=_trunc_i32_%10_to_i8
+        >#%12_=_load_i8*_%2__align_1
+        >#%14_=_load_i8*_%1__align_1
+        >#%15_=_add_i8_%14__i8_1
+        <<<<<<<<<<<<<<<<<<#B:%0
+        [
             -
             copy up args
             %1 = alloca i8_ align 1
@@ -128,7 +129,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<<+
         <<]
-        >>[
+        >>#B:%3
+        [
             -
             %4 = load i8* %1_ align 1
             op_to_reg storing pointer value in temp address
@@ -249,7 +251,8 @@ runtime init:
                 #B:main/16_false
             <<<<<]
         >]
-        >[
+        >#B:%7
+        [
             -
             %8 = load i8* %1_ align 1
             op_to_reg storing pointer value in temp address
@@ -498,12 +501,14 @@ runtime init:
             >>>>>>>>>>>>.
             [-]
         <<<<<<<<<<<<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             br label %13
             >+
         <]
-        >[
+        >#B:%13
+        [
             -
             %14 = load i8* %1_ align 1
             op_to_reg storing pointer value in temp address
@@ -668,7 +673,8 @@ runtime init:
             br label %3
             <<<<<<<<<<<<<<<<<<<<+
         >>>]
-        >[
+        >#B:%16
+        [
             -
             ret void
             zero all function allocs

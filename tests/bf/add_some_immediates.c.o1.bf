@@ -11,7 +11,7 @@ runtime init:
 <<[
     >#main
     [
-        >>#main/RET_LANDING_PAD
+        >>#B:%ret_lading_pad
         [
             <<<-
             #dead_frame
@@ -27,11 +27,12 @@ runtime init:
         >#B:%1
         >#B:%2
         >#B:%call_term_for_2
-        >#%3_F
-        >#%4_F
-        >#%5_F
-        >#%6_F
-        <<<<<<<<[
+        >#%3_=_phi_i8_{_i8_0__%0_}__{_i8_%5__%call_term_for_2_}(mult)
+        >#%4_=_add_i8_%3__i8_65
+        >#%5_=_add_i8_%3__i8_1(mult)
+        >#%6_=_icmp_eq_i8_%5__i8_58
+        <<<<<<<<#B:%0
+        [
             -
             copy up args
             br label %2
@@ -44,7 +45,8 @@ runtime init:
             m11/7 >>>>[-<<<<+>>>>]
             <<<<<<+
         <<<]
-        >>[
+        >>#B:%1
+        [
             -
             ret void
             zero all function allocs
@@ -58,7 +60,8 @@ runtime init:
             r1 >
             l5 <<<<<
         >>>>]
-        >[
+        >#B:%2
+        [
             -
             %3 = phi i8 _ i8 0_ %0 __ _ i8 %5_ %call_term_for_2 _
             %4 = add i8 %3_ i8 65
@@ -80,7 +83,8 @@ runtime init:
             >>.
             [-]
         <<<]
-        >[
+        >#B:%call_term_for_2
+        [
             -
             %5 = add i8 %3_ i8 1
             d7/11/12 >[->>>>+>+<<<<<]
@@ -132,9 +136,11 @@ runtime init:
             br i1 %6_ label %1_ label %2
             doing phi stuff
             %3 = phi i8 _ i8 0_ %0 __ _ i8 %5_ %call_term_for_2 _
-            <<<<<<<<[-]
-            m9/7 >>[-<<+>>]
-            <<<<<<+
+            d9/11/12 <<<<<<[->>+>+<<<]
+            m11/9 >>[-<<+>>]
+            <<<<[-]
+            m12/7 >>>>>[-<<<<<+>>>>>]
+            <<<<<<<<<+
             >>>>>>>[
                 -
                 <<<<<<<-
