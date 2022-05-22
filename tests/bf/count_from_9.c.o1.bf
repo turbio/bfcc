@@ -32,10 +32,10 @@ runtime init:
         >#B:%call_term_for_5
         >#B:%7
         >#%3_=_phi_i8_{_i8_9__%0_}__{_i8_%8__%7_}(mult)
-        >#%4_=_add_i8_%3__i8_48
-        >#%5_=_icmp_eq_i8_%3__i8_1
+        >#%4_=_add_i8_%3__i8_48(mult)
+        >#%5_=_icmp_eq_i8_%3__i8_1(mult)
         >#%8_=_add_i8_%3__i8_255(mult)
-        >#%9_=_icmp_eq_i8_%8__i8_0
+        >#%9_=_icmp_eq_i8_%8__i8_0(mult)
         <<<<<<<<<<<<<#B:%0
         [
             -
@@ -56,8 +56,11 @@ runtime init:
             ret i32 0
             zero all function allocs
             >>>>>>>[-]
-            >>>[-]
-            <<<<<<<<<<<<<<-
+            >[-]
+            >[-]
+            >[-]
+            >[-]
+            <<<<<<<<<<<<<<<-
             #dead_frame
             >-
             l1 <
@@ -70,7 +73,8 @@ runtime init:
             -
             %3 = phi i8 _ i8 9_ %0 __ _ i8 %8_ %7 _
             %4 = add i8 %3_ i8 48
-            d11/17/18 >>>>>>[->>>>>>+>+<<<<<<<]
+            >>>>>>>[-]
+            d11/17/18 <[->>>>>>+>+<<<<<<<]
             m17/11 >>>>>>[-<<<<<<+>>>>>>]
             op_to_reg storing const value in temp address
             >>#constop_48
@@ -85,14 +89,17 @@ runtime init:
             <<<<<<<<<<<<<#caller/%call_term_for_2
             +
             putchar intrinsic
-            >>>>>>.
+            d12/16/17 >>>>>>[->>>>+>+<<<<<]
+            m16/12 >>>>[-<<<<+>>>>]
+            >.
             [-]
-        <<<<<<<]
+        <<<<<<<<<<<<]
         >#B:%call_term_for_2
         [
             -
             %5 = icmp eq i8 %3_ i8 1
-            d11/16/17 >>>>>[->>>>>+>+<<<<<<]
+            >>>>>>>[-]
+            d11/16/17 <<[->>>>>+>+<<<<<<]
             m16/11 >>>>>[-<<<<<+>>>>>]
             op_to_reg storing const value in temp address
             >>#constop_1
@@ -190,7 +197,8 @@ runtime init:
                 <<<<+
             >>>>]
             %9 = icmp eq i8 %8_ i8 0
-            d14/16/17 <<<<[->>+>+<<<]
+            <<<[-]
+            d14/16/17 <[->>+>+<<<]
             m16/14 >>[-<<+>>]
             op_to_reg storing const value in temp address
             >>#constop_0

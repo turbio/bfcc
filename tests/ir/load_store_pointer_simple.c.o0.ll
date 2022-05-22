@@ -6,11 +6,16 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: noinline nounwind optnone sspstrong uwtable
 define void @main() #0 {
   %1 = alloca i32, align 4
+  %2 = alloca i32, align 4
   store i32 112, i32* %1, align 4
-  %2 = ptrtoint i32* %1 to i32
-  %3 = add i32 65, %2
-  %4 = trunc i32 %3 to i8
-  call void @putchar(i8 zeroext %4)
+  %3 = ptrtoint i32* %1 to i32
+  store i32 %3, i32* %2, align 4
+  %4 = load i32, i32* %2, align 4
+  %5 = sext i32 %4 to i64
+  %6 = inttoptr i64 %5 to i32*
+  %7 = load i32, i32* %6, align 4
+  %8 = trunc i32 %7 to i8
+  call void @putchar(i8 zeroext %8)
   ret void
 }
 

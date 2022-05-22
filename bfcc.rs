@@ -1172,6 +1172,49 @@ fn build_store(
 	}
 }
 
+fn build_select(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let ret = ret.unwrap();
+	let (cond, mut o0) = builder_args_to_consumable_reg(ctx, &args[0]);
+	let (tru, mut o1) = builder_args_to_consumable_reg(ctx, &args[1]);
+	let (fals, mut o2) = builder_args_to_consumable_reg(ctx, &args[2]);
+
+	let tmp = borrow_reg(ctx, 1);
+
+	vec![]
+		.into_iter()
+		.chain(o0)
+		.chain(o1)
+		.chain(o2)
+		.chain(vec![
+			BfOp::AddI(tmp.clone(), 1),
+			BfOp::Loop(
+				cond.clone(),
+				vec![
+					BfOp::Mov(tru.clone(), ret.clone()),
+					BfOp::Zero(fals.clone()),
+					BfOp::Zero(cond.clone()),
+					BfOp::Zero(tmp.clone()),
+				],
+			),
+			BfOp::Loop(
+				tmp.clone(),
+				vec![
+					BfOp::SubI(tmp.clone(), 1),
+					BfOp::Mov(fals.clone(), ret.clone()),
+					BfOp::Zero(tru.clone()),
+					BfOp::Zero(cond.clone()),
+				],
+			),
+		])
+		.collect()
+}
+
 fn build_load(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
@@ -1256,6 +1299,11 @@ fn build_call(
 		format!("{}/{}", own_func_name, br),
 	));
 	callops.push(BfOp::AddI(fixed_addr(brto), 1));
+
+	if callee_name.starts_with("llvm.lifetime") {
+		callops.push(BfOp::Comment(format!("ignoring llvm intrinsic")));
+		return callops;
+	}
 
 	// intrinsics lol
 	if callee_name == "putchar" {
@@ -1478,6 +1526,10 @@ fn instr_opers<'i>(
 		llvm_ir::Instruction::ICmp(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::Or(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::And(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::BitCast(i) => vec![&i.operand],
+		llvm_ir::Instruction::Select(i) => {
+			vec![&i.condition, &i.true_value, &i.false_value]
+		}
 		llvm_ir::Instruction::Alloca(i) => vec![],
 		llvm_ir::Instruction::Phi(i) => {
 			i.incoming_values.iter().map(|(o, _)| o).collect()
@@ -1491,6 +1543,9 @@ fn instr_opers<'i>(
 
 fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 	match i {
+		llvm_ir::Instruction::Select(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_select)],
+		},
 		llvm_ir::Instruction::Call(_) => &InstrMeta {
 			builders: &[(RetMeta::Addr, build_call)],
 		},
@@ -1517,6 +1572,7 @@ fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 		},
 		llvm_ir::Instruction::ZExt(_)
 		| llvm_ir::Instruction::IntToPtr(_)
+		| llvm_ir::Instruction::BitCast(_)
 		| llvm_ir::Instruction::PtrToInt(_)
 		| llvm_ir::Instruction::Trunc(_)
 		| llvm_ir::Instruction::SExt(_) => &InstrMeta {
@@ -1593,6 +1649,7 @@ fn build_func(
 	}
 
 	// and then all those regs (aka not allocas)
+	// TODO: register reuse when single_use
 	for block in func.basic_blocks.iter() {
 		for instr in block.instrs.iter() {
 			match instr {
@@ -1601,7 +1658,15 @@ fn build_func(
 					let ret = instr.try_get_result();
 					if ret.is_some() {
 						let ret = ret.unwrap();
-						give_reg(&mut ctx, &ret, multi_use.contains(&ret));
+						// TODO this is unsound this can only be false when a
+						// register is ONCE through all flows of execution after
+						// the instruction setting the value.
+						// give_reg(&mut ctx, &ret, multi_use.contains(&ret));
+						//
+						// perhaps we can get really fancy and keep a multi use
+						// register around only as long as needed. idk ill deal
+						// w walking the cfg later
+						give_reg(&mut ctx, &ret, true);
 					}
 				}
 			}
@@ -1966,71 +2031,102 @@ fn build_func(
 						.unwrap();
 					let fals = fixed_addr(fals);
 
-					let totrublock = func
-						.basic_blocks
-						.iter()
-						.find(|bb| cbr.true_dest == bb.name)
-						.unwrap();
-
-					let totruphis = totrublock
-						.instrs
-						.iter()
-						.filter(|i| {
-							llvm_ir::instruction::Phi::try_from((*i).clone())
-								.is_ok()
-						})
-						.collect::<Vec<_>>();
-
-					if totruphis.len() > 1 {
-						panic!("idk how to do multiple phis");
-					}
-
-					if totruphis.len() == 1 {
-						panic!("idk how to do any phis");
-					}
-
-					let tofalsblock = func
-						.basic_blocks
-						.iter()
-						.find(|bb| cbr.false_dest == bb.name)
-						.unwrap();
-
-					let tofalsphis = tofalsblock
-						.instrs
-						.iter()
-						.filter_map(|i| {
-							llvm_ir::instruction::Phi::try_from((*i).clone())
-								.ok()
-						})
-						.collect::<Vec<_>>();
-
-					if tofalsphis.len() > 1 {
-						panic!("idk how to do multiple phis");
-					}
-
-					if tofalsphis.len() == 1 {
-						let tofalsphis = tofalsphis[0].clone();
-						let our_branch = tofalsphis
-							.incoming_values
+					{
+						let totrublock = func
+							.basic_blocks
 							.iter()
-							.find(|pair| pair.1 == block.name)
+							.find(|bb| cbr.true_dest == bb.name)
 							.unwrap();
 
-						blockloop
-							.push(BfOp::Comment(format!("doing phi stuff")));
-						blockloop
-							.push(BfOp::Comment(format!("{}", tofalsphis)));
+						let totruphis = totrublock
+							.instrs
+							.iter()
+							.filter_map(|i| {
+								llvm_ir::instruction::Phi::try_from(
+									(*i).clone(),
+								)
+								.ok()
+							})
+							.collect::<Vec<_>>();
 
-						let (brval, mut o) = consumed_op_to_reg(
-							&mut ctx,
-							&our_branch.0,
-							&multi_use,
-						);
-						blockloop.append(&mut o);
+						if totruphis.len() > 1 {
+							panic!("idk how to do multiple phis");
+						}
 
-						let dest = take_reg(&mut ctx, &tofalsphis.dest);
-						blockloop.push(BfOp::Zero(dest.clone()));
-						blockloop.push(BfOp::Mov(brval, dest.clone()));
+						if totruphis.len() == 1 {
+							let totruphis = totruphis[0].clone();
+							let our_branch = totruphis
+								.incoming_values
+								.iter()
+								.find(|pair| pair.1 == block.name)
+								.unwrap();
+
+							blockloop.push(BfOp::Comment(format!(
+								"doing phi stuff"
+							)));
+							blockloop
+								.push(BfOp::Comment(format!("{}", totruphis)));
+
+							let (brval, mut o) = consumed_op_to_reg(
+								&mut ctx,
+								&our_branch.0,
+								&multi_use,
+							);
+							blockloop.append(&mut o);
+
+							let dest = take_reg(&mut ctx, &totruphis.dest);
+							blockloop.push(BfOp::Zero(dest.clone()));
+							blockloop.push(BfOp::Mov(brval, dest.clone()));
+						}
+					}
+
+					{
+						let tofalsblock = func
+							.basic_blocks
+							.iter()
+							.find(|bb| cbr.false_dest == bb.name)
+							.unwrap();
+
+						let tofalsphis = tofalsblock
+							.instrs
+							.iter()
+							.filter_map(|i| {
+								llvm_ir::instruction::Phi::try_from(
+									(*i).clone(),
+								)
+								.ok()
+							})
+							.collect::<Vec<_>>();
+
+						if tofalsphis.len() > 1 {
+							panic!("idk how to do multiple phis");
+						}
+
+						if tofalsphis.len() == 1 {
+							let tofalsphis = tofalsphis[0].clone();
+							let our_branch = tofalsphis
+								.incoming_values
+								.iter()
+								.find(|pair| pair.1 == block.name)
+								.unwrap();
+
+							blockloop.push(BfOp::Comment(format!(
+								"doing phi stuff"
+							)));
+							blockloop
+								.push(BfOp::Comment(format!("{}", tofalsphis)));
+
+							let (brval, mut o) = consumed_op_to_reg(
+								&mut ctx,
+								&our_branch.0,
+								&multi_use,
+							);
+							blockloop.append(&mut o);
+
+							let dest = take_reg(&mut ctx, &tofalsphis.dest);
+							blockloop.push(BfOp::Zero(dest.clone()));
+							blockloop.push(BfOp::Mov(brval, dest.clone()));
+						}
 					}
 
 					// TODO(turbio): hacky but well we're using the ret pad

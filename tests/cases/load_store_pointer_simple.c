@@ -1,12 +1,10 @@
 #include "stdfuck.h"
 
-// TEST:{ "name": "load store pointer simple", "output": "L" }
+// TEST:{ "name": "load store pointer simple", "output": "p" }
 void main(void) {
   int a = 'p';
 
-  putchar('A' + (int)(&a));
+  int ptr = (int)&a;
 
-  //int *ptr = &a;
-
-  //putchar(*ptr);
+  putchar(*(int*)ptr);
 };

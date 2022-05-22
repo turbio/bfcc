@@ -18,7 +18,7 @@ runtime init:
             >-
             <#dead_fn_pad/main
             >>>-
-            l12 <<<<<<<<<<<<
+            l13 <<<<<<<<<<<<<
         ]
         <<<#mainloop_main
         >#F:main
@@ -27,9 +27,9 @@ runtime init:
         >#B:%0
         >#B:%call_term_for_0
         >#alloc_%1
-        >#%2_=_load_i8*_%1__align_1
-        >#%3_=_add_i8_%2__i8_1
-        >#%4_=_load_i8*_%1__align_1
+        >#%2_=_load_i8*_%1__align_1(mult)
+        >#%3_=_add_i8_%2__i8_1(mult)
+        >#%4_=_load_i8*_%1__align_1(mult)
         <<<<<<<#B:%no_block0_call_for_main
         [
             -
@@ -48,38 +48,50 @@ runtime init:
             <<<<[-]
             m10/6 >>>>[-<<<<+>>>>]
             %2 = load i8* %1_ align 1
-            d6/7/11 <<<<[->+>>>>+<<<<<]
+            <<<[-]
+            d6/7/11 <[->+>>>>+<<<<<]
             m11/6 >>>>>[-<<<<<+>>>>>]
             %3 = add i8 %2_ i8 1
+            <<<[-]
+            d7/10/12 <[->>>+>>+<<<<<]
+            m10/7 >>>[-<<<+>>>]
             op_to_reg storing const value in temp address
-            <#constop_1
+            >#constop_1
             +
-            m7/8 <<<[->+<]
-            >>>[
+            m12/8 >[-<<<<+>>>>]
+            <[
                 -
-                <<+
-            >>]
+                <<<+
+            >>>]
             store i8 %3_ i8* %1_ align 1
+            d8/10/11 <<<[->>+>+<<<]
+            m10/8 >>[-<<+>>]
             <<<<[-]
-            m8/6 >>[-<<+>>]
+            m11/6 >>>>>[-<<<<<+>>>>>]
             %4 = load i8* %1_ align 1
-            d6/9/10 <<[->>>+>+<<<<]
+            <<[-]
+            d6/9/10 <<<[->>>+>+<<<<]
             m10/6 >>>>[-<<<<+>>>>]
             call @putchar(i8 %4)
             enable next block when we return
             <<<<<#caller/%call_term_for_0
             +
             putchar intrinsic
-            >>>>.
+            d9/10/11 >>>>[->+>+<<]
+            m10/9 >[-<+>]
+            >.
             [-]
-        <<<<<]
+        <<<<<<<]
         >#B:%call_term_for_0
         [
             -
             ret void
             zero all function allocs
             >[-]
-            <<<<<<-
+            >[-]
+            >[-]
+            >[-]
+            <<<<<<<<<-
             #dead_frame
             >-
             l1 <

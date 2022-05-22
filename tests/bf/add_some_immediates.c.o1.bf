@@ -28,9 +28,9 @@ runtime init:
         >#B:%2
         >#B:%call_term_for_2
         >#%3_=_phi_i8_{_i8_0__%0_}__{_i8_%5__%call_term_for_2_}(mult)
-        >#%4_=_add_i8_%3__i8_65
+        >#%4_=_add_i8_%3__i8_65(mult)
         >#%5_=_add_i8_%3__i8_1(mult)
-        >#%6_=_icmp_eq_i8_%5__i8_58
+        >#%6_=_icmp_eq_i8_%5__i8_58(mult)
         <<<<<<<<#B:%0
         [
             -
@@ -51,8 +51,10 @@ runtime init:
             ret void
             zero all function allocs
             >>>[-]
-            >>[-]
-            <<<<<<<<<-
+            >[-]
+            >[-]
+            >[-]
+            <<<<<<<<<<-
             #dead_frame
             >-
             l1 <
@@ -65,7 +67,8 @@ runtime init:
             -
             %3 = phi i8 _ i8 0_ %0 __ _ i8 %5_ %call_term_for_2 _
             %4 = add i8 %3_ i8 65
-            d7/12/13 >>[->>>>>+>+<<<<<<]
+            >>>[-]
+            d7/12/13 <[->>>>>+>+<<<<<<]
             m12/7 >>>>>[-<<<<<+>>>>>]
             op_to_reg storing const value in temp address
             >>#constop_65
@@ -80,9 +83,11 @@ runtime init:
             <<<<<<<<#caller/%call_term_for_2
             +
             putchar intrinsic
-            >>.
+            d8/11/12 >>[->>>+>+<<<<]
+            m11/8 >>>[-<<<+>>>]
+            >.
             [-]
-        <<<]
+        <<<<<<<]
         >#B:%call_term_for_2
         [
             -
@@ -99,7 +104,8 @@ runtime init:
                 <<<<+
             >>>>]
             %6 = icmp eq i8 %5_ i8 58
-            d9/11/12 <<<<[->>+>+<<<]
+            <<<[-]
+            d9/11/12 <[->>+>+<<<]
             m11/9 >>[-<<+>>]
             op_to_reg storing const value in temp address
             >>#constop_58

@@ -18,7 +18,7 @@ runtime init:
             >-
             <#dead_fn_pad/call_me
             >>>>-
-            l15 <<<<<<<<<<<<<<<
+            l18 <<<<<<<<<<<<<<<<<<
         ]
         <<<<#mainloop_call_me
         >#F:call_me
@@ -29,9 +29,9 @@ runtime init:
         >#B:%call_term_for_0
         >#B:%call_term_for_1
         >#B:%call_term_for_2
-        >#%4_=_trunc_i32_%0_to_i8
-        >#%5_=_trunc_i32_%1_to_i8
-        >#%6_=_trunc_i32_%2_to_i8
+        >#%4_=_trunc_i32_%0_to_i8(mult)
+        >#%5_=_trunc_i32_%1_to_i8(mult)
+        >#%6_=_trunc_i32_%2_to_i8(mult)
         >#%0
         >#%1
         >#%2
@@ -58,47 +58,59 @@ runtime init:
         [
             -
             %4 = trunc i32 %0 to i8
-            m12/9 >>>>>>>[-<<<+>>>]
+            >>>>[-]
+            m12/9 >>>[-<<<+>>>]
             call @putchar(i8 %4)
             enable next block when we return
             <<<<<<#caller/%call_term_for_0
             +
             putchar intrinsic
-            >>>.
+            d9/15/16 >>>[->>>>>>+>+<<<<<<<]
+            m15/9 >>>>>>[-<<<<<<+>>>>>>]
+            >.
             [-]
-        <<<<]
+        <<<<<<<<<<<]
         >#B:%call_term_for_0
         [
             -
             %5 = trunc i32 %1 to i8
-            m13/10 >>>>>>>[-<<<+>>>]
+            >>>>[-]
+            m13/10 >>>[-<<<+>>>]
             call @putchar(i8 %5)
             enable next block when we return
             <<<<<<#caller/%call_term_for_1
             +
             putchar intrinsic
-            >>>.
+            d10/15/17 >>>[->>>>>+>>+<<<<<<<]
+            m15/10 >>>>>[-<<<<<+>>>>>]
+            >>.
             [-]
-        <<<<]
+        <<<<<<<<<<<]
         >#B:%call_term_for_1
         [
             -
             %6 = trunc i32 %2 to i8
-            m14/11 >>>>>>>[-<<<+>>>]
+            >>>>[-]
+            m14/11 >>>[-<<<+>>>]
             call @putchar(i8 %6)
             enable next block when we return
             <<<<<<#caller/%call_term_for_2
             +
             putchar intrinsic
-            >>>.
+            d11/15/16 >>>[->>>>+>+<<<<<]
+            m15/11 >>>>[-<<<<+>>>>]
+            >.
             [-]
-        <<<<]
+        <<<<<<<<<]
         >#B:%call_term_for_2
         [
             -
             ret void
             zero all function allocs
-            <<<<<<<<-
+            >[-]
+            >[-]
+            >[-]
+            <<<<<<<<<<<-
             #dead_frame
             >-
             l1 <
