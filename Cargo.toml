@@ -16,7 +16,7 @@ path = "verify.rs"
 
 [[bin]]
 name = "bfcc"
-path = "main.rs"
+path = "cli.rs"
 
 [[bin]]
 name = "bfexec"

@@ -11,8 +11,9 @@ use std::rc::Rc;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
-// Split all blocks at calls. This should result in all calls being the last
-// instruction of their block before a unconditional branch.
+// Split all blocks at calls. This should result in all calls treated sorta like
+// terminator instructions being the last instruction of their block before a
+// unconditional branch.
 //
 // This makes it way easier to generate brainfuck control flow as calls
 // use the same control flow mechanism as blocks. A call/branch combo sets
@@ -107,11 +108,16 @@ fn calls_terminate_blocks(module: &mut llvm_ir::Module) {
 	}
 }
 
-// TODO: this isn't really the move
+// TODO: this isn't really the move tbh
 // function calls always call into block 0. Thing is, if we're making a call
 // from block 0 into another block 0 we could end up end up setting everything
 // up for the callee but then then re-entering block 0 in the caller instead of
-// the target.
+// the target. This is really just a quirk of control flow using one massive
+// loop with masks for functions and blocks. Moving control flow between
+// blocks/functions involes reentering the block or function level loop with the
+// proper mask set. Since functions share the same space for block control flow
+// mask space the transition between functions temporarily involves executing
+// in the calling function with the callee's mask set.
 fn calls_never_in_first_block(module: &mut llvm_ir::Module) {
 	for func in module.functions.iter_mut() {
 		let hascall = func.basic_blocks[0].instrs.iter().any(|i| match i {
@@ -184,9 +190,19 @@ fn fixed_addr(a: usize) -> Addr {
 
 #[derive(Debug, Clone)]
 enum BfOp {
-	// actual brainfuck, these do fucky stuff to the instruction pointer
+	// kinda actual brainfuck, these do fucky stuff to the instr pointer
+	// future passes can't understand
 	Right(usize),
 	Left(usize),
+
+	// extra spooky! loop enters and exits on different addresses. so like the
+	// instr pointer is now split between both addrs after this op, statically
+	// we'll assume it enters on the former address and  exists on the later
+	// addr so uh... glhf
+	//
+	// If the addr is truthy the PC will be at the latter addr on exit
+	// If the addr is falsey the PC will be at the former addr on exit
+	Loop2(Addr, Addr, Vec<BfOp>),
 
 	AddI(Addr, u8), // *a + n -> *a : a must be less than 255
 	SubI(Addr, u8), // *a - n -> *a : a msut be greater than 0
@@ -197,7 +213,6 @@ enum BfOp {
 
 	// the only architecture with a real mov instruction
 	Mov(Addr, Addr), // *a -> *b : a will be zeroed, b must be zero
-
 	Putch(Addr),
 	Zero(Addr),
 	Loop(Addr, Vec<BfOp>),
@@ -404,7 +419,7 @@ fn op_to_reg<'a>(ctx: &'a mut Ctx, op: &llvm_ir::Operand) -> (Addr, Vec<BfOp>) {
 		},
 		llvm_ir::Operand::ConstantOperand(_) => {
 			let tmp = borrow_reg(ctx, 1);
-			let v = uncop(op);
+			let v = uncop(ctx, op);
 			(
 				tmp.clone(),
 				vec![
@@ -863,6 +878,12 @@ fn build_ptr_train(
 	routine
 }
 
+#[derive(Debug, Clone)]
+struct GlobalMap {
+	name: llvm_ir::Name,
+	addr: u8,
+}
+
 #[derive(Debug)]
 struct Ctx {
 	layout: Layout,
@@ -872,6 +893,7 @@ struct Ctx {
 	entry_block_addr: Option<usize>,
 	retpad_addr: Option<Addr>,
 	ownfid: Option<usize>,
+	globals: Vec<GlobalMap>,
 }
 
 enum RetMeta {
@@ -901,6 +923,33 @@ struct InstrMeta<'a> {
 	)],
 }
 
+fn build_getelemptr(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let dest = ret.unwrap();
+
+	let (op0, o0) = builder_args_to_consumable_reg(ctx, &args[0]);
+	let (op1, o1) = builder_args_to_consumable_reg(ctx, &args[1]);
+
+	vec![]
+		.into_iter()
+		.chain(o0)
+		.chain(o1)
+		.chain(vec![
+			BfOp::Mov(op0.clone(), dest.clone()),
+			BfOp::Loop(
+				op1.clone(),
+				vec![BfOp::SubI(op1.clone(), 1), BfOp::AddI(dest.clone(), 1)],
+			),
+		])
+		.collect()
+}
+
+
 fn build_sub(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
@@ -927,7 +976,279 @@ fn build_sub(
 		.collect()
 }
 
-fn build_or(
+// whole idea behind all the bitwise ops is to repeatedly split a value in half
+// into two cells. Equality of the cells determines the lsb. This process can be
+// repeated until the lower half is 0. e.g. w/ 5:
+// .---.---.---.
+// | 5 | 0 | 0 | initial
+// '---'---'---'
+// .---.---.---.
+// | 0 | 3 | 2 | half
+// '---'---'---'
+//   '---^---^
+// .---.---.---.
+// | 2 | 3 | 2 | dup
+// '---'---'---'
+//   ^-------'
+// .---.---.---.
+// | 2 | 1 | 0 | sub
+// '---'---'---'
+//       ^ lsb: 1
+// .---.---.---.
+// | 2 | 0 | 0 | reset
+// '---'---'---'
+//       ^0
+// .---.---.---.
+// | 0 | 1 | 1 | half
+// '---'---'---'
+//   '---^---^
+// .---.---.---.
+// | 1 | 1 | 1 | dup
+// '---'---'---'
+//   ^-------'
+// .---.---.---.
+// | 1 | 0 | 0 | sub
+// '---'---'---'
+//       ^ lsb: 0
+// .---.---.---.
+// | 1 | 0 | 0 | reset
+// '---'---'---'
+//       ^ 0
+// .---.---.---.
+// | 0 | 1 | 0 | half
+// '---'---'---'
+//   '---^---^
+// .---.---.---.
+// | 0 | 1 | 0 | dup
+// '---'---'---'
+//   ^-------'
+// .---.---.---.
+// | 0 | 1 | 0 | sub
+// '---'---'---'
+//       ^ lsb: 1
+// .---.---.---.
+// | 0 | 0 | 0 | reset
+// '---'---'---'
+//   ^   ^ 0
+//   done
+//
+// addr must point to a struct in the shape:
+// +---+
+// | v | in: value to be divided, out: value / 2
+// +---+
+// | 0 | in: 0, out: 0
+// +---+
+// | 1 | in: 1, out: 1
+// +---+
+// | h | in: 0, out: result lsb
+// +---+
+// | l | in: 0, out: 0
+// +---+
+fn bitwise_take_lsb(ctx: &mut Ctx, addr: Addr) -> Vec<BfOp> {
+	let av = offset(addr.clone(), 0);
+	let a0 = offset(addr.clone(), 1);
+	let a1 = offset(addr.clone(), 2);
+	let ah = offset(addr.clone(), 3);
+	let al = offset(addr.clone(), 4);
+
+	vec![
+		// split av in half, higher half in ah lower half al
+		BfOp::Loop(
+			av.clone(),
+			vec![
+				// move 1 to the upper half
+				BfOp::SubI(av.clone(), 1),
+				BfOp::AddI(ah.clone(), 1),
+
+				// move 1 to the lower half
+				BfOp::Loop2(
+					av.clone(),
+					a0.clone(),
+					vec![BfOp::SubI(av.clone(), 1), BfOp::AddI(al.clone(), 1)],
+				),
+				// PC is either at a0 OR av depending on the
+				// parity.... so lets fix that lmao. Statically we think
+				// it's at a0
+
+				// if at a0 then:
+				//   a1 (a fixed truthy) is next
+				// otherwise if we're at av:
+				//   a0 (a fixed falsy) is next
+				BfOp::Loop2(a1.clone(), a0.clone(), vec![]),
+				// oki doki pc should be back to where it should be
+			],
+		),
+		// dup lower half (av+2) back into av thru av+0
+		BfOp::Dup(al.clone(), a0.clone(), av.clone()),
+		BfOp::Mov(a0.clone(), al.clone()),
+		// sub higher av[2] from lower av[1] and and copy av[1]
+		// into av for the next round. av[1] holds av % 2 after this.
+		BfOp::Loop(
+			al.clone(),
+			vec![BfOp::SubI(al.clone(), 1), BfOp::SubI(ah.clone(), 1)],
+		),
+	]
+}
+
+fn build_bitwise_op(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+	opr: fn(l: Addr, r: Addr, dest: Addr) -> Vec<BfOp>,
+) -> Vec<BfOp>{
+	let (op0, o0) = builder_args_to_consumable_reg(ctx, &args[0]);
+	let (op1, o1) = builder_args_to_consumable_reg(ctx, &args[1]);
+
+	let dest = ret.unwrap();
+
+	let dub_scratch = borrow_reg(ctx, 3);
+	let loop_ctrl = borrow_reg(ctx, 1);
+	let nth = borrow_reg(ctx, 1);
+
+	let op0div = borrow_reg(ctx, 5);
+	let op1div = borrow_reg(ctx, 5);
+
+	// so like: we split each op in half into op0div[1] and op0div[2] with the
+	// higher half in op0div[1]. op0div[0] is for flow control while dividing.
+	//
+
+	let op0_v = offset(op0div.clone(), 0);
+	let op0_0 = offset(op0div.clone(), 1);
+	let op0_1 = offset(op0div.clone(), 2);
+	let op0_h = offset(op0div.clone(), 3);
+	let op0_l = offset(op0div.clone(), 4);
+
+	let op1_v = offset(op1div.clone(), 0);
+	let op1_0 = offset(op1div.clone(), 1);
+	let op1_1 = offset(op1div.clone(), 2);
+	let op1_h = offset(op1div.clone(), 3);
+	let op1_l = offset(op1div.clone(), 4);
+
+	vec![]
+		.into_iter()
+		.chain(o0)
+		.chain(o1)
+		// move op0/op1 into first slot of op0_v/op1_v sections
+		// set op0_1/op1_1 to 1
+		.chain(vec![
+			BfOp::Tag(dub_scratch.clone(), format!("dub_scratch")),
+			BfOp::Tag(loop_ctrl.clone(), format!("loop_ctrl")),
+			BfOp::Tag(nth.clone(), format!("nth")),
+
+			BfOp::Tag(op0div.clone(), format!("op0div")),
+			BfOp::Tag(op1div.clone(), format!("op1div")),
+
+			BfOp::Tag(op0_v.clone(), format!("op0_v")),
+			BfOp::Tag(op0_0.clone(), format!("op0_0")),
+			BfOp::Tag(op0_1.clone(), format!("op0_1")),
+			BfOp::Tag(op0_h.clone(), format!("op0_h")),
+			BfOp::Tag(op0_l.clone(), format!("op0_l")),
+
+			BfOp::Tag(op1_v.clone(), format!("op1_v")),
+			BfOp::Tag(op1_0.clone(), format!("op1_0")),
+			BfOp::Tag(op1_1.clone(), format!("op1_1")),
+			BfOp::Tag(op1_h.clone(), format!("op1_h")),
+			BfOp::Tag(op1_l.clone(), format!("op1_l")),
+
+			BfOp::Mov(op0, op0_v.clone()),
+			BfOp::Mov(op1, op1_v.clone()),
+			BfOp::AddI(op0_1.clone(), 1),
+			BfOp::AddI(op1_1.clone(), 1),
+		])
+		.chain(vec![
+			// we're basically gonna:
+			// - while op0_v OR op1_v are truthy:
+			//   - take both LSBs (halving op0_v/op1_v, putting lsb in op0_h/op1_h)
+			//   - add 1 to scratch if either lsb is 1
+			//   - double scratch nth times
+			//   - move doubled scratch to result
+			//   - clear lsb regs
+
+			// welp
+			BfOp::AddI(offset(loop_ctrl.clone(), 0), 1), // use dub_scratch for loop termiation
+			BfOp::Loop(
+				offset(loop_ctrl.clone(), 0),
+				vec![]
+					.into_iter()
+					.chain(vec![
+						BfOp::Zero(offset(loop_ctrl.clone(), 0)), // watch out we're being nasty and sometimes holding 2
+					])
+					.chain(bitwise_take_lsb(ctx, op0div))
+					.chain(bitwise_take_lsb(ctx, op1div))
+
+
+					// *(scratch+0) += bitwise_op(*op0_h, *op1_h)
+					.chain(opr(op0_h.clone(), op1_h.clone(), dub_scratch.clone()))
+
+					// double scratch nth times and add to dest:
+					// *(scratch+0) = *(scratch+0) << *nth
+					// *dest += *(scratch+0)
+					.chain(vec![
+						BfOp::Dup(nth.clone(), offset(dub_scratch.clone(), 1), offset(dub_scratch.clone(), 2)),
+						BfOp::Mov(offset(dub_scratch.clone(), 1), nth.clone()),
+
+						// rn scratch:
+						// 0: or op result
+						// 1: 0
+						// 2: nth
+
+						BfOp::Loop(
+							offset(dub_scratch.clone(), 2),
+							vec![
+								BfOp::SubI(offset(dub_scratch.clone(), 2), 1),
+								BfOp::Loop(
+									offset(dub_scratch.clone(), 0),
+									vec![
+										BfOp::SubI(offset(dub_scratch.clone(), 0), 1),
+										BfOp::AddI(offset(dub_scratch.clone(), 1), 2),
+								]),
+								BfOp::Mov(offset(dub_scratch.clone(), 1), offset(dub_scratch.clone(), 0)),
+							],
+						),
+
+						BfOp::Mov(offset(dub_scratch.clone(), 0), dest.clone()),
+					])
+
+					// set ctrl bit
+					.chain(vec![
+						BfOp::Comment(format!("continue?")),
+
+						BfOp::Dup(op0_v.clone(), offset(dub_scratch.clone(), 0), offset(dub_scratch.clone(), 1)),
+						BfOp::Mov(offset(dub_scratch.clone(), 0), op0_v.clone()),
+						BfOp::Loop(
+							offset(dub_scratch.clone(), 1),
+							vec![
+								BfOp::Zero(offset(dub_scratch.clone(), 1)),
+								BfOp::AddI(offset(loop_ctrl.clone(), 0), 1)
+							],
+						),
+
+						BfOp::Dup(op1_v.clone(), offset(dub_scratch.clone(), 0), offset(dub_scratch.clone(), 1)),
+						BfOp::Mov(offset(dub_scratch.clone(), 0), op1_v.clone()),
+						BfOp::Loop(
+							offset(dub_scratch.clone(), 1),
+							vec![
+								BfOp::Zero(offset(dub_scratch.clone(), 1)),
+								BfOp::AddI(offset(loop_ctrl.clone(), 0), 1)
+							],
+						),
+
+					])
+					.chain(vec![
+						BfOp::AddI(nth.clone(), 1),
+					])
+					.collect(),
+			),
+			// welp
+		])
+		.chain(vec![BfOp::SubI(op0_1, 1), BfOp::SubI(op1_1, 1)]) // zero out those 1 fixed control regs
+		.chain(vec![BfOp::Zero(nth.clone())]) // zero loop counter
+		.collect()
+}
+
+fn build_shiftl(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
 	block: &llvm_ir::BasicBlock,
@@ -939,28 +1260,34 @@ fn build_or(
 
 	let dest = ret.unwrap();
 
+	let scratch = borrow_reg(ctx, 1);
+
 	vec![]
 		.into_iter()
 		.chain(o0)
 		.chain(o1)
 		.chain(vec![
-			BfOp::Loop(
-				op0.clone(),
-				vec![
-					BfOp::AddI(dest.clone(), 1),
-					BfOp::Zero(op0.clone()),
-					BfOp::Zero(op1.clone()),
-				],
-			),
-			BfOp::Loop(
-				op1.clone(),
-				vec![BfOp::AddI(dest.clone(), 1), BfOp::Zero(op1.clone())],
-			),
+			BfOp::AddI(scratch.clone(), 1),
+
+			BfOp::Loop(op1.clone(), vec![
+				BfOp::SubI(op1.clone(), 1),
+				BfOp::Mov(dest.clone(), op0.clone()),
+				BfOp::Loop(op0.clone(), vec![
+					BfOp::SubI(op0.clone(), 1),
+					BfOp::AddI(dest.clone(), 2),
+				]),
+				BfOp::Zero(scratch.clone()),
+			]),
+
+			BfOp::Loop(scratch.clone(), vec![
+				BfOp::SubI(scratch.clone(), 1),
+				BfOp::Mov(op0.clone(), dest.clone()),
+			]),
 		])
 		.collect()
 }
 
-fn build_and(
+fn build_remainder(
 	ctx: &mut Ctx,
 	i: &llvm_ir::Instruction,
 	block: &llvm_ir::BasicBlock,
@@ -972,27 +1299,250 @@ fn build_and(
 
 	let dest = ret.unwrap();
 
+	let neg = borrow_reg(ctx, 1);
+
+	let subt = borrow_reg(ctx, 1);
+
+	let scratch = borrow_reg(ctx, 1);
+
+	let (subops, subaddr) = subnu(ctx, op0.clone(), subt.clone(), Some(neg.clone()));
+
 	vec![]
 		.into_iter()
 		.chain(o0)
 		.chain(o1)
 		.chain(vec![
-			BfOp::Loop(
-				op0.clone(),
-				vec![
-					BfOp::Loop(
-						op1.clone(),
-						vec![
-							BfOp::AddI(dest.clone(), 1),
-							BfOp::Zero(op1.clone()),
-						],
-					),
-					BfOp::Zero(op0.clone()),
-				],
+				BfOp::Dup(op1.clone(), subt.clone(), scratch.clone()),
+				BfOp::Mov(scratch.clone(), op1.clone()),
+
+				BfOp::Tag(op0.clone(), format!("op0")),
+				BfOp::Tag(op1.clone(), format!("op1")),
+				BfOp::Tag(neg.clone(), format!("neg")),
+
+				BfOp::Loop(op0.clone(), vec![].into_iter()
+					.chain(subops)
+					.chain(vec![
+						BfOp::Mov(subaddr.clone(), op0.clone()),
+						BfOp::Dup(op1.clone(), subt.clone(), scratch.clone()),
+						BfOp::Mov(scratch.clone(), op1.clone()),
+					])
+					.collect()
+				),
+				BfOp::Tag(neg.clone(), format!("neg")),
+
+				BfOp::Loop(neg.clone(), vec![
+					BfOp::Mov(subt.clone(), dest.clone()),
+					BfOp::Loop(neg.clone(), vec![
+						BfOp::SubI(neg.clone(), 1),
+						BfOp::SubI(dest.clone(), 1),
+					]),
+				]),
+				BfOp::Mov(neg.clone(), dest.clone()),
+
+				BfOp::Zero(op1.clone()),
+				BfOp::Zero(subt.clone()),
+			])
+		.collect()
+}
+
+fn build_div(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let (op0, o0) = builder_args_to_consumable_reg(ctx, &args[0]);
+	let (op1, o1) = builder_args_to_consumable_reg(ctx, &args[1]);
+
+	let dest = ret.unwrap();
+	let neg = borrow_reg(ctx, 1);
+	let subt = borrow_reg(ctx, 1);
+	let scratch = borrow_reg(ctx, 1);
+
+	let (subops, subaddr) = subnu(ctx, op0.clone(), subt.clone(), Some(neg.clone()));
+
+	vec![]
+		.into_iter()
+		.chain(o0)
+		.chain(o1)
+		.chain(vec![
+			BfOp::Dup(op1.clone(), subt.clone(), scratch.clone()),
+			BfOp::Mov(scratch.clone(), op1.clone()),
+
+			BfOp::Loop(op0.clone(), vec![].into_iter()
+				.chain(subops)
+				.chain(vec![
+					BfOp::AddI(dest.clone(), 1),
+					BfOp::Loop(neg.clone(), vec![
+						BfOp::Zero(neg.clone()),
+						BfOp::SubI(dest.clone(), 1),
+					]),
+
+					BfOp::Mov(subaddr.clone(), op0.clone()),
+					BfOp::Dup(op1.clone(), subt.clone(), scratch.clone()),
+					BfOp::Mov(scratch.clone(), op1.clone()),
+				])
+				.collect()
 			),
+
 			BfOp::Zero(op1.clone()),
+			BfOp::Zero(subt.clone()),
 		])
 		.collect()
+}
+
+fn build_mul(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let (op0, o0) = builder_args_to_consumable_reg(ctx, &args[0]);
+	let (op1, o1) = builder_args_to_consumable_reg(ctx, &args[1]);
+
+	let dest = ret.unwrap();
+	let scratch = borrow_reg(ctx, 1);
+
+	vec![]
+		.into_iter()
+		.chain(o0)
+		.chain(o1)
+		.chain(vec![
+			BfOp::Loop(op1.clone(), vec![
+				BfOp::SubI(op1.clone(), 1),
+				BfOp::Dup(op0.clone(), dest.clone(), scratch.clone()),
+				BfOp::Mov(scratch.clone(), op0.clone()),
+			]),
+			BfOp::Zero(op0.clone()),
+		])
+		.collect()
+}
+
+fn build_shiftr(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	let (op0, o0) = builder_args_to_consumable_reg(ctx, &args[0]);
+	let (op1, o1) = builder_args_to_consumable_reg(ctx, &args[1]);
+
+	let dest = ret.unwrap();
+
+	let scratch = borrow_reg(ctx, 5);
+
+	let av = offset(scratch.clone(), 0);
+	let a0 = offset(scratch.clone(), 1);
+	let a1 = offset(scratch.clone(), 2);
+	let al = offset(scratch.clone(), 3);
+
+	vec![]
+		.into_iter()
+		.chain(o0)
+		.chain(o1)
+		.chain(vec![
+			BfOp::Mov(op0.clone(), dest.clone()),
+			BfOp::AddI(a1.clone(), 1),
+
+			BfOp::Loop(op1.clone(), vec![
+				BfOp::SubI(op1.clone(), 1),
+
+				BfOp::Mov(dest.clone(), av.clone()),
+
+				// split op0 in half, higher half in ah lower half al
+				BfOp::Loop(av.clone(), vec![
+						// move 1 to the upper half leaving the PC at ah
+						BfOp::SubI(av.clone(), 1),
+
+						BfOp::Loop2(av.clone(), a0.clone(), vec![
+							BfOp::SubI(av.clone(), 1),
+							BfOp::AddI(dest.clone(), 1),
+						]),
+						// pc is either av or a0 here
+
+						// fixup the pc
+						BfOp::Loop2(a1.clone(), a0.clone(), vec![]),
+				]),
+			]),
+		])
+		.chain(vec![BfOp::Zero(a1.clone())])
+		.collect()
+}
+
+fn build_bitwise_or(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	build_bitwise_op(ctx, i, block, args, ret, |l, r, dest| vec![
+		BfOp::Loop(
+			l.clone(),
+			vec![
+				BfOp::Mov(l.clone(), dest.clone()),
+				BfOp::Zero(r.clone()),
+			],
+		),
+		BfOp::Loop(
+			r.clone(),
+			vec![
+				BfOp::Mov(r.clone(), dest.clone()),
+			],
+		),
+	])
+}
+
+fn build_bitwise_and(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	build_bitwise_op(ctx, i, block, args, ret, |l, r, dest| vec![
+		BfOp::Loop(
+			l.clone(),
+			vec![
+				BfOp::SubI(l.clone(), 1),
+				BfOp::Mov(r.clone(), dest.clone()),
+			],
+		),
+		BfOp::Zero(r.clone()),
+	])
+}
+
+fn build_bitwise_xor(
+	ctx: &mut Ctx,
+	i: &llvm_ir::Instruction,
+	block: &llvm_ir::BasicBlock,
+	args: &[BuilderArgs],
+	ret: Option<Addr>,
+) -> Vec<BfOp> {
+	build_bitwise_op(ctx, i, block, args, ret, |l, r, dest| vec![
+		BfOp::Loop(l.clone(), vec![
+			BfOp::SubI(l.clone(), 1),
+			BfOp::AddI(dest.clone(), 1),
+
+			BfOp::Loop(r.clone(), vec![
+				BfOp::SubI(r.clone(), 1),
+				BfOp::SubI(dest.clone(), 1),
+			]),
+		]),
+
+		BfOp::Loop(r.clone(), vec![
+			BfOp::SubI(r.clone(), 1),
+			BfOp::AddI(dest.clone(), 1),
+
+			BfOp::Loop(l.clone(), vec![
+				BfOp::SubI(l.clone(), 1),
+				BfOp::SubI(dest.clone(), 1),
+			]),
+		]),
+	])
 }
 
 fn build_add(
@@ -1434,24 +1984,6 @@ fn build_call(
 	callops
 }
 
-fn instr_name(i: &llvm_ir::Instruction) -> &str {
-	match i {
-		llvm_ir::Instruction::Store(_) => "store",
-		llvm_ir::Instruction::Load(_) => "load",
-		llvm_ir::Instruction::Add(_) => "add",
-		llvm_ir::Instruction::Sub(_) => "sub",
-		llvm_ir::Instruction::ZExt(_) => "zext",
-		llvm_ir::Instruction::Trunc(_) => "trunc",
-		llvm_ir::Instruction::SExt(_) => "sext",
-		llvm_ir::Instruction::IntToPtr(_) => "inttoptr",
-		llvm_ir::Instruction::PtrToInt(_) => "ptrtoint",
-		llvm_ir::Instruction::Phi(_) => "phi",
-		llvm_ir::Instruction::Or(_) => "or",
-		llvm_ir::Instruction::And(_) => "and",
-		_ => unimplemented!("lookup for {}", i),
-	}
-}
-
 fn instr_consumes<'i>(
 	ctx: &Ctx,
 	i: &'i llvm_ir::Instruction,
@@ -1526,7 +2058,21 @@ fn instr_opers<'i>(
 		llvm_ir::Instruction::ICmp(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::Or(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::And(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::Xor(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::Shl(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::AShr(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::LShr(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::SRem(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::URem(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::SDiv(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::UDiv(i) => vec![&i.operand0, &i.operand1],
+		llvm_ir::Instruction::Mul(i) => vec![&i.operand0, &i.operand1],
 		llvm_ir::Instruction::BitCast(i) => vec![&i.operand],
+		llvm_ir::Instruction::GetElementPtr(i) => {
+			assert!(i.indices.len() == 1);
+
+			vec![&i.address, &i.indices[0]]
+		},
 		llvm_ir::Instruction::Select(i) => {
 			vec![&i.condition, &i.true_value, &i.false_value]
 		}
@@ -1565,10 +2111,40 @@ fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 			builders: &[(RetMeta::Addr, build_sub)],
 		},
 		llvm_ir::Instruction::Or(_) => &InstrMeta {
-			builders: &[(RetMeta::Addr, build_or)],
+			builders: &[(RetMeta::Addr, build_bitwise_or)],
 		},
 		llvm_ir::Instruction::And(_) => &InstrMeta {
-			builders: &[(RetMeta::Addr, build_and)],
+			builders: &[(RetMeta::Addr, build_bitwise_and)],
+		},
+		llvm_ir::Instruction::Shl(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_shiftl)],
+		},
+		llvm_ir::Instruction::AShr(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_shiftr)],
+		},
+		llvm_ir::Instruction::LShr(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_shiftr)],
+		},
+		llvm_ir::Instruction::SRem(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_remainder)],
+		},
+		llvm_ir::Instruction::URem(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_remainder)],
+		},
+		llvm_ir::Instruction::SDiv(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_div)],
+		},
+		llvm_ir::Instruction::UDiv(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_div)],
+		},
+		llvm_ir::Instruction::Mul(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_mul)],
+		},
+		llvm_ir::Instruction::Xor(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_bitwise_xor)],
+		},
+		llvm_ir::Instruction::GetElementPtr(_) => &InstrMeta {
+			builders: &[(RetMeta::Addr, build_getelemptr)],
 		},
 		llvm_ir::Instruction::ZExt(_)
 		| llvm_ir::Instruction::IntToPtr(_)
@@ -1587,6 +2163,7 @@ fn lookup_instr(i: &llvm_ir::Instruction) -> &'static InstrMeta<'static> {
 }
 
 fn build_func(
+	globals: &Vec<GlobalMap>,
 	playout: &Layout,
 	ret_pad_width: usize,
 	stack_width: usize,
@@ -1604,6 +2181,7 @@ fn build_func(
 		entry_block_addr: None,
 		retpad_addr: None,
 		ownfid: None,
+		globals: globals.clone(),
 	};
 
 	for (i, block) in func.basic_blocks.iter().enumerate() {
@@ -1826,7 +2404,7 @@ fn build_func(
 
 			/*
 			for cell in &ctx.layout {
-				println!("{:?}", cell);
+				eprintln!("{:?}", cell);
 				match cell {
 					Cell::Reg { n, .. } => n,
 					Cell::Alloc(n) => n,
@@ -1878,7 +2456,7 @@ fn build_func(
 						.next()
 						.unwrap(),
 					llvm_ir::Operand::ConstantOperand(_) => {
-						BuilderArgs::Const(uncop(op) as usize)
+						BuilderArgs::Const(uncop(&ctx, op) as usize)
 					}
 
 					_ => unimplemented!("lol cucked"),
@@ -2263,7 +2841,33 @@ pub fn compile(path: &Path) -> String {
 		retpad_addr: None,
 		entry_block_addr: None,
 		ownfid: None,
+		globals: Vec::<GlobalMap>::new(),
 	};
+
+	let mut global_addr_at: u8 = 0; 
+	// load globals into beginning of address space
+	for g in module.global_vars.iter() {
+		let mut len = 0;
+		match g.initializer.as_ref().unwrap().deref() {
+			llvm_ir::constant::Constant::Array{element_type, elements} => {
+				len = elements.len() as u8;
+				for e in elements.iter() {
+					match e.deref() {
+						llvm_ir::constant::Constant::Int{bits, value} => {
+							root.push(BfOp::AddI(fixed_addr(0), *value as u8));
+							root.push(BfOp::Right(1));
+						},
+						_ => unimplemented!("lol")
+					}
+				}
+			}
+
+			_ => unimplemented!("o {:?}", g.initializer),
+		}
+
+		ctx.globals.push(GlobalMap{ name: g.name.clone(), addr: global_addr_at });
+		global_addr_at += len;
+	}
 
 	root.push(BfOp::Right(ret_pad_width + STACK_PTR_W));
 	root.push(BfOp::AddI(
@@ -2315,8 +2919,8 @@ pub fn compile(path: &Path) -> String {
 	let ret_pad_width = 1 + funcns + RET_LANDING_PAD;
 
 	for func in module.functions.iter() {
-		let (_, st_width) = build_func(&layout, ret_pad_width, 0, func);
-		let (mut code, _) = build_func(&layout, ret_pad_width, st_width, func);
+		let (_, st_width) = build_func(&ctx.globals, &layout, ret_pad_width, 0, func);
+		let (mut code, _) = build_func(&ctx.globals, &layout, ret_pad_width, st_width, func);
 
 		mainloop.append(&mut code);
 	}
@@ -2425,7 +3029,7 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 
 			write!(
 				out,
-				"m{}/{} {}[-{}+{}]",
+				"mov{}/{} {}[-{}+{}]",
 				from_a,
 				to_a,
 				cmov(cursor, from_a),
@@ -2447,7 +3051,7 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 			// travel
 			write!(
 				out,
-				"d{}/{}/{} {}[-{}+{}+{}]",
+				"dup{}/{}/{} {}[-{}+{}+{}]",
 				from_a,
 				to_a1,
 				to_a2,
@@ -2476,6 +3080,19 @@ fn printinstri(out: &mut String, ins: BfOp, cstart: usize, i: usize) -> usize {
 			write!(out, "{}{}]", ind, m).unwrap();
 		}
 
+		BfOp::Loop2(addr1, addr2, ops) => {
+			let m = cmov(cursor, resaddr(addr1.clone()));
+			cursor = resaddr(addr1.clone());
+
+			write!(out, "{}[\n", m).unwrap();
+			cursor = printasti(out, ops, cursor, i + 1);
+
+			let m = cmov(cursor, resaddr(addr2.clone()));
+			cursor = resaddr(addr2.clone());
+
+			write!(out, "{}{}]", ind, m).unwrap();
+		}
+
 		BfOp::Nop => {}
 	}
 
@@ -2493,11 +3110,18 @@ fn unlop(op: &llvm_ir::Operand) -> &llvm_ir::Name {
 }
 
 // un constant operand
-fn uncop(op: &llvm_ir::Operand) -> u64 {
+fn uncop(ctx: &Ctx, op: &llvm_ir::Operand) -> u64 {
 	match op {
 		llvm_ir::Operand::ConstantOperand(c) => match c.deref() {
 			llvm_ir::constant::Constant::Int { value, .. } => *value,
-			_ => unimplemented!("how tf we gonna store that"),
+			llvm_ir::constant::Constant::Null { .. } => 0,
+			llvm_ir::constant::Constant::GetElementPtr(gep) => {
+				eprintln!("{:?}",gep.address);
+				eprintln!("{:?}",gep.indices);
+				//ctx.globals.iter().find(|g| g.name == gep.address.)
+				0
+			},
+			_ => unimplemented!("how tf we gonna store that {:?}", c.deref()),
 		},
 		_ => {
 			unimplemented!("owo what's this")

@@ -1,4 +1,5 @@
 use std::env;
+use std::fmt;
 use std::fs;
 use std::fs::File;
 use std::io;
@@ -15,6 +16,19 @@ extern crate serde_json;
 use serde::Deserialize;
 
 mod bfcc;
+
+// The tests file structure is roughly. Artifacts are indeded to be plain text
+// and checked in
+//
+// /tests/
+// |- cases/
+// |  \- <test name>.c : c based tests to be compiled and executed
+// \- artifacts/
+//    \- <build info>/ : like o0 or o1 for opt levels
+//       \- <test name>/
+//          |- ir.ll
+//          |- stats
+//          \- bf.bf
 
 #[derive(Deserialize)]
 struct TestCase {
@@ -53,11 +67,21 @@ fn compile_bf(path: &Path, target: &Path) -> String {
 	code_out
 }
 
+const ARTIFACT_DIR: &str = "./tests/artifacts";
+
 fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 	if env::args().len() > 1 && env::args().find(|x| x == &info.name).is_none()
 	{
 		return;
 	}
+
+	let artifacts = format!(
+		"{}/{}/{}",
+		ARTIFACT_DIR,
+		name,
+		case.file_name().into_string().unwrap(),
+	);
+	fs::create_dir_all(Path::new(&artifacts)).unwrap();
 
 	if info.skip.unwrap_or(false) {
 		println!(
@@ -80,11 +104,7 @@ fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 	io::stdout().flush().unwrap();
 
 	let source = format!("{}", case.path().as_path().to_str().unwrap());
-	let target = format!(
-		"./tests/ir/{}.{}.bc",
-		case.file_name().into_string().unwrap(),
-		name
-	);
+	let target = format!("{}/ir.bc", artifacts);
 
 	let cc = compile_ir(cflags, &source, &target);
 	if cc.is_err() {
@@ -99,20 +119,16 @@ fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 		return;
 	}
 
-	let bfout = format!(
-		"./tests/bf/{}.{}.bf",
-		case.file_name().into_string().unwrap(),
-		name
-	);
+	let bfout = format!("{}/bf.bf", artifacts);
 	let bf_code = compile_bf(Path::new(&target), Path::new(&bfout));
 
-	let comp = compile(&bf_code);
+	let bfbc = bf_bytecode(&bf_code);
 
-	let result = exec(comp);
+	let result = exec(bfbc);
 	if result.is_err() {
 		print!("\n");
 		println!("EXECUTE ERROR");
-		println!("{:?}", result.err().unwrap());
+		println!("{}", result.err().unwrap());
 		println!(
 			"\r{}{} fail {} {}",
 			color::Fg(color::Red),
@@ -145,12 +161,9 @@ fn run_test(case: &fs::DirEntry, info: TestCase, cflags: &str, name: &str) {
 		return;
 	}
 
-	let mut stats = File::create(Path::new(&format!(
-		"./tests/stats/{}.{}.txt",
-		case.file_name().into_string().unwrap(),
-		name,
-	)))
-	.unwrap();
+	let mut stats = File::create(Path::new(&format!("{}/info", artifacts)))
+		.unwrap();
+
 	stats
 		.write_all(format!("steps: {}\n", result.steps).as_bytes())
 		.unwrap();
@@ -175,7 +188,7 @@ fn main() {
 	cases.sort_by_key(|dir| dir.path());
 
 	println!(
-		"{}{} test {} {}",
+		"{}{} section {} {}",
 		color::Fg(color::Blue),
 		style::Invert,
 		style::Reset,
@@ -220,6 +233,23 @@ enum InterpErr {
 	ExitMemNonZero,
 }
 
+impl fmt::Display for InterpErr {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(
+			f,
+			"{}",
+			match self {
+				IntOverflow => "cell value overflow (undefined behavior)",
+				IntUnderflow => "cell value underflow (undefined behavior)",
+				MemOverflow => "ran out of memory",
+				MemUnderflow =>
+					"decrement memory pointer past first cell (undefined behavior)",
+				ExitMemNonZero => "all memory must be zeroed at program exit",
+			}
+		)
+	}
+}
+
 struct ExecResult {
 	output: String,
 	steps: usize,
@@ -235,7 +265,7 @@ enum COps {
 	//Loop(Vec<COps>)
 }
 
-fn compile(code: &str) -> Vec<COps> {
+fn bf_bytecode(code: &str) -> Vec<COps> {
 	let mut opsout = Vec::<COps>::new();
 
 	let chars: Vec<char> = code.chars().collect();
